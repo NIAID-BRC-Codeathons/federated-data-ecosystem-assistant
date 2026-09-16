@@ -24,6 +24,7 @@ For multi-step questions, chain tools: search -> get entry -> get interactions.
 
 MCP_SERVER_URL = "http://127.0.0.1:8000/mcp"
 PDN_MCP_SERVER_URL = "http://127.0.0.1:8001/mcp-pdn"
+MYGENE_MCP_SERVER_URL = "http://127.0.0.1:8002/mcp-mygene"
 
 def load_chat_model(model: str) -> BaseChatModel:
     provider, model_name = model.split("/", maxsplit=1)
@@ -65,6 +66,10 @@ async def init_agent():
         },
         "pdn": {
             "url": PDN_MCP_SERVER_URL,
+            "transport": "streamable_http",
+        },
+        "mygene": {
+            "url": MYGENE_MCP_SERVER_URL,
             "transport": "streamable_http",
         },
     })
