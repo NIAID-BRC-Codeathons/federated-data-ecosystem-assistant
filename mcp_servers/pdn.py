@@ -11,6 +11,7 @@ Run over stdio: python mcp_servers/pdn.py --stdio
 import difflib
 import json
 import time
+from datetime import date, timedelta
 from typing import Any, Literal
 
 import requests
@@ -1059,6 +1060,178 @@ def lapis_get_insertions(
         "min_count": min_count,
         "rows_returned": len(rows),
         "truncated": truncated,
+        "rows": rows,
+        "notes": notes,
+        "query": {
+            "url": f"{url}{endpoint}",
+            "method": "POST",
+            "body": query,
+            "data_version": data_version,
+        },
+    }
+
+
+# ********** get mutations over time **********
+
+LAPIS_MAX_PERIODS = 60
+
+# LAPIS counts over a date field, and the field must hold a date. Pathoplexus
+# stores sampleCollectionDate as text, so it keeps a date copy beside it.
+LAPIS_PREFERRED_DATE_FIELDS = ["date", "sampleCollectionDateRangeLower"]
+
+
+def _lapis_date_field(schema: dict, date_field: str) -> str:
+    """Return the date field to count over, or explain what the organism has."""
+    dates = [f for f, t in schema["fields"].items() if t == "date"]
+    if not dates:
+        raise ToolError(f"{schema['instance_name']} declares no date field to count over.")
+    if date_field:
+        if date_field not in dates:
+            raise ToolError(
+                f"'{date_field}' is not a date field of {schema['instance_name']}. "
+                f"Its date fields: {', '.join(dates)}."
+            )
+        return date_field
+    for preferred in LAPIS_PREFERRED_DATE_FIELDS:
+        if preferred in dates:
+            return preferred
+    return dates[0]
+
+
+def _lapis_date_ranges(date_from: str, date_to: str, interval: str) -> list[dict]:
+    """Cut a span into periods. The first starts on date_from, the rest on a boundary."""
+    try:
+        start, end = date.fromisoformat(date_from), date.fromisoformat(date_to)
+    except ValueError:
+        raise ToolError(
+            "date_from and date_to take an ISO date, e.g. '2025-01-01'."
+        ) from None
+    if end < start:
+        raise ToolError("date_to falls before date_from.")
+    step = {"month": 1, "quarter": 3, "year": 12}[interval]
+    ranges, cursor = [], start
+    while cursor <= end:
+        month = cursor.month - 1 + step
+        following = date(cursor.year + month // 12, month % 12 + 1, 1)
+        ranges.append({
+            "dateFrom": cursor.isoformat(),
+            "dateTo": min(following - timedelta(days=1), end).isoformat(),
+        })
+        if len(ranges) > LAPIS_MAX_PERIODS:
+            raise ToolError(
+                f"That span holds over {LAPIS_MAX_PERIODS} periods of one "
+                f"{interval}. Use a wider interval, or a shorter span."
+            )
+        cursor = following
+    return ranges
+
+
+@mcp.tool()
+def lapis_get_mutations_over_time(
+    organism: str,
+    sequence_type: Literal["nucleotide", "amino_acid"],
+    mutations: list[str],
+    date_from: str,
+    date_to: str,
+    interval: Literal["month", "quarter", "year"] = "month",
+    filters: dict[str, Any] | None = None,
+    latest_version_only: bool = True,
+    date_field: str = "",
+) -> dict:
+    """Track named mutations over time, to see whether each one grows or fades.
+
+    For each mutation and each period, the reply gives the sequences that carry
+    it, the sequences that cover its position, and the proportion between them.
+    A rising proportion is the signal to look for. lapis_get_mutations finds
+    which mutations to name.
+
+    Args:
+        organism: An organism name from lapis_list_organisms, e.g. "sars-cov-2".
+        sequence_type: "amino_acid" for changes within genes, or "nucleotide".
+        mutations: The mutations to track, e.g. ["S:N501Y", "S:F456L"]. Name
+            the gene, or the segment on a multi-segment organism.
+        date_from: The first date, e.g. "2025-01-01".
+        date_to: The last date, e.g. "2025-12-31".
+        interval: "month", "quarter", or "year" (default "month").
+        filters: As in lapis_aggregate_samples.
+        latest_version_only: As in lapis_aggregate_samples.
+        date_field: The date field to count over. Empty picks one, usually the
+            collection date.
+
+    Example questions:
+        "Is S:F456L growing in Switzerland through 2025?"
+        "How did the mpox clade Ib mutations spread over the last two years?"
+    """
+    database, url = _lapis_organism(organism)
+    schema = _lapis_schema(organism)
+    if not mutations:
+        raise ToolError(
+            "Name at least one mutation. lapis_get_mutations lists the common ones."
+        )
+    if sequence_type == "amino_acid":
+        endpoint = "/component/aminoAcidMutationsOverTime"
+        names, kind = schema["genes"], "gene"
+    else:
+        endpoint = "/component/nucleotideMutationsOverTime"
+        names, kind = schema["segments"], "segment"
+    # LAPIS answers a malformed mutation with "Failed to read request", so
+    # check the prefix here instead.
+    shown = ", ".join(names[:10]) + (", ..." if len(names) > 10 else "")
+    for mutation in mutations:
+        prefix = mutation.split(":")[0] if ":" in mutation else ""
+        if prefix and prefix not in names:
+            raise ToolError(
+                f"'{mutation}' starts with '{prefix}', which is not a {kind} of "
+                f"{schema['instance_name']}. Its {kind}s: {shown}."
+            )
+        if not prefix and (kind == "gene" or len(names) > 1):
+            example = f"{names[0]}:N50Y" if kind == "gene" else f"{names[0]}:A123G"
+            raise ToolError(
+                f"'{mutation}' needs a {kind} before the position, e.g. '{example}'."
+            )
+
+    body = dict(filters or {})
+    _lapis_check_filters(schema, body)
+    version_note = _lapis_version_filter(schema, body, latest_version_only)
+    query = {
+        "filters": body,
+        "includeMutations": mutations,
+        "dateRanges": _lapis_date_ranges(date_from, date_to, interval),
+        "dateField": _lapis_date_field(schema, date_field),
+    }
+
+    result, data_version = _lapis_post(f"{url}{endpoint}", query)
+    periods = [
+        {"from": r["dateFrom"], "to": r["dateTo"], "sequences_with_a_date": total}
+        for r, total in zip(result["dateRanges"], result["totalCountsByDateRange"])
+    ]
+    rows = []
+    for mutation, series in zip(result["mutations"], result["data"]):
+        rows.append({
+            "mutation": mutation,
+            "count": [p["count"] for p in series],
+            "coverage": [p["coverage"] for p in series],
+            "proportion": [
+                round(p["count"] / p["coverage"], 4) if p["coverage"] else None
+                for p in series
+            ],
+        })
+
+    notes = [
+        "Each count, coverage, and proportion follows the order of the "
+        "periods. A proportion divides the count by the coverage of that "
+        "period, so compare proportions, not counts.",
+        "A period with a small coverage moves a proportion a long way. Read "
+        "the coverage beside every proportion.",
+    ]
+    if version_note:
+        notes.append(version_note)
+    return {
+        "organism": organism,
+        "database": database["name"],
+        "sequence_type": sequence_type,
+        "date_field": query["dateField"],
+        "periods": periods,
         "rows": rows,
         "notes": notes,
         "query": {
