@@ -35,6 +35,9 @@ mcp = FastMCP(
 # metadata fields. The tools read those fields at runtime, so no field name
 # is hard-coded here.
 
+
+# ********** shared by the LAPIS tools **********
+
 LAPIS_HEADERS = {
     "Accept": "application/json",
     "User-Agent": (
@@ -46,29 +49,6 @@ LAPIS_HEADERS = {
 # An organism schema changes rarely, so refetch it after an hour.
 LAPIS_SCHEMA_TTL_SECONDS = 3600
 
-# Filter keys that LAPIS accepts on every organism, beside the field names.
-LAPIS_QUERY_KEYS = {
-    "advancedQuery", "nucleotideMutations", "aminoAcidMutations",
-    "nucleotideInsertions", "aminoAcidInsertions",
-}
-
-# Field types that take a "From" or "To" range filter.
-LAPIS_RANGE_TYPES = {"int", "float", "date"}
-
-LAPIS_MAX_GROUPS = 500
-LAPIS_MAX_MUTATIONS = 500
-
-# The mutation name already encodes mutationFrom, mutationTo, and position,
-# so a mutation query asks LAPIS for these columns only.
-LAPIS_MUTATION_FIELDS = [
-    "mutation", "sequenceName", "position", "count", "coverage", "proportion",
-]
-
-# LAPIS cannot filter mutations by gene or segment, so a gene or segment
-# filter downloads every mutation above the threshold. At threshold 0 that
-# reached 13 MB for dengue nucleotides, so the read stops past this size.
-LAPIS_MAX_FILTER_DOWNLOAD_BYTES = 5_000_000
-
 # No LAPIS endpoint lists the organisms. These names come from each
 # database's API documentation page, checked on 2026-09-16.
 LAPIS_DATABASES = {
@@ -76,6 +56,7 @@ LAPIS_DATABASES = {
         "name": "Pathoplexus",
         "description": "Human viral pathogens",
         "organism_url": "https://lapis.pathoplexus.org/{organism}",
+        "record_url": "https://pathoplexus.org/seq/{accession}",
         "organisms": [
             "andv", "cchf", "dengue", "ebola-bdbv", "ebola-sudan", "ebola-zaire",
             "hmpv", "marburg", "measles", "mpox", "rsv-a", "rsv-b", "west-nile",
@@ -86,6 +67,7 @@ LAPIS_DATABASES = {
         "name": "GenSpectrum Loculus",
         "description": "Influenza lineages and dengue serotypes",
         "organism_url": "https://api.loculus.genspectrum.org/{organism}",
+        "record_url": "https://loculus.genspectrum.org/seq/{accession}",
         "organisms": [
             "b-victoria", "denv1", "denv2", "denv3", "denv4", "h1n1pdm", "h3n2",
             "h5n1", "influenza-a", "influenza-b",
@@ -96,11 +78,21 @@ LAPIS_DATABASES = {
         "description": "Open SARS-CoV-2 data from Nextstrain",
         # A single dataset, so the URL takes no organism name.
         "organism_url": "https://lapis.cov-spectrum.org/open/v2",
+        "record_url": None,
         "organisms": ["sars-cov-2"],
     },
 }
 
 _lapis_schema_cache: dict[str, tuple[float, dict]] = {}
+
+# Filter keys that LAPIS accepts on every organism, beside the field names.
+LAPIS_QUERY_KEYS = {
+    "advancedQuery", "nucleotideMutations", "aminoAcidMutations",
+    "nucleotideInsertions", "aminoAcidInsertions",
+}
+
+# Field types that take a "From" or "To" range filter.
+LAPIS_RANGE_TYPES = {"int", "float", "date"}
 
 
 def _lapis_organism(organism: str) -> tuple[dict, str]:
@@ -241,6 +233,8 @@ def _lapis_version_filter(schema: dict, filters: dict, latest_version_only: bool
     )
 
 
+# ********** list organisms **********
+
 @mcp.tool()
 def lapis_list_organisms() -> dict:
     """List the pathogens that the LAPIS tools can query, grouped by database.
@@ -273,6 +267,8 @@ def lapis_list_organisms() -> dict:
         ),
     }
 
+
+# ********** describe organism **********
 
 @mcp.tool()
 def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
@@ -344,6 +340,11 @@ def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
         "notes": notes,
     })
     return description
+
+
+# ********** aggregate samples **********
+
+LAPIS_MAX_GROUPS = 500
 
 
 @mcp.tool()
@@ -433,6 +434,22 @@ def lapis_aggregate_samples(
             "data_version": data_version,
         },
     }
+
+
+# ********** get mutations **********
+
+LAPIS_MAX_MUTATIONS = 500
+
+# The mutation name already encodes mutationFrom, mutationTo, and position,
+# so a mutation query asks LAPIS for these columns only.
+LAPIS_MUTATION_FIELDS = [
+    "mutation", "sequenceName", "position", "count", "coverage", "proportion",
+]
+
+# LAPIS cannot filter mutations by gene or segment, so a gene or segment
+# filter downloads every mutation above the threshold. At threshold 0 that
+# reached 13 MB for dengue nucleotides, so the read stops past this size.
+LAPIS_MAX_FILTER_DOWNLOAD_BYTES = 5_000_000
 
 
 @mcp.tool()
@@ -585,6 +602,148 @@ def lapis_get_mutations(
             "data_version": data_version,
         },
     }
+
+
+# ********** get sample details **********
+
+LAPIS_MAX_RECORDS = 100
+
+# Pathoplexus records carry these fields. A redistributor must keep them with
+# the data, so every record query adds them wherever the schema has them.
+LAPIS_TERMS_FIELDS = ["dataUseTerms", "dataUseTermsRestrictedUntil", "dataUseTermsUrl"]
+
+LAPIS_RESTRICTED_TERMS = (
+    "The submitters restrict these records until the dates given. Keep the "
+    "data use terms with the records. Link each record to its page when you "
+    "present it. Read the terms before you publish results that use them."
+)
+
+
+def _lapis_restricted_terms(database: dict, schema: dict, rows: list[dict]) -> dict | None:
+    """Collect the data use terms of the restricted rows. None when no row is restricted."""
+    restricted = [r for r in rows if r.get("dataUseTerms") == "RESTRICTED"]
+    if not restricted:
+        return None
+    key = schema["primary_key"]
+    return {
+        "restricted_records": [
+            {
+                "accession": r[key],
+                "restricted_until": r.get("dataUseTermsRestrictedUntil"),
+                "record_url": database["record_url"].format(accession=r[key]),
+            }
+            for r in restricted
+        ],
+        "terms_url": restricted[0].get("dataUseTermsUrl"),
+        "obligations": LAPIS_RESTRICTED_TERMS,
+    }
+
+
+@mcp.tool()
+def lapis_get_sample_details(
+    organism: str,
+    fields: list[str],
+    filters: dict[str, Any] | None = None,
+    latest_version_only: bool = True,
+    order_by: str = "",
+    descending: bool = False,
+    limit: int = 10,
+    offset: int = 0,
+) -> dict:
+    """Get individual sample records for one organism, with the fields you name.
+
+    Use this to list or inspect specific samples, such as the most recent
+    sequences from one country. For counts, use lapis_aggregate_samples, which
+    returns far less text.
+
+    Name only the fields you need. A record can carry over 150 fields, and a
+    field such as authors can run to thousands of characters.
+    lapis_describe_organism lists the field names. The tool always adds the
+    primary key, and on Pathoplexus it adds the data use terms fields.
+
+    Records under RESTRICTED data use terms come with a data_use_terms block.
+    Keep those terms with the records, and link each record to its page when
+    you present it.
+
+    Args:
+        organism: An organism name from lapis_list_organisms, e.g. "mpox".
+        fields: Field names to return, e.g. ["geoLocCountry",
+            "sampleCollectionDate"].
+        filters: Field filters, in the same form as lapis_aggregate_samples.
+        latest_version_only: Return only the latest version of each sequence
+            and skip revocations (default True).
+        order_by: A field to sort the records by, e.g. "sampleCollectionDate".
+            Leave empty for the database order.
+        descending: Sort from highest to lowest (default False).
+        limit: Maximum number of records to return (default 10, max 100).
+        offset: Number of matching records to skip, to get the next page
+            (default 0).
+
+    Returns:
+        The records, the total number of matching records, the offset of the
+        next page, the data use terms of restricted records, notes, and the
+        exact query sent to LAPIS.
+
+    Example questions:
+        "Show the 10 most recent mpox sequences from the Democratic Republic
+        of the Congo."
+        "List the H5N1 samples from cattle with their collection dates."
+        "Which measles records on Pathoplexus are under restricted terms?"
+    """
+    database, url = _lapis_organism(organism)
+    schema = _lapis_schema(organism)
+    if not fields:
+        raise ToolError(
+            "Name at least one field. lapis_describe_organism lists the fields."
+        )
+    for name in [*fields, *([order_by] if order_by else [])]:
+        if name not in schema["fields"]:
+            raise _lapis_unknown_field(schema, name)
+    body = dict(filters or {})
+    _lapis_check_filters(schema, body)
+    version_note = _lapis_version_filter(schema, body, latest_version_only)
+
+    terms_fields = [f for f in LAPIS_TERMS_FIELDS if f in schema["fields"]]
+    returned_fields = list(dict.fromkeys([schema["primary_key"], *fields, *terms_fields]))
+    limit = max(1, min(limit, LAPIS_MAX_RECORDS))
+    offset = max(0, offset)
+    query = {**body, "fields": returned_fields, "limit": limit, "offset": offset}
+    if order_by:
+        query["orderBy"] = [
+            {"field": order_by, "type": "descending" if descending else "ascending"}
+        ]
+
+    rows, data_version = _lapis_post(f"{url}/sample/details", query)
+    # A count over the same filters tells the agent how many records remain.
+    count_rows, _ = _lapis_post(f"{url}/sample/aggregated", body)
+    total = count_rows[0]["count"]
+    next_offset = offset + len(rows)
+
+    notes = []
+    if version_note:
+        notes.append(version_note)
+    result = {
+        "organism": organism,
+        "database": database["name"],
+        "total": total,
+        "offset": offset,
+        "rows_returned": len(rows),
+        "next_offset": next_offset if next_offset < total else None,
+        "rows": rows,
+    }
+    terms = _lapis_restricted_terms(database, schema, rows)
+    if terms:
+        result["data_use_terms"] = terms
+    result.update({
+        "notes": notes,
+        "query": {
+            "url": f"{url}/sample/details",
+            "method": "POST",
+            "body": query,
+            "data_version": data_version,
+        },
+    })
+    return result
 
 
 if __name__ == "__main__":
