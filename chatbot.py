@@ -15,6 +15,7 @@ LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
 # LLM_MODEL="cesnet/qwen3-coder"
 # LLM_MODEL="ollama/gemma4"
 # LLM_MODEL="mistralai/mistral-small-latest"
+# LLM_MODEL="anthropic/claude-opus-5"
 
 SYSTEM_PROMPT = """You are a bioinformatics assistant with access to SIB databases.
 Always use tools to retrieve real data, never invent accessions or sequences.
@@ -39,6 +40,11 @@ def load_chat_model(model: str) -> BaseChatModel:
     if provider == "mistralai":
         from langchain_mistralai import ChatMistralAI
         return ChatMistralAI(model_name=model_name, temperature=0, max_tokens=2048)
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        # Claude Opus 5 thinks by default and rejects temperature, so leave it unset.
+        # Thinking tokens count against max_tokens, so allow more than the other providers.
+        return ChatAnthropic(model=model_name, max_tokens=16000)
     raise ValueError(f"Unknown provider: {provider}")
 
 
@@ -92,8 +98,9 @@ async def on_message(message: cl.Message):
         {"messages": chat_history}, stream_mode="messages"
     ):
         if isinstance(chunk, AIMessageChunk):
-            if isinstance(chunk.content, str) and chunk.content:
-                await answer_msg.stream_token(chunk.content)
+            # Anthropic streams content as a list of blocks; .text keeps only the text.
+            if chunk.text:
+                await answer_msg.stream_token(chunk.text)
             for tc_chunk in getattr(chunk, "tool_call_chunks", []) or []:
                 tc_id = tc_chunk.get("id")
                 if tc_id:
