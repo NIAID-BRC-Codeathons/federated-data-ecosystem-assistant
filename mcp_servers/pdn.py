@@ -152,6 +152,11 @@ def _lapis_schema(organism: str) -> dict:
         "phylo_tree_fields": [
             m["name"] for m in config["metadata"] if m.get("isPhyloTreeField")
         ],
+        # A lineage field holds a hierarchy, so a filter on it can match a
+        # whole clade with a "*" suffix.
+        "lineage_fields": [
+            m["name"] for m in config["metadata"] if m.get("generateLineageIndex")
+        ],
         # The reference genome carries full sequences. Keep only the names.
         "segments": [s["name"] for s in reference["nucleotideSequences"]],
         "genes": [g["name"] for g in reference["genes"]],
@@ -379,6 +384,16 @@ def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
             "stays as its own record. Filter on versionStatus='LATEST_VERSION' "
             "and isRevocation=false to count each sequence once."
         )
+    if schema["lineage_fields"]:
+        notes.append(
+            "A lineage field holds a hierarchy. A plain value matches that "
+            "lineage alone, and a '*' suffix matches the lineage with every "
+            "sublineage under it. On sars-cov-2 in September 2026, "
+            "pangoLineage='JN.1' matched 29,360 sequences, and "
+            "pangoLineage='JN.1*' matched 210,949. Use "
+            "the '*' suffix unless you mean the one lineage. The lineage "
+            f"fields here: {', '.join(schema['lineage_fields'])}."
+        )
     if "dataUseTerms" in schema["fields"]:
         notes.append(
             "Some records carry RESTRICTED data use terms. Read dataUseTerms, "
@@ -398,6 +413,7 @@ def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
         description["genes"] = schema["genes"]
     description.update({
         "phylo_tree_fields": schema["phylo_tree_fields"],
+        "lineage_fields": schema["lineage_fields"],
         "field_search": field_search,
         "fields_matched": len(fields),
         "fields_total": len(schema["fields"]),
@@ -411,6 +427,14 @@ def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
                 "Add From or To to an int, float, or date field, e.g. "
                 "sampleCollectionDateRangeLowerFrom. A string field takes no "
                 "range, even when it holds a date."
+            ),
+            "lineages": (
+                "A lineage field takes a '*' suffix to match a lineage with "
+                "every sublineage under it, e.g. pangoLineage='JN.1*'. Without "
+                "the suffix, only that one lineage matches. The lineage fields "
+                "here: "
+                + (", ".join(schema["lineage_fields"]) or "none")
+                + "."
             ),
             "text and missing values": (
                 "Add .regex to a string field for a regular expression. Add "
@@ -469,6 +493,11 @@ def lapis_aggregate_samples(
             {"sampleCollectionDateRangeLowerFrom": "2025-01-01"}. A string
             field takes no range, even when it holds a date. Add ".regex" to a
             string field, or ".isNull" to any field.
+            A lineage field holds a hierarchy, so add a "*" suffix to match a
+            lineage with its sublineages, e.g. {"pangoLineage": "JN.1*"}.
+            Without the suffix, only that one lineage matches, which is
+            usually not what a question means. lapis_describe_organism names
+            the lineage fields of an organism.
             Two keys reach past single fields. "nucleotideMutations" or
             "aminoAcidMutations" with a list keeps the sequences that carry
             every listed mutation, e.g. {"aminoAcidMutations": ["S:N501Y"]}.
