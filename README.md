@@ -57,7 +57,7 @@ tell them apart from BV-BRC and PDN tools when routing.
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m pytest          # 40 offline tests
+.venv/bin/python -m pytest          # 58 offline tests
 ```
 
 Then copy the `mcpServers` block from `mcp.json.example` into your client's MCP
@@ -193,6 +193,12 @@ documentation, and several items contradict what the documentation implies.
   unbounded for BioProject, and for Assembly and GEO it is not implemented but
   says so only by returning something that is not your data. Those tools use
   esummary and refuse efetch.
+- **Taxonomy is the one database where efetch beats esummary.** The summary
+  record has no lineage and no genetic code at all, so `ncbi_taxonomy_lookup`
+  uses efetch. Two traps in its XML: `<LineageEx>` nests a full `<Taxon>` per
+  ancestor (three requested taxa carry 49 `<TaxId>` elements), so walking every
+  `Taxon` returns ancestors as results; and the common name arrives as
+  `<GenbankCommonName>` for some taxa and `<CommonName>` for others.
 - **elink omits `linksetdbs` entirely when there are no links** — not `[]` — so
   the obvious indexing raises `KeyError` on the most ordinary outcome there is.
   It also *merges* results from multiple source ids with no per-id attribution,
@@ -203,7 +209,7 @@ documentation, and several items contradict what the documentation implies.
 ## Testing
 
 ```sh
-.venv/bin/python -m pytest          # 40 offline tests, no network
+.venv/bin/python -m pytest          # 58 offline tests, no network
 .venv/bin/python -m pytest -m live  # 7 tests against the real API
 ```
 

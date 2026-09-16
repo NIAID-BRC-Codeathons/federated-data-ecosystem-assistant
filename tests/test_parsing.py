@@ -9,6 +9,7 @@ from ncbi_mcp.parsing import (
     parse_esummary_records,
     parse_linksets,
     parse_runinfo_csv,
+    parse_taxonomy_records,
     parse_xml_fragment,
     xml_to_dict,
 )
@@ -129,3 +130,53 @@ def test_linksets_group_by_target_database():
         ]
     }
     assert parse_linksets(payload) == {"sra": ["1", "2"], "pubmed": ["9"]}
+
+
+# --- taxonomy efetch ------------------------------------------------------
+
+
+def test_lineage_ancestors_are_not_mistaken_for_results():
+    """<LineageEx> nests a full <Taxon> per ancestor, each with its own TaxId.
+
+    The fixture asks for three taxa and contains 49 TaxId elements. An
+    implementation using root.iter("Taxon") returns every ancestor as though it
+    were a requested organism --- 'cellular organisms' and 'Bacillati' arrive
+    looking exactly like real hits.
+    """
+    blob = load_text("taxonomy_efetch_9606_1280_562.xml")
+    assert blob.count("<TaxId>") == 49  # guard on the fixture
+    records = parse_taxonomy_records(blob)
+    assert [r["taxid"] for r in records] == ["9606", "1280", "562"]
+
+
+def test_both_spellings_of_common_name_are_read():
+    """Measured: 9606 uses <GenbankCommonName>, 562 uses <CommonName>, and 1280
+    has neither. Reading only one spelling drops half the names."""
+    records = {
+        r["taxid"]: r
+        for r in parse_taxonomy_records(
+            load_text("taxonomy_efetch_9606_1280_562.xml")
+        )
+    }
+    assert records["9606"]["common_name"] == "human"
+    assert records["562"]["common_name"] == "E. coli"
+    assert records["1280"]["common_name"] is None
+
+
+def test_lineage_and_genetic_code_are_present():
+    """The two fields esummary does not have at all --- the reason this tool
+    uses efetch."""
+    records = {
+        r["taxid"]: r
+        for r in parse_taxonomy_records(
+            load_text("taxonomy_efetch_9606_1280_562.xml")
+        )
+    }
+    assert records["1280"]["genetic_code"] == "Bacterial, Archaeal and Plant Plastid"
+    assert records["1280"]["lineage"].startswith("cellular organisms; Bacteria;")
+    assert records["1280"]["parent_taxid"] == "1279"
+
+
+def test_malformed_taxonomy_xml_yields_no_records_rather_than_raising():
+    assert parse_taxonomy_records("<TaxaSet><Taxon>") == []
+    assert parse_taxonomy_records("") == []

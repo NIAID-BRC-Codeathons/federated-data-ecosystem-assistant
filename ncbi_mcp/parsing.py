@@ -161,6 +161,66 @@ def parse_esummary_records(
     return records, errors
 
 
+def parse_taxonomy_records(blob: str) -> list[dict[str, Any]]:
+    """Flatten an ``efetch db=taxonomy`` TaxaSet into one dict per requested taxon.
+
+    Taxonomy is the one database where efetch is strictly better than esummary:
+    the summary record has no lineage and no genetic code at all, so a tool that
+    promises either has to come here. Measured ~7.7 KB/taxon, which is why the
+    caller caps the batch.
+
+    Two measured traps, both of which produce wrong data rather than an error:
+
+    **``<TaxId>`` is not one per taxon.** Every ancestor inside ``<LineageEx>``
+    is itself a full ``<Taxon>`` element with its own ``TaxId``, ``ScientificName``
+    and ``Rank``. Three requested taxa carry 49 ``TaxId`` elements between them.
+    ``root.iter("Taxon")`` therefore returns the ancestors as if they were
+    results --- ``findall("Taxon")``, direct children only, is load-bearing.
+
+    **The common name has two different element names.** Measured: taxid 9606
+    uses ``<GenbankCommonName>`` ("human"), taxid 562 uses ``<CommonName>``
+    ("E. coli"), and taxid 1280 has neither. Checking only one spelling silently
+    drops the name for half the tree.
+    """
+    # Not parse_xml_fragment: this is a whole efetch document, and it opens with
+    # an XML declaration and a DOCTYPE. That helper wraps its input in <root>
+    # unconditionally --- correct for the JSON-embedded fragments it exists for,
+    # but it puts the declaration mid-document and every taxon silently
+    # disappears behind a ParseError.
+    if not blob or not blob.strip():
+        return []
+    try:
+        root = ET.fromstring(blob)
+    except ET.ParseError:
+        return []
+
+    taxa = root.findall("Taxon")
+
+    records: list[dict[str, Any]] = []
+    for taxon in taxa:
+        other = taxon.find("OtherNames")
+        common = None
+        if other is not None:
+            for spelling in ("GenbankCommonName", "CommonName"):
+                found = other.findtext(spelling)
+                if found:
+                    common = found
+                    break
+        records.append(
+            {
+                "taxid": taxon.findtext("TaxId"),
+                "scientific_name": taxon.findtext("ScientificName"),
+                "common_name": common,
+                "rank": taxon.findtext("Rank"),
+                "division": taxon.findtext("Division"),
+                "parent_taxid": taxon.findtext("ParentTaxId"),
+                "genetic_code": taxon.findtext("GeneticCode/GCName"),
+                "lineage": taxon.findtext("Lineage"),
+            }
+        )
+    return records
+
+
 def expand_sra_summary(record: dict[str, Any]) -> dict[str, Any]:
     """Replace an SRA esummary record's XML string fields with parsed structures."""
     expanded = dict(record)

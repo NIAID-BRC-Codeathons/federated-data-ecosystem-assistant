@@ -81,7 +81,12 @@ DATABASES: dict[str, DatabaseInfo] = {
         name="taxonomy",
         description="Organism names, NCBI taxonomy IDs, and lineage.",
         efetch="ok",
-        efetch_note="Small and well behaved; ~343-byte summaries.",
+        efetch_note=(
+            "Required, not optional: the esummary record has no lineage and no "
+            "genetic code at all. ~7.7 KB/taxon vs ~343-byte summaries. Note "
+            "that <LineageEx> nests a full <Taxon> per ancestor, so a naive "
+            "walk returns ancestors as results."
+        ),
         tool="ncbi_taxonomy_lookup",
     ),
     "gene": DatabaseInfo(

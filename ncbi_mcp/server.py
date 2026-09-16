@@ -70,6 +70,7 @@ client = EUtilsClient()
 # a ToolError naming the smaller alternative rather than a 30 MB tool result.
 MAX_RECORDS_DEFAULT = 100
 MAX_SRA_FULL_RUNS = 50  # full SRA XML is ~9.3 KB/record
+MAX_TAXONOMY_RECORDS = 50  # taxonomy efetch is ~7.7 KB/taxon
 
 
 # --------------------------------------------------------------------------
@@ -850,7 +851,7 @@ async def ncbi_taxonomy_lookup(
         ),
     ],
 ) -> dict[str, Any]:
-    """Resolve an organism name to an NCBI taxonomy ID, rank, and lineage.
+    """Resolve an organism name to an NCBI taxonomy ID, rank, and full lineage.
 
     Use this to confirm the exact organism name before an SRA or sequence
     search, since Entrez organism matching is name-sensitive.
@@ -860,7 +861,7 @@ async def ncbi_taxonomy_lookup(
         uids = _split_ids(query) if query.strip().isdigit() else None
         translation = None
         if uids is None:
-            result = await _esearch("taxonomy", query, retmax=20)
+            result = await _esearch("taxonomy", query, retmax=MAX_TAXONOMY_RECORDS)
             translation = result.get("querytranslation")
             uids = result.get("idlist") or []
             if not uids:
@@ -869,25 +870,44 @@ async def ncbi_taxonomy_lookup(
                     [],
                     {"result_count": 0, "query_translation": translation},
                 )
-        records, uid_errors = await _esummary_records("taxonomy", uids)
-        data = [
-            {
-                "taxid": r.get("uid"),
-                "scientific_name": r.get("scientificname"),
-                "common_name": r.get("commonname"),
-                "rank": r.get("rank"),
-                "division": r.get("division"),
-                "genetic_code": r.get("geneticcode"),
-            }
-            for r in records
-        ]
+
+        # efetch, not esummary. The taxonomy esummary record has no lineage and
+        # no genetic code --- it carries an empty `commonname` and nothing else
+        # of the sort --- so the two fields this tool advertises can only come
+        # from efetch. Same one request, ~7.7 KB/taxon instead of ~343 bytes.
+        if len(uids) > MAX_TAXONOMY_RECORDS:
+            raise _fail(
+                f"{len(uids)} taxa exceeds the {MAX_TAXONOMY_RECORDS}-record "
+                f"cap for this tool (full records are ~7.7 KB each). Narrow "
+                f"the query, or fetch the taxids in smaller batches."
+            )
+        blob, _ = await client.request(
+            "efetch", {"id": ",".join(uids), "retmode": "xml"}, db="taxonomy"
+        )
+        data = parsing.parse_taxonomy_records(blob)
+
+        # efetch drops taxids it cannot resolve without comment, the same way
+        # esummary does --- and unlike esummary there is no per-record error to
+        # surface, so the only signal is the count.
+        returned = {r.get("taxid") for r in data}
+        missing = [uid for uid in uids if uid not in returned]
+        notes = (
+            [
+                "NCBI returned no taxonomy record for these IDs: "
+                + ", ".join(missing)
+            ]
+            if missing
+            else None
+        )
         return (
             f"{len(data)} taxonomy record(s) for {query!r}.",
             data,
             {
                 "result_count": len(data),
                 "query_translation": translation,
-                "notes": _uid_error_notes(uid_errors),
+                "coverage_db": "taxonomy",
+                "coverage_requested": len(uids),
+                "notes": notes,
             },
         )
 
