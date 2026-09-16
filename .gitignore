@@ -8,3 +8,7 @@ __pycache__/
 .ruff_cache/
 .chainlit
 chainlit.md
+
+docs/
+CLAUDE.md
+scratch/
