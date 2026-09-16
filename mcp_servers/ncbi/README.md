@@ -1,55 +1,8 @@
-# Federated NIAID–BRC Data Ecosystem Assistant
-
-**NIAID-BRCs AI Codeathon 2.0** · September 16–18, 2026 · Argonne National Laboratory
-
-One research question, one coordinated plan spanning BV-BRC, BRC Analytics, PDN, the NIAID Data Ecosystem, NCBI resources, and other participating repositories.
-
-Project page: https://niaid-brc-codeathons.github.io/projects/federated-data-ecosystem-assistant/
-
----
-
-> **This is a draft pitch, not a plan.**
->
-> What follows is a one-slide proposal from the organizing team. It exists
-> to seed a team, not to constrain one. Scope, methods, target organism,
-> and success criteria are all still open — expect them to change
-> substantially. Turning this into a real plan is the team's first job, and
-> it lands in the project charter due August 28, 2026.
-
----
-
-## Goal (proposed)
-
-Allow a user to ask one research question and receive a coordinated plan spanning BV-BRC, BRC Analytics, PDN, the NIAID Data Ecosystem, NCBI resources, and other participating repositories.
-
-## Three-Day MVP (proposed)
-
-Register a limited set of MCP-enabled tools from at least three resources. Demonstrate five end-to-end questions, such as finding relevant datasets, retrieving pathogen genomes, identifying available workflows, launching an analysis, and returning a provenance-linked result.
-
-The agent should expose its resource-selection rationale, generated queries, API calls, and intermediate outputs rather than acting as an opaque chatbot.
-
-## Evaluation (proposed)
-
-Ten canonical questions scored for correct resource routing, tool-call success, result relevance, provenance, execution cost, and recovery from failed calls.
-
-## Leads
-
-- Bob Olson
-- Panayiotis Smeros
-
-Team assignments are still being finalized. Participants can review their project, and request a reassignment, in the participant spreadsheet circulated by the organizing team.
-
-## Working here
-
-This repository is the team's working space for the codeathon — code, notebooks, data pointers, and notes. Replace this README with the real thing once the charter is written. Team members get access through the [NIAID-BRC-Codeathons](https://github.com/NIAID-BRC-Codeathons) organization; accept the invitation if you have not already.
-
----
-
 # NCBI MCP server
 
-The first of the "at least three resources" in the MVP. Exposes two NCBI
-services as 20 MCP tools, all prefixed `ncbi_` so the assistant can tell them
-apart from BV-BRC and PDN tools when routing:
+One of the MVP's "at least three resources". Exposes two NCBI services as 20 MCP
+tools, all prefixed `ncbi_` so the assistant can tell them apart from the PDN and
+NDE tools when routing:
 
 - **E-utilities** — SRA, BioSample, BioProject, PubMed, Taxonomy, Gene,
   Assembly, and sequence databases.
@@ -58,14 +11,40 @@ apart from BV-BRC and PDN tools when routing:
 
 ## Setup
 
+**This server needs its own virtualenv.** It cannot share one with `pdn.py` or
+the root `chatbot.py` project — see [Why a separate
+environment](#why-a-separate-environment) below. Run everything from this
+directory:
+
 ```sh
+cd mcp_servers/ncbi
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/python -m pytest          # 80 offline tests
 ```
 
-Then copy the `mcpServers` block from `mcp.json.example` into your client's MCP
-config, filling in the absolute path and your email address.
+`.mcp.json` in this directory wires it up for a client launched from here — set
+`NCBI_EMAIL` to your own address first. Every setting is in
+[Configuration](#configuration) below.
+
+### Why a separate environment
+
+The two MCP libraries in this repo are different projects that happen to share a
+class name, and they pin incompatible versions of `mcp`:
+
+| | uses | needs |
+|---|---|---|
+| `mcp_servers/ncbi` (this server) | `fastmcp` 4, the standalone package | `mcp>=2.0,<3.0` (via `fastmcp-slim`) |
+| `mcp_servers/pdn.py`, root project | `mcp.server.fastmcp`, vendored in the official SDK | `mcp<2` |
+
+`mcp.server.fastmcp` is a **tombstone in `mcp` 2.x** — importing it raises
+`ModuleNotFoundError` pointing at the rename to `MCPServer`. So installing this
+server into the root `uv` environment would break `pdn.py` on import, and
+installing `pdn.py`'s deps here would break this one. The root `pyproject.toml`
+asks for `mcp >=1.15.0` with no upper bound; it resolves to 1.30.0 only because
+`uv.lock` pins it. Worth capping at `mcp<2` there.
+
+`NIAID-Data-Ecosystem/` is laid out the same way and for the same reason.
 
 No NCBI account is required. The server paces itself at NCBI's keyless limit of
 3 requests/second.

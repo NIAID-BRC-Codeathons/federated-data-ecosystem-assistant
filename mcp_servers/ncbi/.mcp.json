@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "ncbi": {
+      "type": "stdio",
+      "command": ".venv/bin/fdea-ncbi-mcp",
+      "args": [],
+      "env": {
+        "NCBI_EMAIL": "you@example.org"
+      }
+    }
+  }
+}
