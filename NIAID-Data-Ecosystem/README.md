@@ -52,6 +52,34 @@ Add to your client's MCP config:
 
 No API key is required — the NDE search API is public and unauthenticated.
 
+### Pointing at staging
+
+`NDE_API_URL` selects the deployment; it defaults to production. The same
+server code works against either — the API surface is identical (verified:
+34/34 endpoint signatures and all 1035 indexed fields match).
+
+```bash
+NDE_API_URL=https://api-staging.data.niaid.nih.gov/v1 .venv/bin/nde-mcp
+```
+
+Staging is a strict superset of production — 72 federated sources vs 55, with
+nothing removed. As of 2026-09-16:
+
+| | Production | Staging |
+| --- | --- | --- |
+| Searchable records | 14.2M | 84.4M |
+| Sources | 55 | 72 |
+| Record types | 5 | 6 (adds `Inference`) |
+
+Staging adds NCBI BioSample (58.7M), Expression Atlas (10.4M), NCBI Virus,
+BioStudies, UniProt, IEDB, BacDive, USIDNET, PathoPlexus and several culture
+collections. `Inference` records are gene-level differential-expression
+findings; their numeric result (fold change, p-value, gene, comparison) is
+surfaced in each hit's `finding` field.
+
+Staging is a pre-release deployment: expect its contents and availability to
+change without notice. Use production for anything reproducible.
+
 ## Tools
 
 | Tool | Purpose |

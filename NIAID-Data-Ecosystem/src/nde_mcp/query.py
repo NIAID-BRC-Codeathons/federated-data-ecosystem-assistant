@@ -38,7 +38,18 @@ FILTER_FIELDS: dict[str, str] = {
     "nct_id": "nctid",
 }
 
-RECORD_TYPES = ("Dataset", "ComputationalTool", "ResourceCatalog", "DataCollection", "Sample")
+RECORD_TYPES = (
+    "Dataset",
+    "ComputationalTool",
+    "ResourceCatalog",
+    "DataCollection",
+    "Sample",
+    # `Inference` currently exists only on the staging deployment, where it
+    # carries ~10.4M gene-level differential-expression findings from
+    # Expression Atlas. Harmless to offer against production, where it simply
+    # matches nothing.
+    "Inference",
+)
 
 # Annotation vocabularies are not shared across record types: `Sample` records
 # keep the submitter's raw term ("RNA-seq"), while `Dataset` records carry a
@@ -115,6 +126,18 @@ SUMMARY_SOURCE: tuple[str, ...] = (
     "codeRepository",
     "isBasedOn.identifier",
     "variableMeasured.name",
+    # Inference records (Expression Atlas differential expression): the
+    # measured value IS the finding, so it has to survive summarization.
+    "value",
+    "unitText",
+    "marginOfError.name",
+    "marginOfError.value",
+    "observationAbout.name",
+    "observationAbout.identifier",
+    "measuredProperty.name",
+    "observationType.name",
+    "measurementQualifier",
+    "subjectOf.identifier",
 )
 
 # Bulky or machine-only fields to strip from an otherwise-full record.
