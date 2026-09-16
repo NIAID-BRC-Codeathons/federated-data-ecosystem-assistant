@@ -1,28 +1,23 @@
-"""Biodata MCP Server
+"""Uniprot MCP Server
 
-A remote MCP server exposing tools over bioinformatics databases:
-    - UniProt - protein sequences, function, disease annotation
-    - Rhea - biochemical reactions
+A remote MCP server exposing tools over UniProt: 
+protein sequences, function, disease annotation
 """
-
-import re
-from urllib.parse import quote
 
 import requests
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
-    name="Biodata MCP",
+    name="Uniprot MCP",
     dependencies=["mcp", "requests"],
     instructions=(
-        "Query SIB Swiss Institute of Bioinformatics databases UniProt and Rhea"
+        "Query the UniProt database for protein information"
     ),
     streamable_http_path="/",
     # stateless_http=True,
 )
 
 UNIPROT_API  = "https://rest.uniprot.org"
-RHEA_API = "https://www.rhea-db.org/rhea"
 HEADERS = {"Accept": "application/json"}
 
 # UNIPROT TOOLS
@@ -208,54 +203,17 @@ def uniprot_get_sequence(accession: str) -> dict:
         "length_aa": len(sequence),
     }
 
-
-
-# RHEA TOOLS  (biochemical reactions)
-
-@mcp.tool()
-def rhea_search_reactions(query: str, max_results: int = 8) -> dict:
-    """Search the Rhea database for biochemical reactions by compound, enzyme, or keyword.
-
-    Args:
-        query: Search term — compound name, EC number, enzyme name, or keyword.
-            Examples: "ATP hydrolysis", "2.7.1", "glucose phosphorylation",
-            "NADH", "kinase"
-        max_results: Max reactions to return (default 8).
-
-    Returns:
-        List of reactions with Rhea ID, equation string, enzyme name, EC number,
-        and ChEBI IDs of substrates/products.
-
-    Example questions:
-        "What reactions involve ATP hydrolysis?"
-        "Find all kinase reactions in Rhea"
-        "What reactions use NADH as a substrate?"
-    """
-    resp = requests.get(
-        f"{RHEA_API}?query={quote(query)}&format=json&columns=rhea-id,equation,chebi-id&limit={max_results}",
-        timeout=20,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    results = []
-    for r in data.get("results", []):
-        results.append({
-            "rhea_id": r.get("rheaId") or r.get("id"),
-            "equation": r.get("equation"),
-            "chebi_ids": [m.replace("chebi:", "") for m in re.findall(r'data-molid="(chebi:[^"]+)"', r.get("htmlequation", ""))],
-            "rhea_url": f"https://www.rhea-db.org/rhea/{r.get('rheaId') or r.get('id')}",
-        })
-    return {
-        "query": query,
-        "total_found": data.get("count", len(results)),
-        "results": results,
-    }
-
-
 if __name__ == "__main__":
-    import sys
-    if "--stdio" in sys.argv:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stdio", action="store_true")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+
+    if args.stdio:
         mcp.run(transport="stdio")
     else:
-        print("Biodata MCP Server starting on http://localhost:8000/mcp ...")
+        mcp.settings.port = args.port
+        print(f"Uniprot MCP Server starting on http://localhost:{args.port}/mcp ...")
         mcp.run(transport="streamable-http")

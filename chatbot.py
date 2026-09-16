@@ -1,4 +1,4 @@
-"""Chat app with an agentic tool-call loop over MCP servers tools."""
+"""Chatbot with an agentic tool-call loop over MCP servers tools."""
 
 import os
 
