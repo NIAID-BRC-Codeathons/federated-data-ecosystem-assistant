@@ -73,6 +73,7 @@ No NCBI account is required. The server paces itself at NCBI's keyless limit of
 | `NCBI_EMAIL` | `jonathangunti@gmail.com` | Who NCBI contacts about this software. Set it to your own. |
 | `NCBI_API_KEY` | unset | Optional. Raises the rate limit to 10/sec. [Free here](https://account.ncbi.nlm.nih.gov/settings/). |
 | `NCBI_MAX_RPS` | `3` (or `10` with a key) | Lowers the rate. Can only lower it. |
+| `NCBI_COVERAGE` | `1` | Set to `0` to drop the `coverage` block and save one request per search. |
 
 **The rate limit is per IP address, not per user.** If several people on the
 codeathon network each run a copy of this server, they share one 3/sec budget.
@@ -87,25 +88,73 @@ opaque chatbot", and scores provenance directly. So every tool returns:
 
 ```json
 {
-  "summary": "891 SRA runs in PRJNA257197 (showing 100).",
+  "summary": "49196 PubMed citations matched (showing 3).",
   "data": [ ... ],
-  "truncated": true,
-  "next": {"max_results": 891},
   "provenance": {
     "source": "NCBI E-utilities",
+    "tool": "ncbi_pubmed_search",
+    "sources": [
+      {"database": "pubmed", "utilities": ["esearch", "esummary"],
+       "calls": 2, "percent_of_result": 100.0}
+    ],
+    "utilities_called": {"esearch": 2, "esummary": 1},
+    "request_cost": {"total": 3, "primary": 2, "coverage": 1},
+    "coverage": {
+      "database": "pubmed", "matched": 49196, "denominator": 179297,
+      "percent": 27.44, "basis": "Staphylococcus aureus[ORGN] in pubmed"
+    },
     "urls": ["https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?..."],
-    "query_translation": "PRJNA257197[All Fields]",
-    "result_count": 891,
-    "elapsed_ms": 412
+    "query_translation": "(\"staphylococcus aureus\"[MeSH Terms] OR ...) AND ...",
+    "result_count": 49196,
+    "elapsed_ms": 863
   }
 }
 ```
 
-`query_translation` is the one to watch. **E-utilities silently rewrites search
-terms** — it repairs unbalanced brackets and drops field names it does not
-recognize, without warning either way. A search for `foo[NOSUCHFIELD]` runs as a
-free-text search for `foo` and returns confident, wrong results. The translation
-is the only place that shows up.
+Four things worth reading in that block.
+
+**`query_translation`** is the one to watch. **E-utilities silently rewrites
+search terms** — it repairs unbalanced brackets and drops field names it does
+not recognize, without warning either way. A search for `foo[NOSUCHFIELD]` runs
+as a free-text search for `foo` and returns confident, wrong results. The
+translation is the only place that shows up.
+
+**`sources`** attributes the result to the databases that produced it, with the
+utilities used and, when a tool draws on more than one database, each one's
+share. If nobody measured how the records split, the share is **omitted rather
+than guessed** — a fabricated 50/50 is worse than no number.
+
+**`request_cost`** is the real number of NCBI requests this one result spent,
+split by what they were for. Coverage lookups are counted here even though they
+contribute no data, because execution cost is scored and hiding a request would
+understate it. (This is why `utilities_called` can exceed the calls listed under
+`sources`: the former counts every request, the latter only the ones that
+produced data.)
+
+### `coverage` — the denominator
+
+A bare count is unreadable on its own. Measured 2026-09-16:
+`Staphylococcus aureus[ORGN] AND MRSA` returns **16,360** BioSamples, which
+sounds decisive until you know there are **230,466** S. aureus BioSamples. It is
+7%, and the missing 93% are not absent — they are differently worded. An agent
+shown only the numerator reports it as the population.
+
+`basis` names exactly what the denominator counts, and it is not decoration:
+"12.6% of S. aureus BioSamples" and "12.6% of all BioSamples" are different
+claims, and only the basis distinguishes them. Two flavors:
+
+| Flavor | Denominator | Cost |
+|---|---|---|
+| search | the same query with its organism filter left and everything else stripped | one extra request |
+| fetch | how many UIDs you asked for | free |
+
+The fetch flavor earns its keep: esummary drops UIDs it cannot resolve **without
+comment**, so 48-of-50 and 50-of-50 look identical. Coverage reports
+`shortfall: 2` and the notes name the UIDs.
+
+Set `NCBI_COVERAGE=0` to switch it off if the shared IP gets tight. Database
+totals come from einfo and are cached for the life of the process, so they cost
+one request per database ever.
 
 ## Tools
 

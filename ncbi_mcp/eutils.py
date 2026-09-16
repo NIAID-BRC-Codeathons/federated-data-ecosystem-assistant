@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlencode
 
 import httpx2 as httpx
@@ -46,6 +46,22 @@ class TransportError(Exception):
     """A transport-level failure that survived retries."""
 
 
+class Call(NamedTuple):
+    """One outbound request, recorded for provenance.
+
+    ``purpose`` separates the calls that answer the question from the ones
+    that describe it: "coverage" marks a denominator lookup. Both are reported
+    --- request cost is a scored criterion and hiding a call would understate
+    it --- but only "primary" calls count toward which database produced the
+    data.
+    """
+
+    utility: str
+    db: str | None
+    url: str
+    purpose: str = "primary"
+
+
 class EUtilsClient:
     """Shared, paced HTTP client for E-utilities.
 
@@ -58,8 +74,8 @@ class EUtilsClient:
         self.email = os.environ.get("NCBI_EMAIL") or DEFAULT_EMAIL
         self.limiter = RateLimiter(has_api_key=bool(self.api_key))
         self._client: httpx.AsyncClient | None = None
-        # URLs called during the current tool invocation, for provenance.
-        self.call_log: list[str] = []
+        # Requests made during the current tool invocation, for provenance.
+        self.call_log: list[Call] = []
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -87,6 +103,7 @@ class EUtilsClient:
         params: dict[str, Any],
         *,
         db: str | None = None,
+        purpose: str = "primary",
     ) -> tuple[str, str]:
         """Issue one E-utilities call. Returns ``(body_text, url_without_secrets)``.
 
@@ -109,7 +126,7 @@ class EUtilsClient:
         # stripped. Everything else is exactly what went on the wire.
         public_query = {k: v for k, v in query.items() if k != "api_key"}
         public_url = f"{url}?{urlencode(public_query, doseq=True)}"
-        self.call_log.append(public_url)
+        self.call_log.append(Call(utility, db, public_url, purpose))
 
         client = await self._get_client()
         last_status: int | None = None
@@ -167,11 +184,12 @@ class EUtilsClient:
         params: dict[str, Any],
         *,
         db: str | None = None,
+        purpose: str = "primary",
     ) -> dict[str, Any]:
         """Issue a call with ``retmode=json``, decode it, and screen for errors."""
         params = dict(params)
         params["retmode"] = "json"
-        text, _url = await self.request(utility, params, db=db)
+        text, _url = await self.request(utility, params, db=db, purpose=purpose)
         try:
             payload = _loads(text)
         except ValueError as exc:
@@ -184,10 +202,10 @@ class EUtilsClient:
         check_for_error(payload)
         return payload
 
-    def reset_call_log(self) -> list[str]:
-        """Take and clear the URLs recorded so far. Called once per tool invocation."""
-        urls, self.call_log = self.call_log, []
-        return urls
+    def reset_call_log(self) -> list[Call]:
+        """Take and clear the calls recorded so far. Called once per tool invocation."""
+        calls, self.call_log = self.call_log, []
+        return calls
 
 
 def _loads(text: str) -> Any:

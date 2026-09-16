@@ -34,7 +34,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
 
-from . import databases, parsing
+from . import coverage, databases, parsing
 from .databases import DATABASES, RUNINFO_OPEN_ACCESS_EMPTY
 from .envelope import NCBIError, envelope, provenance
 from .eutils import MAX_ESUMMARY_UIDS, EUtilsClient, Timer, TransportError
@@ -45,10 +45,19 @@ server = FastMCP(
         "NCBI E-utilities: sequencing runs (SRA), samples (BioSample), "
         "projects (BioProject), literature (PubMed), organisms (Taxonomy), "
         "genes, genome assemblies, and sequences.\n\n"
-        "Every result carries a `provenance` block with the exact URLs called "
-        "and, for searches, `query_translation` --- the query NCBI actually "
-        "ran, which is often not the one that was sent. Report that "
-        "translation when it differs from the request.\n\n"
+        "Every result carries a `provenance` block. Read it before answering, "
+        "and cite it:\n"
+        "- `sources` --- which databases produced the data, and each one's "
+        "share of the result.\n"
+        "- `request_cost` --- how many NCBI requests this answer spent.\n"
+        "- `coverage` --- the result count against a denominator, with `basis` "
+        "naming what the denominator counts. Report the percentage and the "
+        "basis together; a count without its denominator reads as a "
+        "population. A `shortfall` means NCBI silently dropped records you "
+        "asked for.\n"
+        "- `query_translation` --- the query NCBI actually ran, which is often "
+        "not the one that was sent. Report it when it differs from the "
+        "request.\n\n"
         "Results may be truncated. When `truncated` is true, `next` holds the "
         "parameters for the following page; do not describe a truncated "
         "result as complete."
@@ -75,12 +84,24 @@ def _fail(message: str) -> ToolError:
     return ToolError(message)
 
 
-async def _run(coro_fn):
-    """Execute one tool body with timing, a fresh call log, and error translation."""
+async def _run(coro_fn, tool_name: str):
+    """Execute one tool body with timing, a fresh call log, and error translation.
+
+    A tool body returns ``(summary, data, extra)``. Beyond the envelope fields,
+    ``extra`` may carry the inputs for the coverage block:
+
+    ``coverage_db`` + ``coverage_term`` + ``result_count``
+        Search coverage: what share of the organism's records matched.
+    ``coverage_db`` + ``coverage_requested``
+        Fetch coverage: how many of the requested UIDs actually came back.
+    ``records_by_database``
+        Per-database record attribution, for the tools that touch more than one.
+    """
     client.reset_call_log()
     try:
         with Timer() as timer:
             summary, data, extra = await coro_fn()
+            cover = await _coverage(extra, data)
     except NCBIError as exc:
         raise _fail(f"NCBI rejected the request: {exc}") from exc
     except TransportError as exc:
@@ -89,8 +110,11 @@ async def _run(coro_fn):
     prov = provenance(
         client.reset_call_log(),
         elapsed_ms=timer.elapsed_ms,
+        tool=tool_name,
         query_translation=extra.get("query_translation"),
         result_count=extra.get("result_count"),
+        records_by_database=extra.get("records_by_database"),
+        coverage=cover,
         notes=extra.get("notes"),
     )
     return envelope(
@@ -100,6 +124,29 @@ async def _run(coro_fn):
         truncated=extra.get("truncated", False),
         next_params=extra.get("next"),
     )
+
+
+async def _coverage(extra: dict[str, Any], data: Any) -> dict[str, Any] | None:
+    """Pick the coverage flavor a tool's ``extra`` asks for, if any.
+
+    Runs inside the tool body's try-block on purpose: a coverage lookup is an
+    ordinary NCBI request and can fail like any other, and it should fail the
+    same way rather than escaping as an untranslated exception. ``coverage``
+    itself already degrades to None on error, so this is belt and braces.
+    """
+    db = extra.get("coverage_db")
+    if not db:
+        return None
+    requested = extra.get("coverage_requested")
+    if requested is not None:
+        returned = len(data) if isinstance(data, (list, dict)) else 0
+        return coverage.for_fetch(db, int(requested), returned)
+    term = extra.get("coverage_term")
+    if term and extra.get("result_count") is not None:
+        return await coverage.for_search(
+            client, db, term, int(extra["result_count"])
+        )
+    return None
 
 
 def _split_ids(value: str | list[str]) -> list[str]:
@@ -254,7 +301,7 @@ async def ncbi_list_databases() -> dict[str, Any]:
             {"result_count": len(data)},
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_list_databases")
 
 
 @server.tool()
@@ -317,7 +364,7 @@ async def ncbi_describe_database(
             {},
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_describe_database")
 
 
 # --------------------------------------------------------------------------
@@ -418,6 +465,8 @@ async def ncbi_sra_search(
             "result_count": count,
             "query_translation": translation,
             "notes": _uid_error_notes(uid_errors),
+            "coverage_db": "sra",
+            "coverage_term": term,
         }
         if count > len(data):
             extra["truncated"] = True
@@ -428,7 +477,7 @@ async def ncbi_sra_search(
             extra,
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_sra_search")
 
 
 @server.tool()
@@ -494,6 +543,8 @@ async def ncbi_sra_runs_for_project(
         extra: dict[str, Any] = {
             "result_count": count,
             "query_translation": translation,
+            "coverage_db": "sra",
+            "coverage_term": accession,
         }
         if count > len(rows):
             extra["truncated"] = True
@@ -504,7 +555,7 @@ async def ncbi_sra_runs_for_project(
             extra,
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_sra_runs_for_project")
 
 
 @server.tool()
@@ -596,7 +647,7 @@ async def ncbi_sra_run_metadata(
             extra,
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_sra_run_metadata")
 
 
 # --------------------------------------------------------------------------
@@ -653,6 +704,8 @@ async def ncbi_pubmed_search(
             "result_count": count,
             "query_translation": translation,
             "notes": _uid_error_notes(uid_errors),
+            "coverage_db": "pubmed",
+            "coverage_term": query,
         }
         if count > len(data):
             extra["truncated"] = True
@@ -664,7 +717,7 @@ async def ncbi_pubmed_search(
             extra,
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_pubmed_search")
 
 
 @server.tool()
@@ -698,7 +751,7 @@ async def ncbi_pubmed_abstracts(
             {"result_count": len(ids)},
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_pubmed_abstracts")
 
 
 # --------------------------------------------------------------------------
@@ -734,10 +787,15 @@ async def ncbi_biosample_metadata(
         return (
             f"BioSample metadata for {len(data)} record(s).",
             data,
-            {"result_count": len(data), "notes": _uid_error_notes(uid_errors)},
+            {
+                "result_count": len(data),
+                "notes": _uid_error_notes(uid_errors),
+                "coverage_db": "biosample",
+                "coverage_requested": len(uids),
+            },
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_biosample_metadata")
 
 
 @server.tool()
@@ -769,10 +827,15 @@ async def ncbi_bioproject_summary(
         return (
             f"BioProject summaries for {len(records)} record(s).",
             records,
-            {"result_count": len(records), "notes": _uid_error_notes(uid_errors)},
+            {
+                "result_count": len(records),
+                "notes": _uid_error_notes(uid_errors),
+                "coverage_db": "bioproject",
+                "coverage_requested": len(uids),
+            },
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_bioproject_summary")
 
 
 @server.tool()
@@ -828,7 +891,7 @@ async def ncbi_taxonomy_lookup(
             },
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_taxonomy_lookup")
 
 
 @server.tool()
@@ -853,10 +916,15 @@ async def ncbi_gene_info(
         return (
             f"Gene records for {len(records)} UID(s).",
             records,
-            {"result_count": len(records), "notes": _uid_error_notes(uid_errors)},
+            {
+                "result_count": len(records),
+                "notes": _uid_error_notes(uid_errors),
+                "coverage_db": "gene",
+                "coverage_requested": len(uids),
+            },
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_gene_info")
 
 
 @server.tool()
@@ -887,10 +955,15 @@ async def ncbi_assembly_info(
         return (
             f"Assembly records for {len(data)} UID(s).",
             data,
-            {"result_count": len(data), "notes": _uid_error_notes(uid_errors)},
+            {
+                "result_count": len(data),
+                "notes": _uid_error_notes(uid_errors),
+                "coverage_db": "assembly",
+                "coverage_requested": len(uids),
+            },
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_assembly_info")
 
 
 @server.tool()
@@ -952,7 +1025,7 @@ async def ncbi_sequence_fetch(
             {"result_count": len(seq_ids)},
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_sequence_fetch")
 
 
 # --------------------------------------------------------------------------
@@ -1018,7 +1091,7 @@ async def ncbi_find_uids(
             {"result_count": found, "notes": notes},
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_find_uids")
 
 
 @server.tool()
@@ -1076,7 +1149,7 @@ async def ncbi_linked_records(
             {"result_count": total, "notes": notes},
         )
 
-    return await _run(body)
+    return await _run(body, "ncbi_linked_records")
 
 
 @server.tool()
@@ -1137,7 +1210,7 @@ async def ncbi_entrez_raw(
             )
         return (f"{utility} on db={db!r}: {len(text)} bytes.", text, {})
 
-    return await _run(body)
+    return await _run(body, "ncbi_entrez_raw")
 
 
 def run() -> None:

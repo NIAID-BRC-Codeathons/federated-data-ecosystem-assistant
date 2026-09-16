@@ -21,6 +21,7 @@ every result carries the exact URLs called and the query NCBI actually ran.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 EUTILS_SOURCE = "NCBI E-utilities"
@@ -73,11 +74,14 @@ def _stringify(value: Any) -> str:
 
 
 def provenance(
-    urls: list[str],
+    calls: Sequence[Any],
     *,
     elapsed_ms: int,
+    tool: str | None = None,
     query_translation: str | None = None,
     result_count: int | None = None,
+    records_by_database: dict[str, int] | None = None,
+    coverage: dict[str, Any] | None = None,
     notes: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build the provenance block.
@@ -88,8 +92,29 @@ def provenance(
     ``foo[NOSUCHFIELD]`` runs as a free-text search for ``foo`` and returns
     confident, wrong results. Echoing the translation back is the only way the
     agent can see what was really searched.
+
+    ``calls`` is a sequence of ``eutils.Call``. Plain URL strings are also
+    accepted so a caller that has only URLs still gets a valid block, just
+    without the per-database breakdown.
     """
-    block: dict[str, Any] = {"source": EUTILS_SOURCE, "urls": urls}
+    calls = list(calls)
+    block: dict[str, Any] = {"source": EUTILS_SOURCE}
+    if tool is not None:
+        block["tool"] = tool
+
+    sources = _sources(calls, records_by_database)
+    if sources:
+        block["sources"] = sources
+    utilities = _tally(getattr(c, "utility", None) for c in calls)
+    if utilities:
+        block["utilities_called"] = utilities
+    request_cost = _request_cost(calls)
+    if request_cost:
+        block["request_cost"] = request_cost
+    if coverage:
+        block["coverage"] = coverage
+
+    block["urls"] = [getattr(c, "url", c) for c in calls]
     if query_translation is not None:
         block["query_translation"] = query_translation
     if result_count is not None:
@@ -98,6 +123,80 @@ def provenance(
     if notes:
         block["notes"] = notes
     return block
+
+
+def _sources(
+    calls: list[Any], records_by_database: dict[str, int] | None
+) -> list[dict[str, Any]]:
+    """Per-database attribution, built only from calls that produced data.
+
+    Coverage lookups are excluded here even though they are reported under
+    ``request_cost``: they describe the result, they do not contribute to it,
+    and counting them would credit a database for data it did not supply.
+    """
+    primary = [
+        c
+        for c in calls
+        if getattr(c, "purpose", "primary") == "primary" and getattr(c, "db", None)
+    ]
+    if not primary:
+        return []
+
+    order: list[str] = []
+    per_db: dict[str, dict[str, Any]] = {}
+    for call in primary:
+        entry = per_db.get(call.db)
+        if entry is None:
+            order.append(call.db)
+            entry = per_db[call.db] = {
+                "database": call.db,
+                "utilities": [],
+                "calls": 0,
+            }
+        entry["calls"] += 1
+        if call.utility not in entry["utilities"]:
+            entry["utilities"].append(call.utility)
+
+    # Record attribution. When the caller did not say how the records split,
+    # claim it only in the one case where it is not a guess: a single database
+    # supplied everything. Inventing a split across several would be a
+    # confident number with nothing behind it.
+    counts = dict(records_by_database or {})
+    if not counts and len(order) == 1:
+        counts = {}
+    total = sum(counts.values())
+    for db in order:
+        if db in counts:
+            per_db[db]["records"] = counts[db]
+            if total:
+                per_db[db]["percent_of_result"] = round(counts[db] / total * 100, 1)
+    if not counts and len(order) == 1:
+        per_db[order[0]]["percent_of_result"] = 100.0
+
+    return [per_db[db] for db in order]
+
+
+def _request_cost(calls: list[Any]) -> dict[str, int]:
+    """How many requests this one result spent, split by what they were for.
+
+    The brief scores execution cost, and coverage lookups are extra requests
+    against a per-IP budget the whole venue shares. Reporting only the calls
+    that fetched data would understate what the answer cost.
+    """
+    if not calls:
+        return {}
+    cost = {"total": len(calls)}
+    by_purpose = _tally(getattr(c, "purpose", "primary") for c in calls)
+    cost.update(by_purpose)
+    return cost
+
+
+def _tally(values) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        if value:
+            counts[value] = counts.get(value, 0) + 1
+    return counts
 
 
 def envelope(
