@@ -94,6 +94,28 @@ LAPIS_QUERY_KEYS = {
 # Field types that take a "From" or "To" range filter.
 LAPIS_RANGE_TYPES = {"int", "float", "date"}
 
+# Pathoplexus records carry these fields. A redistributor must keep them with
+# the data, so every record query adds them wherever the schema has them.
+LAPIS_TERMS_FIELDS = ["dataUseTerms", "dataUseTermsRestrictedUntil", "dataUseTermsUrl"]
+
+# Pathoplexus states these duties on its terms of use pages. A redistributor
+# must pass them on, so a record tool returns them beside the records.
+LAPIS_TERMS_OPEN = (
+    "Open records carry no use restriction. When you share them onward, keep "
+    "the data use terms with them, and link each record to its page. "
+    "Acknowledging the people who generated the data is expected: in a "
+    "manuscript, create a Pathoplexus SeqSet and cite its DOI."
+)
+
+LAPIS_TERMS_RESTRICTED = (
+    "The submitters restrict these records until the dates given. Keep the "
+    "data use terms with the records, and link each record to its page when "
+    "you present it publicly. In a manuscript, create a Pathoplexus SeqSet "
+    "and cite its DOI. For any sequence that is central to the analysis, "
+    "name the submitters as authors, or get a written authorship waiver. Add "
+    "no further access restriction when you pass the records on."
+)
+
 
 def _lapis_organism(organism: str) -> tuple[dict, str]:
     """Return the database and the LAPIS URL for an organism name."""
@@ -148,7 +170,8 @@ def _lapis_post(
     """POST a LAPIS query. Return the data rows and the LAPIS data version.
 
     A LAPIS error becomes a short tool error. With max_bytes, the read stops
-    as soon as the response passes that size.
+    as soon as the response passes that size. The sequence endpoints answer
+    with a bare list, and every other endpoint wraps its rows in "data".
     """
     with requests.post(
         url, json=body, headers=LAPIS_HEADERS, timeout=60, stream=True
@@ -164,7 +187,9 @@ def _lapis_post(
             content += chunk
             if max_bytes is not None and len(content) > max_bytes:
                 raise LapisResponseTooLarge(max_bytes)
-        return json.loads(content)["data"], resp.headers.get("lapis-data-version")
+        payload = json.loads(content)
+        rows = payload if isinstance(payload, list) else payload["data"]
+        return rows, resp.headers.get("lapis-data-version")
 
 
 def _lapis_unknown_field(schema: dict, name: str) -> ToolError:
@@ -231,6 +256,42 @@ def _lapis_version_filter(schema: dict, filters: dict, latest_version_only: bool
         "Includes older versions or revocations, so one sequence can count "
         "more than once."
     )
+
+
+def _lapis_data_use_terms(database: dict, schema: dict, rows: list[dict]) -> dict | None:
+    """Describe the data use terms of the rows. None when the database declares none.
+
+    Pathoplexus asks a redistributor to pass the terms on and to link each
+    record back, for open records as well as restricted ones.
+    """
+    if "dataUseTerms" not in schema["fields"] or not database["record_url"]:
+        return None
+    key = schema["primary_key"]
+    records = []
+    for row in rows:
+        terms = row.get("dataUseTerms")
+        if terms is None:
+            continue
+        record = {
+            "accession": row[key],
+            "terms": terms,
+            "record_url": database["record_url"].format(accession=row[key]),
+        }
+        if terms == "RESTRICTED":
+            record["restricted_until"] = row.get("dataUseTermsRestrictedUntil")
+        records.append(record)
+    if not records:
+        return None
+    obligations = []
+    if any(r["terms"] != "RESTRICTED" for r in records):
+        obligations.append(LAPIS_TERMS_OPEN)
+    if any(r["terms"] == "RESTRICTED" for r in records):
+        obligations.append(LAPIS_TERMS_RESTRICTED)
+    return {
+        "records": records,
+        "terms_urls": sorted({r["dataUseTermsUrl"] for r in rows if r.get("dataUseTermsUrl")}),
+        "obligations": obligations,
+    }
 
 
 # ********** list organisms **********
@@ -301,6 +362,10 @@ def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
     """
     database, url = _lapis_organism(organism)
     schema = _lapis_schema(organism)
+    # A multi-segment organism, or any gene, needs the name before the
+    # position. LAPIS rejects a bare nucleotide mutation in that case.
+    prefix = f"{schema['segments'][0]}:" if len(schema["segments"]) > 1 else ""
+    gene = schema["genes"][0] if schema["genes"] else "GENE"
     needle = field_search.lower()
     fields = [
         {"name": name, "type": field_type}
@@ -337,6 +402,34 @@ def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
         "fields_matched": len(fields),
         "fields_total": len(schema["fields"]),
         "fields": fields,
+        "filter_syntax": {
+            "exact": (
+                "Pass a field name with a value, or with a list of values to "
+                "match any of them."
+            ),
+            "range": (
+                "Add From or To to an int, float, or date field, e.g. "
+                "sampleCollectionDateRangeLowerFrom. A string field takes no "
+                "range, even when it holds a date."
+            ),
+            "text and missing values": (
+                "Add .regex to a string field for a regular expression. Add "
+                ".isNull to any field, with true or false."
+            ),
+            "mutations": (
+                "nucleotideMutations or aminoAcidMutations with a list keeps "
+                "the sequences that carry every listed mutation, e.g. "
+                f"['{prefix}A123G'] or ['{gene}:N50Y']. The original symbol is "
+                f"optional, so '{gene}:50Y' also works."
+            ),
+            "advancedQuery": (
+                "One boolean expression over fields and mutations. It takes "
+                "AND, OR, NOT, the symbols & | !, IsNull(field), "
+                "field.regex='...', and [2-of: a, b, c] for a count of "
+                "matches. Example: \"geoLocCountry='Guinea' AND NOT "
+                "IsNull(hostNameScientific)\"."
+            ),
+        },
         "notes": notes,
     })
     return description
@@ -374,7 +467,16 @@ def lapis_aggregate_samples(
             matches any of its items. Add "From" or "To" to an int, float, or
             date field for an inclusive range, e.g.
             {"sampleCollectionDateRangeLowerFrom": "2025-01-01"}. A string
-            field takes no range, even when it holds a date.
+            field takes no range, even when it holds a date. Add ".regex" to a
+            string field, or ".isNull" to any field.
+            Two keys reach past single fields. "nucleotideMutations" or
+            "aminoAcidMutations" with a list keeps the sequences that carry
+            every listed mutation, e.g. {"aminoAcidMutations": ["S:N501Y"]}.
+            "advancedQuery" takes one boolean expression over fields and
+            mutations, e.g. "geoLocCountry='Guinea' OR
+            geoLocCountry='Liberia'", or "country='Switzerland' AND S:501Y AND
+            NOT IsNull(division)". Call lapis_describe_organism for the syntax
+            of both.
         latest_version_only: Count only the latest version of each sequence
             and skip revocations (default True). False counts every version.
         order_by: "count" sorts groups from largest to smallest. "group" sorts
@@ -608,36 +710,6 @@ def lapis_get_mutations(
 
 LAPIS_MAX_RECORDS = 100
 
-# Pathoplexus records carry these fields. A redistributor must keep them with
-# the data, so every record query adds them wherever the schema has them.
-LAPIS_TERMS_FIELDS = ["dataUseTerms", "dataUseTermsRestrictedUntil", "dataUseTermsUrl"]
-
-LAPIS_RESTRICTED_TERMS = (
-    "The submitters restrict these records until the dates given. Keep the "
-    "data use terms with the records. Link each record to its page when you "
-    "present it. Read the terms before you publish results that use them."
-)
-
-
-def _lapis_restricted_terms(database: dict, schema: dict, rows: list[dict]) -> dict | None:
-    """Collect the data use terms of the restricted rows. None when no row is restricted."""
-    restricted = [r for r in rows if r.get("dataUseTerms") == "RESTRICTED"]
-    if not restricted:
-        return None
-    key = schema["primary_key"]
-    return {
-        "restricted_records": [
-            {
-                "accession": r[key],
-                "restricted_until": r.get("dataUseTermsRestrictedUntil"),
-                "record_url": database["record_url"].format(accession=r[key]),
-            }
-            for r in restricted
-        ],
-        "terms_url": restricted[0].get("dataUseTermsUrl"),
-        "obligations": LAPIS_RESTRICTED_TERMS,
-    }
-
 
 @mcp.tool()
 def lapis_get_sample_details(
@@ -661,9 +733,9 @@ def lapis_get_sample_details(
     lapis_describe_organism lists the field names. The tool always adds the
     primary key, and on Pathoplexus it adds the data use terms fields.
 
-    Records under RESTRICTED data use terms come with a data_use_terms block.
-    Keep those terms with the records, and link each record to its page when
-    you present it.
+    Pathoplexus records come with a data_use_terms block that states what you
+    must do with them. Keep those terms with the records, link each record to
+    its page, and follow the block before you publish anything from them.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "mpox".
@@ -731,7 +803,7 @@ def lapis_get_sample_details(
         "next_offset": next_offset if next_offset < total else None,
         "rows": rows,
     }
-    terms = _lapis_restricted_terms(database, schema, rows)
+    terms = _lapis_data_use_terms(database, schema, rows)
     if terms:
         result["data_use_terms"] = terms
     result.update({
@@ -744,6 +816,336 @@ def lapis_get_sample_details(
         },
     })
     return result
+
+
+# ********** get sequences **********
+
+LAPIS_MAX_SEQUENCE_RECORDS = 50
+
+# One mpox genome runs to about 197,000 characters, so a record limit alone
+# cannot keep a response small. This budget caps the sequence characters in
+# one response, at roughly 12,000 tokens.
+LAPIS_MAX_SEQUENCE_CHARS = 50_000
+
+
+@mcp.tool()
+def lapis_get_sequences(
+    organism: str,
+    alignment: Literal[
+        "unaligned_nucleotide", "aligned_nucleotide", "aligned_amino_acid"
+    ] = "unaligned_nucleotide",
+    gene_or_segment: str = "",
+    filters: dict[str, Any] | None = None,
+    latest_version_only: bool = True,
+    limit: int = 5,
+) -> dict:
+    """Get sequences for one organism as FASTA, for a local analysis.
+
+    Sequences are long. One mpox genome runs to about 197,000 characters, and
+    one SARS-CoV-2 genome to about 30,000. A response therefore carries at
+    most 50,000 characters of sequence, and says so when it cuts the list
+    short. Ask for a gene or a segment to stay well inside that budget.
+
+    For which mutations occur, use lapis_get_mutations. For how many sequences
+    exist, use lapis_aggregate_samples. Neither downloads a sequence.
+
+    Args:
+        organism: An organism name from lapis_list_organisms, e.g. "h5n1".
+        alignment: "unaligned_nucleotide" for the submitted sequence,
+            "aligned_nucleotide" for the sequence padded to the reference, or
+            "aligned_amino_acid" for a translated gene.
+        gene_or_segment: The gene for "aligned_amino_acid", which needs one,
+            e.g. "S" or "HA". The segment for a nucleotide query on a
+            multi-segment organism, e.g. "seg4". Leave empty to get every
+            segment. lapis_describe_organism lists the genes and segments.
+        filters: Field filters, in the same form as lapis_aggregate_samples.
+            Filter on the primary key to fetch named records.
+        latest_version_only: Return only the latest version of each sequence
+            and skip revocations (default True).
+        limit: Maximum number of records to fetch (default 5, max 50). The
+            character budget can still cut the list short.
+
+    A FASTA header carries no terms of use, so Pathoplexus sequences come with
+    a data_use_terms block. Keep that block with the sequences, and follow it
+    before you pass them on or publish from them.
+
+    Returns:
+        The sequences as FASTA, the length of each one, whether the budget cut
+        the list short, the data use terms of the records, and the exact query
+        sent to LAPIS.
+
+    Example questions:
+        "Give me the HA segment of the 5 most recent H5N1 sequences from
+        cattle."
+        "Fetch the spike protein sequences of SARS-CoV-2 samples from
+        Switzerland this year."
+        "Download the measles genomes collected in Nigeria since January."
+    """
+    database, url = _lapis_organism(organism)
+    schema = _lapis_schema(organism)
+    if alignment == "aligned_amino_acid":
+        names, kind = schema["genes"], "gene"
+        if not names:
+            raise ToolError(
+                f"{schema['instance_name']} declares no genes, so it has no "
+                "amino acid sequences. Ask for a nucleotide alignment instead."
+            )
+        if not gene_or_segment:
+            raise ToolError(
+                f"Name the gene to translate. The genes of "
+                f"{schema['instance_name']}: {', '.join(names)}."
+            )
+        endpoint = f"/sample/alignedAminoAcidSequences/{gene_or_segment}"
+    else:
+        names, kind = schema["segments"], "segment"
+        stem = (
+            "unalignedNucleotideSequences"
+            if alignment == "unaligned_nucleotide"
+            else "alignedNucleotideSequences"
+        )
+        # A single-segment organism has no per-segment route.
+        segment = gene_or_segment if len(names) > 1 else ""
+        endpoint = f"/sample/{stem}/{segment}" if segment else f"/sample/{stem}"
+    if gene_or_segment and gene_or_segment not in names:
+        close = difflib.get_close_matches(gene_or_segment, names, n=3, cutoff=0.5)
+        hint = f" Close matches: {', '.join(close)}." if close else ""
+        raise ToolError(
+            f"'{gene_or_segment}' is not a {kind} of {schema['instance_name']}.{hint} "
+            f"Its {kind}s: {', '.join(names)}."
+        )
+
+    body = dict(filters or {})
+    _lapis_check_filters(schema, body)
+    version_note = _lapis_version_filter(schema, body, latest_version_only)
+    limit = max(1, min(limit, LAPIS_MAX_SEQUENCE_RECORDS))
+    query = {**body, "limit": limit, "dataFormat": "JSON"}
+
+    rows, data_version = _lapis_post(f"{url}{endpoint}", query)
+    # A row holds one sequence per segment or gene, beside the primary key.
+    key = schema["primary_key"]
+    parts = [
+        (row[key], name, seq)
+        for row in rows
+        for name, seq in row.items()
+        if name != key and isinstance(seq, str)
+    ]
+    named = len({name for _, name, _ in parts}) > 1
+
+    fasta, lengths, characters, truncated = [], [], 0, False
+    for accession, name, sequence in parts:
+        if characters + len(sequence) > LAPIS_MAX_SEQUENCE_CHARS:
+            if not fasta:
+                raise ToolError(
+                    f"One {organism} sequence holds {len(sequence):,} characters, "
+                    f"above the budget of {LAPIS_MAX_SEQUENCE_CHARS:,}. Ask for a "
+                    f"single gene or segment, or use lapis_get_mutations to compare "
+                    "sequences without downloading them."
+                )
+            truncated = True
+            break
+        header = f"{accession}|{name}" if named else accession
+        fasta.append(f">{header}\n{sequence}")
+        lengths.append({"accession": accession, kind: name, "length": len(sequence)})
+        characters += len(sequence)
+
+    terms = None
+    terms_fields = [f for f in LAPIS_TERMS_FIELDS if f in schema["fields"]]
+    accessions = list(dict.fromkeys(row["accession"] for row in lengths))
+    if terms_fields and accessions:
+        term_rows, _ = _lapis_post(
+            f"{url}/sample/details", {key: accessions, "fields": [key, *terms_fields]}
+        )
+        terms = _lapis_data_use_terms(database, schema, term_rows)
+
+    notes = []
+    if alignment.startswith("aligned"):
+        notes.append(
+            "An aligned sequence is padded to the reference, so it carries N "
+            "and gap characters that the submitted sequence does not have."
+        )
+    if truncated:
+        notes.append(
+            "The character budget cut the list short. Lower limit, or ask for "
+            "one gene or segment, to see the rest."
+        )
+    if version_note:
+        notes.append(version_note)
+    result = {
+        "organism": organism,
+        "database": database["name"],
+        "alignment": alignment,
+        "gene_or_segment": gene_or_segment,
+        "records_returned": len(accessions),
+        "sequences_returned": len(fasta),
+        "total_characters": characters,
+        "truncated": truncated,
+        "lengths": lengths,
+        "fasta": "\n".join(fasta),
+    }
+    if terms:
+        result["data_use_terms"] = terms
+    result.update({
+        "notes": notes,
+        "query": {
+            "url": f"{url}{endpoint}",
+            "method": "POST",
+            "body": query,
+            "data_version": data_version,
+        },
+    })
+    return result
+
+
+# ********** get insertions **********
+
+LAPIS_MAX_INSERTIONS = 500
+
+
+@mcp.tool()
+def lapis_get_insertions(
+    organism: str,
+    sequence_type: Literal["nucleotide", "amino_acid"],
+    gene_or_segment: str = "",
+    filters: dict[str, Any] | None = None,
+    latest_version_only: bool = True,
+    min_count: int = 1,
+    order_by: Literal["count", "position"] = "count",
+    max_insertions: int = 50,
+) -> dict:
+    """List the insertions found in the sequences of one organism.
+
+    An insertion adds symbols that the reference does not have, so
+    lapis_get_mutations never reports one. It covers substitutions and
+    deletions only. Some insertions matter: the SARS-CoV-2 insertion
+    ins_22204:GAGCCAGAA marks the Omicron BA.1 lineage.
+
+    An insertion reads ins_<position>:<symbols>, or
+    ins_<gene or segment>:<position>:<symbols> wherever the organism has more
+    than one, e.g. ins_22204:GAGCCAGAA or ins_seg8:79:TG.
+
+    LAPIS reports no coverage for an insertion, so a count carries no
+    proportion. For something to compare a count against, call
+    lapis_aggregate_samples with the same filters.
+
+    Args:
+        organism: An organism name from lapis_list_organisms, e.g. "h5n1".
+        sequence_type: "nucleotide" for insertions in the genome, or
+            "amino_acid" for insertions within a gene.
+        gene_or_segment: Only return insertions in this gene (amino_acid) or
+            segment (nucleotide), e.g. "S" or "seg8". Leave empty for all.
+        filters: Field filters, in the same form as lapis_aggregate_samples.
+        latest_version_only: Use only the latest version of each sequence and
+            skip revocations (default True).
+        min_count: Leave out an insertion that fewer sequences than this carry
+            (default 1, which keeps all of them). It applies to the rows the
+            query returns.
+        order_by: "count" lists the most common insertions first. "position"
+            lists them in genome order.
+        max_insertions: Maximum number of insertions to return (default 50,
+            max 500).
+
+    Returns:
+        Rows of insertions with their counts, whether max_insertions cut the
+        rows off, notes on how to read a count, and the exact query sent to
+        LAPIS.
+
+    Example questions:
+        "Which insertions do SARS-CoV-2 spike sequences carry?"
+        "Do H5N1 sequences from cattle carry any insertions?"
+        "Which mpox insertions are most common?"
+    """
+    database, url = _lapis_organism(organism)
+    schema = _lapis_schema(organism)
+    if sequence_type == "amino_acid":
+        endpoint = "/sample/aminoAcidInsertions"
+        names, kind = schema["genes"], "gene"
+        if not names:
+            raise ToolError(
+                f"{schema['instance_name']} declares no genes, so it has no "
+                "amino acid insertions. Use sequence_type 'nucleotide' instead."
+            )
+    else:
+        endpoint = "/sample/nucleotideInsertions"
+        names, kind = schema["segments"], "segment"
+    # A single-segment genome leaves sequenceName empty, so there is nothing
+    # to filter on.
+    name_filter = gene_or_segment if len(names) > 1 or kind == "gene" else ""
+    if gene_or_segment and gene_or_segment not in names:
+        close = difflib.get_close_matches(gene_or_segment, names, n=3, cutoff=0.5)
+        hint = f" Close matches: {', '.join(close)}." if close else ""
+        raise ToolError(
+            f"'{gene_or_segment}' is not a {kind} of {schema['instance_name']}.{hint} "
+            f"Its {kind}s: {', '.join(names)}."
+        )
+
+    body = dict(filters or {})
+    _lapis_check_filters(schema, body)
+    version_note = _lapis_version_filter(schema, body, latest_version_only)
+    max_insertions = max(1, min(max_insertions, LAPIS_MAX_INSERTIONS))
+    query = dict(body)
+    if order_by == "count":
+        order = [{"field": "count", "type": "descending"}]
+    else:
+        order = [
+            {"field": "sequenceName", "type": "ascending"},
+            {"field": "position", "type": "ascending"},
+        ]
+    # LAPIS cannot filter insertions by gene or segment, so a name filter
+    # fetches them all and filters here, as lapis_get_mutations does.
+    if not name_filter:
+        query.update({"orderBy": order, "limit": max_insertions})
+
+    try:
+        rows, data_version = _lapis_post(
+            f"{url}{endpoint}",
+            query,
+            max_bytes=LAPIS_MAX_FILTER_DOWNLOAD_BYTES if name_filter else None,
+        )
+    except LapisResponseTooLarge:
+        raise ToolError(
+            f"The {sequence_type.replace('_', ' ')} insertions of {organism} pass "
+            f"{LAPIS_MAX_FILTER_DOWNLOAD_BYTES // 1_000_000} MB, which is too much "
+            f"to filter down to {kind} {gene_or_segment}. Narrow the filters."
+        ) from None
+    fetched = len(rows)
+    if name_filter:
+        rows = [r for r in rows if r["sequenceName"] == name_filter]
+    rows = [r for r in rows if r["count"] >= min_count]
+    if name_filter:
+        rows.sort(key=lambda r: -r["count"] if order_by == "count" else r["position"])
+    # LAPIS already cut the rows without a name filter, so a full page means
+    # more insertions remain.
+    truncated = len(rows) > max_insertions if name_filter else fetched == max_insertions
+    rows = rows[:max_insertions]
+    # The insertion name already carries the inserted symbols.
+    rows = [{k: v for k, v in r.items() if k != "insertedSymbols"} for r in rows]
+
+    notes = [
+        "A count is the number of sequences that carry the insertion, among "
+        "the sequences that match the filters. LAPIS reports no coverage for "
+        "an insertion, so there is no proportion.",
+        "An insertion that one or two sequences carry can be an assembly "
+        "artifact.",
+    ]
+    if version_note:
+        notes.append(version_note)
+    return {
+        "organism": organism,
+        "database": database["name"],
+        "sequence_type": sequence_type,
+        "gene_or_segment": gene_or_segment,
+        "min_count": min_count,
+        "rows_returned": len(rows),
+        "truncated": truncated,
+        "rows": rows,
+        "notes": notes,
+        "query": {
+            "url": f"{url}{endpoint}",
+            "method": "POST",
+            "body": query,
+            "data_version": data_version,
+        },
+    }
 
 
 if __name__ == "__main__":
