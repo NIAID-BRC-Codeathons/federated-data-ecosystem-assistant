@@ -10,6 +10,7 @@ from nde_mcp.format import (
     describe_sources,
     download_urls,
     format_facets,
+    measured_finding,
     format_search_response,
     names_of,
     summarize_hit,
@@ -173,6 +174,66 @@ class TestDownloadUrls:
     def test_absent_when_no_download(self):
         # The fixture's distribution is missing entirely.
         assert "downloads" not in summarize_hit(SRA_HIT)["links"]
+
+
+class TestMeasuredFinding:
+    """`Inference` records (Expression Atlas, staging deployment) carry their
+    result in value/unitText/marginOfError -- dropping those would discard the
+    entire point of the record."""
+
+    INFERENCE = {
+        "_id": "gxa_e_geod_41293_ensmusg00000061731",
+        "@type": "Inference",
+        "name": "Ext1 is upregulated in 'osteosarcoma' vs 'control'",
+        "value": 2.7,
+        "unitText": "Log2 fold change",
+        "measurementQualifier": "'osteosarcoma' vs 'control'",
+        "marginOfError": {"@type": "QuantitativeValue", "name": "adjusted p-value", "value": 1.85e-13},
+        "observationAbout": {"@type": "DefinedTerm", "name": "Ext1", "identifier": "ENSMUSG00000061731"},
+        "measuredProperty": {"@type": "Property", "name": "Gene Expression"},
+        "observationType": {"@type": "DefinedTerm", "name": "differential gene expression ratio"},
+        "subjectOf": {"@type": "Dataset", "identifier": ["E-GEOD-41293", "other"]},
+    }
+
+    def test_extracts_value_and_unit(self):
+        out = measured_finding(self.INFERENCE)
+        assert out["value"] == 2.7
+        assert out["unit"] == "Log2 fold change"
+
+    def test_extracts_subject_gene_and_id(self):
+        out = measured_finding(self.INFERENCE)
+        assert out["about"] == "Ext1"
+        assert out["about_id"] == "ENSMUSG00000061731"
+
+    def test_extracts_significance(self):
+        out = measured_finding(self.INFERENCE)
+        assert out["margin_of_error"] == {"name": "adjusted p-value", "value": 1.85e-13}
+
+    def test_extracts_comparison_and_source_study(self):
+        out = measured_finding(self.INFERENCE)
+        assert out["comparison"] == "'osteosarcoma' vs 'control'"
+        # subjectOf.identifier is a list; the first entry is the study accession.
+        assert out["from_study"] == "E-GEOD-41293"
+
+    def test_surfaces_in_summary(self):
+        assert summarize_hit(self.INFERENCE)["finding"]["value"] == 2.7
+
+    def test_absent_for_ordinary_records(self):
+        # A Dataset has no value/observationAbout -- no empty `finding` key.
+        assert measured_finding(SRA_HIT) is None
+        assert "finding" not in summarize_hit(SRA_HIT)
+
+    def test_zero_value_is_kept(self):
+        # 0.0 is a real fold change, not a missing value.
+        out = measured_finding({"value": 0.0, "observationAbout": {"name": "G"}})
+        assert out["value"] == 0.0
+
+    def test_value_without_subject_still_reported(self):
+        assert measured_finding({"value": 1.5})["value"] == 1.5
+
+    def test_identifier_equal_to_name_not_duplicated(self):
+        out = measured_finding({"observationAbout": {"name": "X", "identifier": "X"}})
+        assert "about_id" not in out
 
 
 class TestCleanDetail:
