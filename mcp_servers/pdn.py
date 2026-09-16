@@ -9,6 +9,7 @@ Run over stdio: python mcp_servers/pdn.py --stdio
 """
 
 import difflib
+import json
 import time
 from typing import Any, Literal
 
@@ -55,6 +56,18 @@ LAPIS_QUERY_KEYS = {
 LAPIS_RANGE_TYPES = {"int", "float", "date"}
 
 LAPIS_MAX_GROUPS = 500
+LAPIS_MAX_MUTATIONS = 500
+
+# The mutation name already encodes mutationFrom, mutationTo, and position,
+# so a mutation query asks LAPIS for these columns only.
+LAPIS_MUTATION_FIELDS = [
+    "mutation", "sequenceName", "position", "count", "coverage", "proportion",
+]
+
+# LAPIS cannot filter mutations by gene or segment, so a gene or segment
+# filter downloads every mutation above the threshold. At threshold 0 that
+# reached 13 MB for dengue nucleotides, so the read stops past this size.
+LAPIS_MAX_FILTER_DOWNLOAD_BYTES = 5_000_000
 
 # No LAPIS endpoint lists the organisms. These names come from each
 # database's API documentation page, checked on 2026-09-16.
@@ -133,16 +146,33 @@ def _lapis_schema(organism: str) -> dict:
     return schema
 
 
-def _lapis_post(url: str, body: dict) -> requests.Response:
-    """POST a LAPIS query, and turn a LAPIS error into a short tool error."""
-    resp = requests.post(url, json=body, headers=LAPIS_HEADERS, timeout=60)
-    if resp.status_code >= 400:
-        try:
-            detail = resp.json()["error"]["detail"]
-        except (ValueError, KeyError, TypeError):
-            detail = resp.text
-        raise ToolError(f"LAPIS returned HTTP {resp.status_code}: {detail[:500]}")
-    return resp
+class LapisResponseTooLarge(Exception):
+    """A LAPIS response passed the size limit that the caller set."""
+
+
+def _lapis_post(
+    url: str, body: dict, max_bytes: int | None = None
+) -> tuple[list[dict], str | None]:
+    """POST a LAPIS query. Return the data rows and the LAPIS data version.
+
+    A LAPIS error becomes a short tool error. With max_bytes, the read stops
+    as soon as the response passes that size.
+    """
+    with requests.post(
+        url, json=body, headers=LAPIS_HEADERS, timeout=60, stream=True
+    ) as resp:
+        if resp.status_code >= 400:
+            try:
+                detail = resp.json()["error"]["detail"]
+            except (ValueError, KeyError, TypeError):
+                detail = resp.text
+            raise ToolError(f"LAPIS returned HTTP {resp.status_code}: {detail[:500]}")
+        content = bytearray()
+        for chunk in resp.iter_content(chunk_size=1 << 16):
+            content += chunk
+            if max_bytes is not None and len(content) > max_bytes:
+                raise LapisResponseTooLarge(max_bytes)
+        return json.loads(content)["data"], resp.headers.get("lapis-data-version")
 
 
 def _lapis_unknown_field(schema: dict, name: str) -> ToolError:
@@ -380,8 +410,7 @@ def lapis_aggregate_samples(
             query["orderBy"] = [{"field": f, "type": "ascending"} for f in group_by]
         query["limit"] = max_groups
 
-    resp = _lapis_post(f"{url}/sample/aggregated", query)
-    rows = resp.json()["data"]
+    rows, data_version = _lapis_post(f"{url}/sample/aggregated", query)
     notes = [
         "A count measures sequencing effort, not infection incidence. A "
         "difference between places or dates often reflects how much each one "
@@ -401,7 +430,159 @@ def lapis_aggregate_samples(
             "url": f"{url}/sample/aggregated",
             "method": "POST",
             "body": query,
-            "data_version": resp.headers.get("lapis-data-version"),
+            "data_version": data_version,
+        },
+    }
+
+
+@mcp.tool()
+def lapis_get_mutations(
+    organism: str,
+    sequence_type: Literal["nucleotide", "amino_acid"],
+    gene_or_segment: str = "",
+    filters: dict[str, Any] | None = None,
+    min_proportion: float = 0.05,
+    latest_version_only: bool = True,
+    order_by: Literal["proportion", "position"] = "proportion",
+    max_mutations: int = 50,
+) -> dict:
+    """List the mutations found in the sequences of one organism.
+
+    Use this for which substitutions and deletions occur, and how common each
+    one is among the sequences that match the filters. Each row gives the
+    mutation, the number of sequences that carry it, the number of sequences
+    with coverage at its position, and the proportion between the two.
+
+    A mutation reads <gene or segment>:<reference><position><new>, e.g.
+    S:N501Y, or C241T for a nucleotide on a single-segment genome. A "-" as
+    the new symbol marks a deletion.
+
+    Args:
+        organism: An organism name from lapis_list_organisms, e.g. "sars-cov-2".
+        sequence_type: "amino_acid" for protein changes within genes, or
+            "nucleotide" for changes in the genome.
+        gene_or_segment: Only return mutations in this gene (amino_acid) or
+            segment (nucleotide), e.g. "S" or "seg4". lapis_describe_organism
+            lists the genes and segments. Leave empty for all of them.
+        filters: Field filters, in the same form as lapis_aggregate_samples.
+        min_proportion: Leave out mutations below this proportion (default
+            0.05, the LAPIS default). This is a reporting filter, not a
+            biological cutoff. Lower it, down to 0, to look for rare or
+            emerging mutations. With gene_or_segment set, a very low value can
+            make the query too large, and the tool then returns an error.
+        latest_version_only: Use only the latest version of each sequence and
+            skip revocations (default True).
+        order_by: "proportion" lists the most common mutations first.
+            "position" lists them in genome order within each gene or segment.
+        max_mutations: Maximum number of mutations to return (default 50,
+            max 500).
+
+    Returns:
+        Rows of mutations with count, coverage, and proportion, whether
+        max_mutations cut the rows off, notes on how to read a proportion, and
+        the exact query sent to LAPIS.
+
+    Example questions:
+        "Which spike mutations occur in over 5% of SARS-CoV-2 sequences from
+        Switzerland since 2025?"
+        "Which HA amino acid changes are common in H5N1 from cattle?"
+        "Which nucleotide mutations are most common in mpox sequences?"
+    """
+    database, url = _lapis_organism(organism)
+    schema = _lapis_schema(organism)
+    if sequence_type == "amino_acid":
+        endpoint = "/sample/aminoAcidMutations"
+        names, kind = schema["genes"], "gene"
+    else:
+        endpoint = "/sample/nucleotideMutations"
+        names, kind = schema["segments"], "segment"
+    # A single-segment genome leaves sequenceName empty, so there is nothing
+    # to filter on.
+    name_filter = gene_or_segment if len(names) > 1 or kind == "gene" else ""
+    if kind == "gene" and not names:
+        raise ToolError(
+            f"{schema['instance_name']} declares no genes, so it has no amino "
+            "acid mutations. Use sequence_type 'nucleotide' instead."
+        )
+    if gene_or_segment and gene_or_segment not in names:
+        close = difflib.get_close_matches(gene_or_segment, names, n=3, cutoff=0.5)
+        hint = f" Close matches: {', '.join(close)}." if close else ""
+        raise ToolError(
+            f"'{gene_or_segment}' is not a {kind} of {schema['instance_name']}.{hint} "
+            f"Its {kind}s: {', '.join(names)}."
+        )
+
+    body = dict(filters or {})
+    _lapis_check_filters(schema, body)
+    version_note = _lapis_version_filter(schema, body, latest_version_only)
+    min_proportion = max(0.0, min(min_proportion, 1.0))
+    max_mutations = max(1, min(max_mutations, LAPIS_MAX_MUTATIONS))
+    query = {**body, "minProportion": min_proportion, "fields": LAPIS_MUTATION_FIELDS}
+    if order_by == "proportion":
+        order = [{"field": "proportion", "type": "descending"}]
+    else:
+        order = [
+            {"field": "sequenceName", "type": "ascending"},
+            {"field": "position", "type": "ascending"},
+        ]
+    # LAPIS cannot filter mutations by gene or segment. With a name filter,
+    # fetch every mutation above the threshold and filter here, up to a size
+    # limit. Without one, let LAPIS sort and cut, because a full nucleotide
+    # list can pass 20 MB.
+    if not name_filter:
+        query.update({"orderBy": order, "limit": max_mutations})
+
+    try:
+        rows, data_version = _lapis_post(
+            f"{url}{endpoint}",
+            query,
+            max_bytes=LAPIS_MAX_FILTER_DOWNLOAD_BYTES if name_filter else None,
+        )
+    except LapisResponseTooLarge:
+        raise ToolError(
+            f"The {sequence_type.replace('_', ' ')} mutations at or above "
+            f"proportion {min_proportion} pass "
+            f"{LAPIS_MAX_FILTER_DOWNLOAD_BYTES // 1_000_000} MB, which is too "
+            f"much to filter down to {kind} {gene_or_segment}. Raise "
+            "min_proportion, e.g. to 0.001, or narrow the filters."
+        ) from None
+    if name_filter:
+        rows = [r for r in rows if r["sequenceName"] == name_filter]
+        if order_by == "proportion":
+            rows.sort(key=lambda r: -r["proportion"])
+        else:
+            rows.sort(key=lambda r: r["position"])
+    truncated = len(rows) > max_mutations if name_filter else len(rows) == max_mutations
+    rows = rows[:max_mutations]
+    for row in rows:
+        row["proportion"] = round(row["proportion"], 4)
+
+    notes = [
+        "A proportion is the count divided by the coverage, among the "
+        "sequences that match the filters. It shows how common a mutation is "
+        "in sequenced samples, not among infections.",
+        "A proportion from a small coverage is unreliable. Check the coverage "
+        "before you compare two mutations.",
+        "A mutation seen in only one or two sequences can be a sequencing or "
+        "assembly artifact. Check the count before you treat it as real.",
+    ]
+    if version_note:
+        notes.append(version_note)
+    return {
+        "organism": organism,
+        "database": database["name"],
+        "sequence_type": sequence_type,
+        "gene_or_segment": gene_or_segment,
+        "min_proportion": min_proportion,
+        "rows_returned": len(rows),
+        "truncated": truncated,
+        "rows": rows,
+        "notes": notes,
+        "query": {
+            "url": f"{url}{endpoint}",
+            "method": "POST",
+            "body": query,
+            "data_version": data_version,
         },
     }
 
