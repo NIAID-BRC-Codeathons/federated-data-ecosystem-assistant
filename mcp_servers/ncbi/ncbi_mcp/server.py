@@ -1650,6 +1650,13 @@ async def ncbi_pathogen_organisms(
     return await _run(body, "ncbi_pathogen_organisms")
 
 
+# Each MCP server in this repo listens on its own port: 8000 uniprot, 8001 pdn.
+# The path is namespaced the way pdn.py namespaces its own, so several servers
+# can sit behind one host without colliding.
+DEFAULT_PORT = 8002
+HTTP_PATH = "/mcp-ncbi"
+
+
 def run() -> None:
     """Start the server on stdio. Synchronous --- FastMCP.run owns the event loop.
 
@@ -1657,3 +1664,13 @@ def run() -> None:
     JSON-RPC stream.
     """
     server.run("stdio")
+
+
+def run_http(host: str = "127.0.0.1", port: int = DEFAULT_PORT) -> None:
+    """Start the server on streamable HTTP, for chatbot.py's MultiServerMCPClient.
+
+    Bound to loopback by default. This server carries no credentials, but it
+    will happily spend the whole venue's shared 3/sec NCBI budget on behalf of
+    anyone who can reach it, so it is not exposed off-host without asking.
+    """
+    server.run("http", host=host, port=port, path=HTTP_PATH)

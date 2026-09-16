@@ -3,7 +3,7 @@
     "ncbi": {
       "type": "stdio",
       "command": ".venv/bin/fdea-ncbi-mcp",
-      "args": [],
+      "args": ["--stdio"],
       "env": {
         "NCBI_EMAIL": "you@example.org"
       }

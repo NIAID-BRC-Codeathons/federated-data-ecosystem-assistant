@@ -24,6 +24,9 @@ For multi-step questions, chain tools: search -> get entry -> get interactions.
 
 MCP_SERVER_URL = "http://127.0.0.1:8000/mcp"
 PDN_MCP_SERVER_URL = "http://127.0.0.1:8001/mcp-pdn"
+# Start with: cd mcp_servers/ncbi && .venv/bin/fdea-ncbi-mcp
+# It needs its own venv; see mcp_servers/ncbi/README.md.
+NCBI_MCP_SERVER_URL = "http://127.0.0.1:8002/mcp-ncbi"
 
 def load_chat_model(model: str) -> BaseChatModel:
     provider, model_name = model.split("/", maxsplit=1)
@@ -65,6 +68,10 @@ async def init_agent():
         },
         "pdn": {
             "url": PDN_MCP_SERVER_URL,
+            "transport": "streamable_http",
+        },
+        "ncbi": {
+            "url": NCBI_MCP_SERVER_URL,
             "transport": "streamable_http",
         },
     })

@@ -23,8 +23,39 @@ python3 -m venv .venv
 .venv/bin/python -m pytest          # 80 offline tests
 ```
 
-`.mcp.json` in this directory wires it up for a client launched from here — set
-`NCBI_EMAIL` to your own address first. Every setting is in
+### Running it
+
+Two transports, the same pair `uniprot_mcp.py` and `pdn.py` offer:
+
+```sh
+.venv/bin/fdea-ncbi-mcp                 # HTTP on http://127.0.0.1:8002/mcp-ncbi
+.venv/bin/fdea-ncbi-mcp --stdio         # stdio, for a client that launches it
+```
+
+HTTP is the default, so `chatbot.py` can reach it alongside the others. Each
+server in this repo owns a port and a namespaced path:
+
+| server | port | path |
+|---|---|---|
+| `uniprot_mcp.py` | 8000 | `/mcp` |
+| `mcp_servers/pdn.py` | 8001 | `/mcp-pdn` |
+| `mcp_servers/ncbi` | 8002 | `/mcp-ncbi` |
+
+`--host` and `--port` override the defaults. The bind address is loopback on
+purpose: this server has no auth, and anyone who can reach it spends the host's
+shared 3/sec NCBI budget.
+
+To add it to `chatbot.py`'s `MultiServerMCPClient`:
+
+```python
+"ncbi": {
+    "url": "http://127.0.0.1:8002/mcp-ncbi",
+    "transport": "streamable_http",
+},
+```
+
+`.mcp.json` in this directory wires up the stdio path for a client launched from
+here — set `NCBI_EMAIL` to your own address first. Every setting is in
 [Configuration](#configuration) below.
 
 ### Why a separate environment
