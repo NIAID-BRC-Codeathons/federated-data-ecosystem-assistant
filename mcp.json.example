@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "Wiring for the NCBI MCP server. Copy the 'mcpServers' block into your",
+    "client's MCP config (Claude Code: .mcp.json in the repo root).",
+    "Replace /ABSOLUTE/PATH/TO with this checkout's path -- most clients do",
+    "not launch the server from the repo directory.",
+    "",
+    "NCBI_EMAIL: who NCBI contacts if this server misbehaves. They email",
+    "before blocking, so a wrong address turns a warning into an outage.",
+    "",
+    "NCBI_API_KEY: optional. Raises the limit from 3 to 10 requests/second.",
+    "Free from https://account.ncbi.nlm.nih.gov/settings/. Leave it out and",
+    "the server paces itself at 3/sec.",
+    "",
+    "NCBI_MAX_RPS: optional, lowers the rate. The limit is per IP, so if",
+    "several people on one network each run a copy, they share one budget --",
+    "set this to 3 divided by the number of copies."
+  ],
+  "mcpServers": {
+    "ncbi": {
+      "command": "/ABSOLUTE/PATH/TO/federated-data-ecosystem-assistant/.venv/bin/python",
+      "args": ["-m", "ncbi_mcp"],
+      "cwd": "/ABSOLUTE/PATH/TO/federated-data-ecosystem-assistant",
+      "env": {
+        "NCBI_EMAIL": "you@example.org"
+      }
+    }
+  }
+}

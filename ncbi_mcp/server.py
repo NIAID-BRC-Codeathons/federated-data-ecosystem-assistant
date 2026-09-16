@@ -1,0 +1,1149 @@
+"""NCBI E-utilities as MCP tools.
+
+    THE INVARIANT: every tool function below is `async def`.
+
+    FastMCP dispatches a synchronous tool onto a worker thread and an async one
+    onto the event loop --- measured, not assumed; see tests/test_invariants.py,
+    which fails if that ever stops being true. NCBI's rate limit is per source
+    IP, so pacing has to be
+    process-global --- and a sync tool would run alongside the asyncio limiter
+    without ever entering it, quietly doubling the request rate. At a codeathon
+    the whole room shares one IP, so the cost of that mistake is everyone's
+    tools breaking at once, not just these.
+
+    One event loop, one anyio.Lock, one httpx2.AsyncClient. Do not add a sync
+    tool here, and do not "simplify" a tool that does not appear to await
+    anything --- it still has to await the limiter.
+
+Built on `fastmcp` (jlowin's standalone package, v4). Note that this is NOT the
+`mcp.server.fastmcp` module vendored inside the official `mcp` SDK --- that one
+is a tombstone in mcp 2.x and raises on import. Same name, different project.
+
+Parameter descriptions use Annotated[..., Field(description=...)], which is what
+reaches the agent: a description written only in the docstring documents the
+tool but not its arguments. These strings are the agent's entire basis for
+choosing between sixteen similar-sounding tools; they are interface, not
+comments.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated, Any
+
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
+from pydantic import Field
+
+from . import databases, parsing
+from .databases import DATABASES, RUNINFO_OPEN_ACCESS_EMPTY
+from .envelope import NCBIError, envelope, provenance
+from .eutils import MAX_ESUMMARY_UIDS, EUtilsClient, Timer, TransportError
+
+server = FastMCP(
+    name="fdea-ncbi",
+    instructions=(
+        "NCBI E-utilities: sequencing runs (SRA), samples (BioSample), "
+        "projects (BioProject), literature (PubMed), organisms (Taxonomy), "
+        "genes, genome assemblies, and sequences.\n\n"
+        "Every result carries a `provenance` block with the exact URLs called "
+        "and, for searches, `query_translation` --- the query NCBI actually "
+        "ran, which is often not the one that was sent. Report that "
+        "translation when it differs from the request.\n\n"
+        "Results may be truncated. When `truncated` is true, `next` holds the "
+        "parameters for the following page; do not describe a truncated "
+        "result as complete."
+    ),
+)
+
+client = EUtilsClient()
+
+# Caps chosen from measured payload sizes, not guessed. Exceeding them produces
+# a ToolError naming the smaller alternative rather than a 30 MB tool result.
+MAX_RECORDS_DEFAULT = 100
+MAX_SRA_FULL_RUNS = 50  # full SRA XML is ~9.3 KB/record
+
+
+# --------------------------------------------------------------------------
+# helpers
+# --------------------------------------------------------------------------
+
+
+def _fail(message: str) -> ToolError:
+    """ToolError text reaches the model; other exception types are replaced with
+    a generic string it cannot act on. So every anticipated failure is raised as
+    a ToolError whose message names a concrete next step."""
+    return ToolError(message)
+
+
+async def _run(coro_fn):
+    """Execute one tool body with timing, a fresh call log, and error translation."""
+    client.reset_call_log()
+    try:
+        with Timer() as timer:
+            summary, data, extra = await coro_fn()
+    except NCBIError as exc:
+        raise _fail(f"NCBI rejected the request: {exc}") from exc
+    except TransportError as exc:
+        raise _fail(str(exc)) from exc
+
+    prov = provenance(
+        client.reset_call_log(),
+        elapsed_ms=timer.elapsed_ms,
+        query_translation=extra.get("query_translation"),
+        result_count=extra.get("result_count"),
+        notes=extra.get("notes"),
+    )
+    return envelope(
+        summary,
+        data,
+        prov,
+        truncated=extra.get("truncated", False),
+        next_params=extra.get("next"),
+    )
+
+
+def _split_ids(value: str | list[str]) -> list[str]:
+    if isinstance(value, str):
+        parts = [p.strip() for p in value.replace(",", " ").split()]
+    else:
+        parts = [str(p).strip() for p in value]
+    ids = [p for p in parts if p]
+    if not ids:
+        raise _fail("No identifiers were provided.")
+    return ids
+
+
+def _looks_like_uid(value: str) -> bool:
+    return value.isdigit()
+
+
+def _require_uids(ids: list[str], db: str, resolver_tool: str) -> None:
+    """esummary needs numeric UIDs. Accessions produce an empty `uids` list and
+    no per-uid key, so the failure surfaces as a KeyError far from the cause."""
+    non_numeric = [i for i in ids if not _looks_like_uid(i)]
+    if non_numeric:
+        shown = ", ".join(non_numeric[:3])
+        verb = "are" if len(non_numeric) > 1 else "is"
+        raise _fail(
+            f"esummary for db={db!r} needs numeric Entrez UIDs, but {shown} "
+            f"{verb} not numeric (accessions and symbols are not UIDs). "
+            f"Resolve them first with {resolver_tool}(db={db!r}, "
+            f"accessions=...), which accepts accessions and names directly."
+        )
+
+
+async def _esearch(
+    db: str,
+    term: str,
+    *,
+    retmax: int,
+    retstart: int = 0,
+    use_history: bool = False,
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "term": term,
+        "retmax": retmax,
+        "retstart": retstart,
+        "sort": "relevance",
+    }
+    if use_history:
+        params["usehistory"] = "y"
+    payload = await client.request_json("esearch", params, db=db)
+    return payload.get("esearchresult", {})
+
+
+async def _esummary_records(
+    db: str, ids: list[str]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """esummary in chunks of 500 --- above that NCBI returns HTTP 200 with a
+    top-level error rather than truncating.
+
+    Returns ``(records, per_uid_errors)``. A nonexistent UID yields a record
+    whose only content is an ``error`` field; those are separated out so they
+    reach the agent as notes rather than as data.
+    """
+    records: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for start in range(0, len(ids), MAX_ESUMMARY_UIDS):
+        chunk = ids[start : start + MAX_ESUMMARY_UIDS]
+        payload = await client.request_json(
+            "esummary", {"id": ",".join(chunk), "version": "2.0"}, db=db
+        )
+        chunk_records, chunk_errors = parsing.parse_esummary_records(payload)
+        records.extend(chunk_records)
+        errors.extend(chunk_errors)
+    return records, errors
+
+
+def _uid_error_notes(errors: list[str]) -> list[str] | None:
+    if not errors:
+        return None
+    return [
+        "NCBI could not return a summary for these UIDs (they may not exist "
+        "in this database): " + "; ".join(errors)
+    ]
+
+
+async def _sra_history_for_accessions(accessions: list[str]) -> dict[str, Any]:
+    """Resolve SRA run accessions onto the History server.
+
+    efetch will not take a run accession as ``id`` --- it answers HTTP 400,
+    which is at least loud, unlike most of NCBI's failure modes. Accessions
+    have to go through esearch first.
+
+    One esearch for the whole batch (``ACC1 OR ACC2 OR ...``), with
+    ``usehistory=y`` so the follow-up efetch replays the result set through a
+    short URL instead of a multi-kilobyte id list.
+    """
+    term = " OR ".join(accessions)
+    result = await _esearch(
+        "sra", term, retmax=len(accessions), use_history=True
+    )
+    count = int(result.get("count", 0))
+    if count == 0:
+        raise _fail(
+            f"None of these SRA accessions were found: "
+            f"{', '.join(accessions[:5])}. NCBI ran: "
+            f"{result.get('querytranslation')}. Check the accessions, or "
+            f"search by organism with ncbi_sra_search."
+        )
+    return {
+        "count": count,
+        # NCBI returns these keys lowercased but requires them capitalized
+        # on the way back in.
+        "WebEnv": result.get("webenv"),
+        "query_key": result.get("querykey"),
+        "idlist": result.get("idlist") or [],
+        "query_translation": result.get("querytranslation"),
+    }
+
+
+def _history_params(history: dict[str, Any]) -> dict[str, Any]:
+    if history.get("WebEnv") and history.get("query_key"):
+        return {"WebEnv": history["WebEnv"], "query_key": history["query_key"]}
+    return {"id": ",".join(history["idlist"])}
+
+
+# --------------------------------------------------------------------------
+# discovery
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+async def ncbi_list_databases() -> dict[str, Any]:
+    """List the NCBI Entrez databases this server has curated tools for.
+
+    Start here when unsure which database answers a question. Each entry names
+    the tool to use and flags databases where bulk record retrieval is unsafe.
+    """
+
+    async def body():
+        data = [
+            {
+                "db": info.name,
+                "description": info.description,
+                "use_tool": info.tool,
+                "bulk_fetch": info.efetch,
+            }
+            for info in DATABASES.values()
+        ]
+        return (
+            (f"{len(data)} curated NCBI databases. "
+            "Use ncbi_entrez_raw for any Entrez database not listed here."),
+            data,
+            {"result_count": len(data)},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_describe_database(
+    db: Annotated[
+        str,
+        Field(
+            description=(
+                "Entrez database name, e.g. 'sra', 'pubmed', 'biosample', "
+                "'bioproject', 'taxonomy', 'gene', 'assembly', 'nuccore'."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Describe one Entrez database: its searchable field tags and link targets.
+
+    Use this before composing a search with field tags, to confirm a tag exists.
+    NCBI silently drops unrecognized field names and runs the search anyway, so
+    a typo returns confident but wrong results rather than an error.
+    """
+
+    async def body():
+        payload = await client.request_json("einfo", {}, db=db)
+        # einforesult.dbinfo is a LIST, even when describing a single database.
+        infos = payload.get("einforesult", {}).get("dbinfo") or []
+        if not infos:
+            raise _fail(
+                f"NCBI returned no description for db={db!r}. "
+                "Call ncbi_list_databases to see valid names."
+            )
+        info = infos[0]
+        fields = [
+            {
+                "tag": f.get("name"),
+                "name": f.get("fullname"),
+                "description": f.get("description"),
+            }
+            for f in info.get("fieldlist") or []
+        ]
+        links = [
+            {"name": link.get("name"), "description": link.get("description")}
+            for link in info.get("linklist") or []
+        ]
+        local = databases.describe(db)
+        data = {
+            "db": info.get("dbname"),
+            "description": info.get("description"),
+            "record_count": info.get("count"),
+            "last_update": info.get("lastupdate"),
+            "search_fields": fields,
+            "link_targets": links,
+        }
+        if local:
+            data["notes"] = local.efetch_note
+            data["use_tool"] = local.tool
+        return (
+            (f"{info.get('dbname')}: {len(fields)} search fields, "
+            f"{len(links)} link targets, {info.get('count')} records."),
+            data,
+            {},
+        )
+
+    return await _run(body)
+
+
+# --------------------------------------------------------------------------
+# SRA
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+async def ncbi_sra_search(
+    organism: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Scientific or common organism name, e.g. 'Zaire ebolavirus' "
+                "or 'Homo sapiens'. Mapped to the [ORGN] field."
+            )
+        ),
+    ] = None,
+    strategy: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Sequencing strategy, e.g. 'WGS', 'RNA-Seq', 'AMPLICON', "
+                "'ChIP-Seq', 'WXS'. Mapped to the [STRA] field."
+            )
+        ),
+    ] = None,
+    platform: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Sequencing platform, e.g. 'illumina', 'oxford nanopore', "
+                "'pacbio smrt'. Mapped to the [PLAT] field."
+            )
+        ),
+    ] = None,
+    layout: Annotated[
+        str | None,
+        Field(description="Library layout: 'paired' or 'single'. Mapped to [LAY]."),
+    ] = None,
+    extra_terms: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Additional raw Entrez query text, ANDed with the other "
+                "parameters. Use for anything the typed parameters do not "
+                "cover, e.g. '2014:2015[PDAT]'."
+            )
+        ),
+    ] = None,
+    max_results: Annotated[
+        int,
+        Field(description="Maximum runs to return (1-500).", ge=1, le=500),
+    ] = 20,
+) -> dict[str, Any]:
+    """Search the Sequence Read Archive for sequencing runs.
+
+    Composes a correct Entrez query from typed parameters, so field-tag syntax
+    is not needed. Returns run accessions plus summary metadata.
+
+    To list every run in a known BioProject, use ncbi_sra_runs_for_project.
+    """
+
+    async def body():
+        clauses = []
+        if organism:
+            clauses.append(f'"{organism}"[ORGN]')
+        if strategy:
+            clauses.append(f'"{strategy}"[STRA]')
+        if platform:
+            clauses.append(f'"{platform}"[PLAT]')
+        if layout:
+            clauses.append(f'"{layout}"[LAY]')
+        if extra_terms:
+            clauses.append(f"({extra_terms})")
+        if not clauses:
+            raise _fail(
+                "Provide at least one of: organism, strategy, platform, "
+                "layout, extra_terms."
+            )
+        term = " AND ".join(clauses)
+
+        result = await _esearch("sra", term, retmax=max_results)
+        count = int(result.get("count", 0))
+        translation = result.get("querytranslation")
+        uids = result.get("idlist") or []
+
+        if not uids:
+            return (
+                f"No SRA runs matched. NCBI ran this query: {translation}",
+                [],
+                {"result_count": 0, "query_translation": translation},
+            )
+
+        records, uid_errors = await _esummary_records("sra", uids)
+        data = [parsing.expand_sra_summary(r) for r in records]
+        extra: dict[str, Any] = {
+            "result_count": count,
+            "query_translation": translation,
+            "notes": _uid_error_notes(uid_errors),
+        }
+        if count > len(data):
+            extra["truncated"] = True
+            extra["next"] = {"retstart": len(data)}
+        return (
+            f"{count} SRA runs matched (showing {len(data)}).",
+            data,
+            extra,
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_sra_runs_for_project(
+    accession: Annotated[
+        str,
+        Field(
+            description=(
+                "BioProject accession, e.g. 'PRJNA257197'. Also accepts an SRA "
+                "study accession such as 'SRP045416'."
+            )
+        ),
+    ],
+    max_results: Annotated[
+        int,
+        Field(description="Maximum runs to return (1-1000).", ge=1, le=1000),
+    ] = 100,
+) -> dict[str, Any]:
+    """List the sequencing runs belonging to a BioProject or SRA study.
+
+    Use this whenever a paper or record cites a PRJNA/SRP accession. Returns
+    one row per run with platform, library, sample, and download path.
+    """
+
+    async def body():
+        # Deliberately a direct esearch rather than an elink chain. elink costs
+        # more requests AND has a silent-wrong-answer mode: PRJNA257197 maps to
+        # two BioProject UIDs, and following the wrong one returns zero links,
+        # which reads as "this project has no sequencing data" rather than as
+        # an error.
+        result = await _esearch(
+            "sra", accession, retmax=max_results, use_history=True
+        )
+        count = int(result.get("count", 0))
+        translation = result.get("querytranslation")
+        if count == 0:
+            raise _fail(
+                f"No SRA runs found for {accession!r}. NCBI ran: {translation}. "
+                "Check the accession, or search by organism with ncbi_sra_search."
+            )
+
+        # The History server replays the whole result set through a short URL,
+        # avoiding a multi-kilobyte id list. NCBI returns these keys lowercased
+        # but requires them capitalized on the way back in.
+        webenv = result.get("webenv")
+        query_key = result.get("querykey")
+        params: dict[str, Any] = {
+            "rettype": "runinfo",
+            "retmode": "text",
+            "retmax": max_results,
+        }
+        if webenv and query_key:
+            params["WebEnv"] = webenv
+            params["query_key"] = query_key
+        else:
+            params["id"] = ",".join(result.get("idlist") or [])
+
+        text, _ = await client.request("efetch", params, db="sra")
+        rows = parsing.parse_runinfo_csv(
+            text, drop_columns=RUNINFO_OPEN_ACCESS_EMPTY
+        )
+
+        extra: dict[str, Any] = {
+            "result_count": count,
+            "query_translation": translation,
+        }
+        if count > len(rows):
+            extra["truncated"] = True
+            extra["next"] = {"max_results": min(count, 1000)}
+        return (
+            f"{count} SRA runs in {accession} (showing {len(rows)}).",
+            rows,
+            extra,
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_sra_run_metadata(
+    accessions: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "SRA run accessions, e.g. 'SRR1972976' or "
+                "['SRR1972976', 'SRR1972977']. Comma- or space-separated "
+                "string also accepted."
+            )
+        ),
+    ],
+    detail: Annotated[
+        str,
+        Field(
+            description=(
+                "'summary' (default) returns the 47-column runinfo table: "
+                "platform, library, sample, sizes, download path. "
+                "'full' additionally returns sample attributes, study "
+                "abstract, and per-file download URLs, at roughly 20x the "
+                "size --- use it only for a handful of runs."
+            )
+        ),
+    ] = "summary",
+) -> dict[str, Any]:
+    """Get metadata for specific SRA runs by accession.
+
+    'summary' is the right default; reach for 'full' only when sample
+    attributes or the study abstract are actually needed.
+    """
+
+    async def body():
+        ids = _split_ids(accessions)
+        if detail not in ("summary", "full"):
+            raise _fail("detail must be 'summary' or 'full'.")
+
+        if detail == "full" and len(ids) > MAX_SRA_FULL_RUNS:
+            raise _fail(
+                f"{len(ids)} runs exceeds the {MAX_SRA_FULL_RUNS}-run cap "
+                f"for detail='full' (~9.3 KB of XML per run). Use "
+                f"detail='summary', or request fewer runs at a time."
+            )
+
+        history = await _sra_history_for_accessions(ids)
+        fetch_params = _history_params(history)
+        fetch_params["retmax"] = len(ids)
+
+        if detail == "full":
+            text, _ = await client.request(
+                "efetch", {**fetch_params, "retmode": "xml"}, db="sra"
+            )
+            data = parsing.xml_to_dict(parsing.parse_xml_fragment(text))
+            return (
+                f"Full XML metadata for {history['count']} SRA run(s).",
+                data,
+                {
+                    "result_count": history["count"],
+                    "query_translation": history["query_translation"],
+                },
+            )
+
+        text, _ = await client.request(
+            "efetch",
+            {**fetch_params, "rettype": "runinfo", "retmode": "text"},
+            db="sra",
+        )
+        rows = parsing.parse_runinfo_csv(
+            text, drop_columns=RUNINFO_OPEN_ACCESS_EMPTY
+        )
+        # runinfo row order does not follow the requested order.
+        rows = parsing.order_runinfo(rows, ids)
+        missing = parsing.missing_accessions(rows, ids)
+
+        extra: dict[str, Any] = {
+            "result_count": len(rows),
+            "query_translation": history["query_translation"],
+        }
+        if missing:
+            extra["notes"] = [
+                (f"NCBI returned no row for: {', '.join(missing)}. "
+                "These accessions may be invalid, suppressed, or "
+                "dbGaP-controlled.")
+            ]
+        return (
+            f"Metadata for {len(rows)} of {len(ids)} requested SRA run(s).",
+            rows,
+            extra,
+        )
+
+    return await _run(body)
+
+
+# --------------------------------------------------------------------------
+# literature
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+async def ncbi_pubmed_search(
+    query: Annotated[
+        str,
+        Field(
+            description=(
+                "PubMed search query. Entrez field tags work, e.g. "
+                "'ebola[TITLE] AND 2015[PDAT]'."
+            )
+        ),
+    ],
+    max_results: Annotated[
+        int, Field(description="Maximum citations to return (1-200).", ge=1, le=200)
+    ] = 20,
+) -> dict[str, Any]:
+    """Search PubMed for biomedical literature citations.
+
+    Returns titles, authors, journals, dates, and PMIDs. Abstract text is NOT
+    included --- PubMed's summary records have no abstract field. Pass the PMIDs
+    to ncbi_pubmed_abstracts to get abstracts.
+    """
+
+    async def body():
+        result = await _esearch("pubmed", query, retmax=max_results)
+        count = int(result.get("count", 0))
+        translation = result.get("querytranslation")
+        uids = result.get("idlist") or []
+        if not uids:
+            return (
+                f"No PubMed citations matched. NCBI ran: {translation}",
+                [],
+                {"result_count": 0, "query_translation": translation},
+            )
+        records, uid_errors = await _esummary_records("pubmed", uids)
+        data = [
+            {
+                "pmid": r.get("uid"),
+                "title": r.get("title"),
+                "journal": r.get("fulljournalname") or r.get("source"),
+                "pubdate": r.get("pubdate"),
+                "authors": [a.get("name") for a in r.get("authors") or []],
+                "doi": r.get("elocationid"),
+            }
+            for r in records
+        ]
+        extra: dict[str, Any] = {
+            "result_count": count,
+            "query_translation": translation,
+            "notes": _uid_error_notes(uid_errors),
+        }
+        if count > len(data):
+            extra["truncated"] = True
+            extra["next"] = {"max_results": min(count, 200)}
+        return (
+            (f"{count} PubMed citations matched (showing {len(data)}). "
+            "Abstracts require ncbi_pubmed_abstracts."),
+            data,
+            extra,
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_pubmed_abstracts(
+    pmids: Annotated[
+        str | list[str],
+        Field(description="PubMed IDs, e.g. '25814066' or ['25814066', '26060301']."),
+    ],
+) -> dict[str, Any]:
+    """Fetch full abstract text for PubMed citations by PMID.
+
+    A separate call from ncbi_pubmed_search because PubMed summary records do
+    not carry abstracts.
+    """
+
+    async def body():
+        ids = _split_ids(pmids)
+        if len(ids) > MAX_RECORDS_DEFAULT:
+            raise _fail(
+                f"{len(ids)} PMIDs exceeds the {MAX_RECORDS_DEFAULT}-record "
+                "cap. Request them in smaller batches."
+            )
+        text, _ = await client.request(
+            "efetch",
+            {"id": ",".join(ids), "rettype": "abstract", "retmode": "text"},
+            db="pubmed",
+        )
+        return (
+            f"Abstracts for {len(ids)} PubMed citation(s).",
+            text,
+            {"result_count": len(ids)},
+        )
+
+    return await _run(body)
+
+
+# --------------------------------------------------------------------------
+# samples, projects, organisms
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+async def ncbi_biosample_metadata(
+    ids: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "BioSample numeric UIDs, e.g. '2604091'. Accessions like "
+                "'SAMN02604091' are NOT accepted here --- pass them to "
+                "ncbi_find_uids first."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Get the biological source metadata for BioSample records.
+
+    Returns host, isolation source, collection date, geographic location, and
+    other submitter-supplied sample attributes.
+    """
+
+    async def body():
+        uids = _split_ids(ids)
+        _require_uids(uids, "biosample", "ncbi_find_uids")
+        records, uid_errors = await _esummary_records("biosample", uids)
+        # The sampledata field is an XML blob and holds most of the payload.
+        data = [parsing.expand_xml_field(r, "sampledata") for r in records]
+        return (
+            f"BioSample metadata for {len(data)} record(s).",
+            data,
+            {"result_count": len(data), "notes": _uid_error_notes(uid_errors)},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_bioproject_summary(
+    ids: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "BioProject numeric UIDs, e.g. '257197'. Accessions like "
+                "'PRJNA257197' are NOT accepted --- pass them to "
+                "ncbi_find_uids first."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Get project-level descriptions for BioProject records.
+
+    Returns title, description, organism, submitting organization, and data
+    types. To list the sequencing runs in a project, use
+    ncbi_sra_runs_for_project, which takes the PRJNA accession directly.
+    """
+
+    async def body():
+        uids = _split_ids(ids)
+        _require_uids(uids, "bioproject", "ncbi_find_uids")
+        # esummary only: efetch for this database is unbounded, returning
+        # 20 KB or 840 KB for the same call shape with no size control.
+        records, uid_errors = await _esummary_records("bioproject", uids)
+        return (
+            f"BioProject summaries for {len(records)} record(s).",
+            records,
+            {"result_count": len(records), "notes": _uid_error_notes(uid_errors)},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_taxonomy_lookup(
+    query: Annotated[
+        str,
+        Field(
+            description=(
+                "Organism name or NCBI taxonomy ID, e.g. 'Zaire ebolavirus' "
+                "or '186538'."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Resolve an organism name to an NCBI taxonomy ID, rank, and lineage.
+
+    Use this to confirm the exact organism name before an SRA or sequence
+    search, since Entrez organism matching is name-sensitive.
+    """
+
+    async def body():
+        uids = _split_ids(query) if query.strip().isdigit() else None
+        translation = None
+        if uids is None:
+            result = await _esearch("taxonomy", query, retmax=20)
+            translation = result.get("querytranslation")
+            uids = result.get("idlist") or []
+            if not uids:
+                return (
+                    f"No taxonomy record matched {query!r}.",
+                    [],
+                    {"result_count": 0, "query_translation": translation},
+                )
+        records, uid_errors = await _esummary_records("taxonomy", uids)
+        data = [
+            {
+                "taxid": r.get("uid"),
+                "scientific_name": r.get("scientificname"),
+                "common_name": r.get("commonname"),
+                "rank": r.get("rank"),
+                "division": r.get("division"),
+                "genetic_code": r.get("geneticcode"),
+            }
+            for r in records
+        ]
+        return (
+            f"{len(data)} taxonomy record(s) for {query!r}.",
+            data,
+            {
+                "result_count": len(data),
+                "query_translation": translation,
+                "notes": _uid_error_notes(uid_errors),
+            },
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_gene_info(
+    ids: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "Gene numeric UIDs, e.g. '7157' for TP53. Gene symbols are NOT "
+                "accepted --- resolve them with ncbi_find_uids first."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Get gene records: symbol, aliases, description, genomic location, summary."""
+
+    async def body():
+        uids = _split_ids(ids)
+        _require_uids(uids, "gene", "ncbi_find_uids")
+        # esummary only. efetch retmode=xml returned 34.6 MB for TP53 alone.
+        records, uid_errors = await _esummary_records("gene", uids)
+        return (
+            f"Gene records for {len(records)} UID(s).",
+            records,
+            {"result_count": len(records), "notes": _uid_error_notes(uid_errors)},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_assembly_info(
+    ids: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "Assembly numeric UIDs. Accessions like 'GCF_000001405.40' "
+                "are NOT accepted --- resolve them with ncbi_find_uids first."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Get genome assembly records: accession, level, submitter, and FTP paths.
+
+    The FTP paths in the result are where the actual sequence files live; this
+    server does not download them.
+    """
+
+    async def body():
+        uids = _split_ids(ids)
+        _require_uids(uids, "assembly", "ncbi_find_uids")
+        # esummary only. efetch is not implemented for assembly and does not
+        # say so: it returns HTTP 200 and a 192-byte <IdList> echoing the UID.
+        records, uid_errors = await _esummary_records("assembly", uids)
+        data = [parsing.expand_xml_field(r, "meta") for r in records]
+        return (
+            f"Assembly records for {len(data)} UID(s).",
+            data,
+            {"result_count": len(data), "notes": _uid_error_notes(uid_errors)},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_sequence_fetch(
+    ids: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "Sequence accessions or UIDs, e.g. 'NM_000546' or 'KM034562'. "
+                "Accessions are accepted directly here."
+            )
+        ),
+    ],
+    db: Annotated[
+        str,
+        Field(description="'nuccore' for nucleotide (default) or 'protein'."),
+    ] = "nuccore",
+    format: Annotated[
+        str,
+        Field(
+            description=(
+                "'fasta' (default, compact) or 'genbank' (full flatfile with "
+                "feature annotations --- roughly 15x larger)."
+            )
+        ),
+    ] = "fasta",
+) -> dict[str, Any]:
+    """Fetch nucleotide or protein sequences by accession.
+
+    FASTA by default. Request 'genbank' only when feature annotations are
+    needed; a 2.5 kb mRNA is 37 KB as GenBank versus about 2.5 KB as FASTA.
+    """
+
+    async def body():
+        seq_ids = _split_ids(ids)
+        if db not in ("nuccore", "protein"):
+            raise _fail("db must be 'nuccore' or 'protein'.")
+        if format not in ("fasta", "genbank"):
+            raise _fail("format must be 'fasta' or 'genbank'.")
+        if len(seq_ids) > MAX_RECORDS_DEFAULT:
+            raise _fail(
+                f"{len(seq_ids)} sequences exceeds the {MAX_RECORDS_DEFAULT}-"
+                "record cap. Request them in smaller batches."
+            )
+        rettype = "fasta" if format == "fasta" else "gb"
+        text, _ = await client.request(
+            "efetch",
+            {"id": ",".join(seq_ids), "rettype": rettype, "retmode": "text"},
+            db=db,
+        )
+        if not text.strip():
+            raise _fail(
+                f"NCBI returned nothing for {', '.join(seq_ids[:3])}. "
+                f"Check that the accessions exist in db={db!r}."
+            )
+        return (
+            f"{format} for {len(seq_ids)} record(s) from {db}.",
+            text,
+            {"result_count": len(seq_ids)},
+        )
+
+    return await _run(body)
+
+
+# --------------------------------------------------------------------------
+# cross-database navigation
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+async def ncbi_find_uids(
+    db: Annotated[
+        str,
+        Field(
+            description=(
+                "Entrez database to search, e.g. 'biosample', 'bioproject', "
+                "'gene', 'assembly'."
+            )
+        ),
+    ],
+    accessions: Annotated[
+        str | list[str],
+        Field(
+            description=(
+                "Accessions or names to resolve, e.g. 'SAMN02604091' or "
+                "'PRJNA257197'."
+            )
+        ),
+    ],
+) -> dict[str, Any]:
+    """Resolve accessions or names to the numeric Entrez UIDs other tools need.
+
+    Most NCBI tools here require numeric UIDs, but papers and records cite
+    accessions. This is the bridge. One search per accession.
+    """
+
+    async def body():
+        wanted = _split_ids(accessions)
+        resolved: list[dict[str, Any]] = []
+        for accession in wanted:
+            result = await _esearch(db, accession, retmax=10)
+            uids = result.get("idlist") or []
+            resolved.append(
+                {
+                    "query": accession,
+                    "uids": uids,
+                    "count": int(result.get("count", 0)),
+                    "query_translation": result.get("querytranslation"),
+                }
+            )
+        found = sum(1 for r in resolved if r["uids"])
+        notes = None
+        multi = [r["query"] for r in resolved if len(r["uids"]) > 1]
+        if multi:
+            # Real and load-bearing: PRJNA257197 resolves to two BioProject
+            # UIDs. Picking one arbitrarily can yield an empty downstream
+            # result that looks like a legitimate "no data".
+            notes = [
+                (f"Ambiguous --- more than one UID matched: {', '.join(multi)}. "
+                "Inspect each UID rather than assuming the first is correct.")
+            ]
+        return (
+            f"Resolved {found} of {len(wanted)} identifier(s) in db={db!r}.",
+            resolved,
+            {"result_count": found, "notes": notes},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_linked_records(
+    from_db: Annotated[
+        str, Field(description="Source Entrez database, e.g. 'bioproject'.")
+    ],
+    to_dbs: Annotated[
+        str,
+        Field(
+            description=(
+                "One or more target databases, comma-separated, e.g. "
+                "'sra,biosample,pubmed'. Multiple targets cost one request."
+            )
+        ),
+    ],
+    ids: Annotated[
+        str | list[str],
+        Field(description="Numeric UIDs in the source database."),
+    ],
+) -> dict[str, Any]:
+    """Find records in other databases linked to the given records.
+
+    Results are grouped by target database only. If several source UIDs are
+    given, NCBI merges their links and does not report which source produced
+    which target, so do not attribute a linked record to a specific input.
+    """
+
+    async def body():
+        uids = _split_ids(ids)
+        targets = ",".join(t.strip() for t in to_dbs.split(",") if t.strip())
+        if not targets:
+            raise _fail("to_dbs must name at least one target database.")
+        payload = await client.request_json(
+            "elink",
+            {"dbfrom": from_db, "id": ",".join(uids), "db": targets},
+        )
+        links = parsing.parse_linksets(payload)
+        total = sum(len(v) for v in links.values())
+        notes = None
+        if len(uids) > 1:
+            notes = [
+                ("Links from multiple source UIDs are merged by NCBI; "
+                "per-source attribution is not available.")
+            ]
+        if not links:
+            return (
+                f"No links found from {from_db} to {targets}.",
+                {},
+                {"result_count": 0, "notes": notes},
+            )
+        return (
+            f"{total} linked record(s) across {len(links)} database(s).",
+            links,
+            {"result_count": total, "notes": notes},
+        )
+
+    return await _run(body)
+
+
+@server.tool()
+async def ncbi_entrez_raw(
+    utility: Annotated[
+        str,
+        Field(
+            description=(
+                "E-utility name: 'esearch', 'esummary', 'efetch', 'elink', "
+                "'einfo', or 'espell'."
+            )
+        ),
+    ],
+    db: Annotated[
+        str,
+        Field(
+            description=(
+                "Entrez database. Required. Omitting it makes esearch silently "
+                "search PubMed instead of erroring."
+            )
+        ),
+    ],
+    params: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description=(
+                "Extra E-utilities parameters, e.g. "
+                "{'term': 'ebola', 'retmax': 5, 'rettype': 'fasta'}. "
+                "tool, email, and api_key are added automatically."
+            )
+        ),
+    ] = None,
+) -> dict[str, Any]:
+    """Escape hatch: call any E-utility directly for cases the other tools miss.
+
+    Prefer the curated tools --- they encode database-specific hazards this one
+    does not. Use this for databases or parameters they do not cover.
+    """
+
+    async def body():
+        allowed = {"esearch", "esummary", "efetch", "elink", "einfo", "espell"}
+        if utility not in allowed:
+            raise _fail(f"utility must be one of: {', '.join(sorted(allowed))}.")
+
+        extra = dict(params or {})
+        if utility == "efetch":
+            guidance = databases.efetch_guidance(db)
+            if guidance:
+                raise _fail(guidance)
+
+        text, _ = await client.request(utility, extra, db=db)
+        if len(text) > 200_000:
+            return (
+                (f"{utility} on db={db!r} returned {len(text)} bytes; "
+                "truncated to 200,000. Narrow the request."),
+                text[:200_000],
+                {"truncated": True},
+            )
+        return (f"{utility} on db={db!r}: {len(text)} bytes.", text, {})
+
+    return await _run(body)
+
+
+def run() -> None:
+    """Start the server on stdio. Synchronous --- FastMCP.run owns the event loop.
+
+    The startup banner goes to stderr (verified), so stdout stays a clean
+    JSON-RPC stream.
+    """
+    server.run("stdio")
