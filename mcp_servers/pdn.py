@@ -303,15 +303,11 @@ def _lapis_data_use_terms(database: dict, schema: dict, rows: list[dict]) -> dic
 
 @mcp.tool()
 def lapis_list_organisms() -> dict:
-    """List the pathogens that the LAPIS tools can query, grouped by database.
+    """List the organisms the LAPIS tools can query, grouped by database.
 
-    Every other LAPIS tool takes one of these organism names. Pathoplexus
-    holds human viral pathogens. GenSpectrum Loculus holds influenza lineages
-    and dengue serotypes. CoV-Spectrum open holds open SARS-CoV-2 data.
-
-    Returns:
-        Each database with its description, organism names, and LAPIS URL
-        pattern.
+    Pathoplexus holds human viral pathogens, GenSpectrum Loculus holds
+    influenza lineages and dengue serotypes, and CoV-Spectrum holds open
+    SARS-CoV-2 data.
 
     Example questions:
         "Which pathogens does the Pathogen Data Network have sequences for?"
@@ -338,31 +334,19 @@ def lapis_list_organisms() -> dict:
 
 @mcp.tool()
 def lapis_describe_organism(organism: str, field_search: str = "") -> dict:
-    """Describe the metadata fields, segments, and genes for one organism.
+    """Describe one organism: its fields, genes, segments, and filter syntax.
 
-    Call this before you filter or group. Each organism declares its own
-    fields, and a field name that works for one organism can fail for another.
-    For example, Pathoplexus stores the collection date in
-    sampleCollectionDate, but CoV-Spectrum stores it in date.
-
-    Without field_search, the response lists every field of the organism,
-    often more than 100. Pass field_search to list only the fields you need.
+    Call this before you filter or group. Each organism names its fields
+    differently. Pathoplexus has sampleCollectionDate, CoV-Spectrum has date.
 
     Args:
-        organism: An organism name from lapis_list_organisms, e.g. "mpox",
-            "h5n1", "sars-cov-2".
-        field_search: Case-insensitive text that a field name must contain,
-            e.g. "country", "date", "host". Leave empty to list every field.
-            A search also leaves out the segments and genes.
-
-    Returns:
-        The matching fields with their types, the phylogenetic tree fields,
-        and notes on versions and data use terms. Without field_search, the
-        segments and genes too.
+        organism: An organism name from lapis_list_organisms, e.g. "mpox".
+        field_search: Text that a field name must contain, e.g. "country".
+            Without it, the reply lists every field, often over 100, plus the
+            segments and genes.
 
     Example questions:
-        "Which metadata fields can I filter mpox sequences on?"
-        "Which date fields does the H5N1 database have?"
+        "Which fields can I filter mpox sequences on?"
         "Which genes can I query for measles?"
     """
     database, url = _lapis_organism(organism)
@@ -473,53 +457,29 @@ def lapis_aggregate_samples(
     order_by: Literal["count", "group"] = "count",
     max_groups: int = 50,
 ) -> dict:
-    """Count sequenced samples for one organism, optionally grouped by fields.
+    """Count samples for one organism, as one total or grouped by fields.
 
-    Use this for how many sequences exist, and how they split across
-    countries, dates, lineages, or hosts. A count measures sequencing effort,
-    not infection incidence. Never report it as a case count.
-
-    By default, each sequence counts once: the tool keeps only the latest
-    version of each sequence and skips revocations. Field names differ between
-    databases, so call lapis_describe_organism first to find them.
+    A count measures sequencing effort, not infection incidence. Never report
+    it as a case count.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "mpox".
-        group_by: Field names to group by, e.g. ["geoLocCountry"]. Leave empty
-            for one total count.
-        filters: Field filters, e.g. {"geoLocCountry": "Brazil"}. A list value
-            matches any of its items. Add "From" or "To" to an int, float, or
-            date field for an inclusive range, e.g.
-            {"sampleCollectionDateRangeLowerFrom": "2025-01-01"}. A string
-            field takes no range, even when it holds a date. Add ".regex" to a
-            string field, or ".isNull" to any field.
-            A lineage field holds a hierarchy, so add a "*" suffix to match a
-            lineage with its sublineages, e.g. {"pangoLineage": "JN.1*"}.
-            Without the suffix, only that one lineage matches, which is
-            usually not what a question means. lapis_describe_organism names
-            the lineage fields of an organism.
-            Two keys reach past single fields. "nucleotideMutations" or
-            "aminoAcidMutations" with a list keeps the sequences that carry
-            every listed mutation, e.g. {"aminoAcidMutations": ["S:N501Y"]}.
-            "advancedQuery" takes one boolean expression over fields and
-            mutations, e.g. "geoLocCountry='Guinea' OR
-            geoLocCountry='Liberia'", or "country='Switzerland' AND S:501Y AND
-            NOT IsNull(division)". Call lapis_describe_organism for the syntax
-            of both.
-        latest_version_only: Count only the latest version of each sequence
-            and skip revocations (default True). False counts every version.
-        order_by: "count" sorts groups from largest to smallest. "group" sorts
-            by the group_by fields, which suits a count over dates.
-        max_groups: Maximum number of groups to return (default 50, max 500).
-
-    Returns:
-        Rows of counts with their group values, whether max_groups cut the
-        rows off, notes on how to read the counts, and the exact query sent to
-        LAPIS.
+        group_by: Fields to group by, e.g. ["geoLocCountry"]. Empty gives one
+            total.
+        filters: Field filters, e.g. {"geoLocCountry": "Brazil",
+            "sampleCollectionDateRangeLowerFrom": "2025-01-01"}. A lineage
+            value needs a "*" to cover its sublineages, e.g.
+            {"pangoLineage": "JN.1*"}. Mutation filters and advancedQuery work
+            here too. lapis_describe_organism gives the field names and the
+            full syntax.
+        latest_version_only: Count each sequence once, skipping older versions
+            and revocations (default True).
+        order_by: "count" for the largest groups first, or "group" for the
+            order of the group values.
+        max_groups: Groups to return (default 50, max 500).
 
     Example questions:
         "How many mpox sequences come from each country?"
-        "How many dengue genomes were collected since the start of 2025?"
         "Which SARS-CoV-2 lineages were sequenced most in Switzerland?"
     """
     database, url = _lapis_organism(organism)
@@ -594,47 +554,28 @@ def lapis_get_mutations(
     order_by: Literal["proportion", "position"] = "proportion",
     max_mutations: int = 50,
 ) -> dict:
-    """List the mutations found in the sequences of one organism.
+    """List the substitutions and deletions in one organism's sequences.
 
-    Use this for which substitutions and deletions occur, and how common each
-    one is among the sequences that match the filters. Each row gives the
-    mutation, the number of sequences that carry it, the number of sequences
-    with coverage at its position, and the proportion between the two.
-
-    A mutation reads <gene or segment>:<reference><position><new>, e.g.
-    S:N501Y, or C241T for a nucleotide on a single-segment genome. A "-" as
-    the new symbol marks a deletion.
+    A mutation reads <gene or segment>:<from><position><to>, e.g. S:N501Y, or
+    C241T on a single-segment genome. A "-" marks a deletion. For insertions,
+    call lapis_get_insertions.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "sars-cov-2".
-        sequence_type: "amino_acid" for protein changes within genes, or
-            "nucleotide" for changes in the genome.
-        gene_or_segment: Only return mutations in this gene (amino_acid) or
-            segment (nucleotide), e.g. "S" or "seg4". lapis_describe_organism
-            lists the genes and segments. Leave empty for all of them.
-        filters: Field filters, in the same form as lapis_aggregate_samples.
-        min_proportion: Leave out mutations below this proportion (default
-            0.05, the LAPIS default). This is a reporting filter, not a
-            biological cutoff. Lower it, down to 0, to look for rare or
-            emerging mutations. With gene_or_segment set, a very low value can
-            make the query too large, and the tool then returns an error.
-        latest_version_only: Use only the latest version of each sequence and
-            skip revocations (default True).
-        order_by: "proportion" lists the most common mutations first.
-            "position" lists them in genome order within each gene or segment.
-        max_mutations: Maximum number of mutations to return (default 50,
-            max 500).
-
-    Returns:
-        Rows of mutations with count, coverage, and proportion, whether
-        max_mutations cut the rows off, notes on how to read a proportion, and
-        the exact query sent to LAPIS.
+        sequence_type: "amino_acid" for changes within genes, or "nucleotide".
+        gene_or_segment: One gene or segment, e.g. "S". Empty gives all.
+        filters: As in lapis_aggregate_samples.
+        min_proportion: Drop mutations below this share (default 0.05, the
+            LAPIS default). It is a reporting filter, not a biological cutoff.
+            Lower it to 0 for rare mutations, though with gene_or_segment a
+            low value can pass the size limit.
+        latest_version_only: As in lapis_aggregate_samples.
+        order_by: "proportion" for the most common first, or "position".
+        max_mutations: Mutations to return (default 50, max 500).
 
     Example questions:
-        "Which spike mutations occur in over 5% of SARS-CoV-2 sequences from
-        Switzerland since 2025?"
-        "Which HA amino acid changes are common in H5N1 from cattle?"
-        "Which nucleotide mutations are most common in mpox sequences?"
+        "Which spike mutations are common in Swiss SARS-CoV-2 since 2025?"
+        "Which nucleotide mutations are most common in mpox?"
     """
     database, url = _lapis_organism(organism)
     schema = _lapis_schema(organism)
@@ -751,44 +692,30 @@ def lapis_get_sample_details(
     limit: int = 10,
     offset: int = 0,
 ) -> dict:
-    """Get individual sample records for one organism, with the fields you name.
+    """Get sample records for one organism, with the fields you name.
 
-    Use this to list or inspect specific samples, such as the most recent
-    sequences from one country. For counts, use lapis_aggregate_samples, which
-    returns far less text.
+    For counts, use lapis_aggregate_samples, which returns far less text. Name
+    only the fields you need: a record can carry over 150, and authors alone
+    can run to thousands of characters.
 
-    Name only the fields you need. A record can carry over 150 fields, and a
-    field such as authors can run to thousands of characters.
-    lapis_describe_organism lists the field names. The tool always adds the
-    primary key, and on Pathoplexus it adds the data use terms fields.
-
-    Pathoplexus records come with a data_use_terms block that states what you
-    must do with them. Keep those terms with the records, link each record to
-    its page, and follow the block before you publish anything from them.
+    Pathoplexus records arrive with a data_use_terms block. Keep it with them,
+    and follow it before you pass them on or publish from them.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "mpox".
-        fields: Field names to return, e.g. ["geoLocCountry",
-            "sampleCollectionDate"].
-        filters: Field filters, in the same form as lapis_aggregate_samples.
-        latest_version_only: Return only the latest version of each sequence
-            and skip revocations (default True).
-        order_by: A field to sort the records by, e.g. "sampleCollectionDate".
-            Leave empty for the database order.
+        fields: Fields to return, e.g. ["geoLocCountry",
+            "sampleCollectionDate"]. The accession and the data use terms come
+            as well.
+        filters: As in lapis_aggregate_samples.
+        latest_version_only: As in lapis_aggregate_samples.
+        order_by: A field to sort by, e.g. "sampleCollectionDate". Empty for
+            the database order.
         descending: Sort from highest to lowest (default False).
-        limit: Maximum number of records to return (default 10, max 100).
-        offset: Number of matching records to skip, to get the next page
-            (default 0).
-
-    Returns:
-        The records, the total number of matching records, the offset of the
-        next page, the data use terms of restricted records, notes, and the
-        exact query sent to LAPIS.
+        limit: Records to return (default 10, max 100).
+        offset: Records to skip, for the next page (default 0).
 
     Example questions:
-        "Show the 10 most recent mpox sequences from the Democratic Republic
-        of the Congo."
-        "List the H5N1 samples from cattle with their collection dates."
+        "Show the 10 most recent mpox sequences from the DRC."
         "Which measles records on Pathoplexus are under restricted terms?"
     """
     database, url = _lapis_organism(organism)
@@ -870,45 +797,30 @@ def lapis_get_sequences(
 ) -> dict:
     """Get sequences for one organism as FASTA, for a local analysis.
 
-    Sequences are long. One mpox genome runs to about 197,000 characters, and
-    one SARS-CoV-2 genome to about 30,000. A response therefore carries at
-    most 50,000 characters of sequence, and says so when it cuts the list
-    short. Ask for a gene or a segment to stay well inside that budget.
+    Sequences are long: one mpox genome runs to 197,000 characters. A response
+    carries at most 50,000 characters of sequence and says when that cuts the
+    list short, so ask for a gene or a segment. For mutations or counts, use
+    lapis_get_mutations or lapis_aggregate_samples, which download none.
 
-    For which mutations occur, use lapis_get_mutations. For how many sequences
-    exist, use lapis_aggregate_samples. Neither downloads a sequence.
+    A FASTA header carries no terms of use, so Pathoplexus sequences arrive
+    with a data_use_terms block. Keep it with them.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "h5n1".
-        alignment: "unaligned_nucleotide" for the submitted sequence,
-            "aligned_nucleotide" for the sequence padded to the reference, or
-            "aligned_amino_acid" for a translated gene.
-        gene_or_segment: The gene for "aligned_amino_acid", which needs one,
-            e.g. "S" or "HA". The segment for a nucleotide query on a
-            multi-segment organism, e.g. "seg4". Leave empty to get every
-            segment. lapis_describe_organism lists the genes and segments.
-        filters: Field filters, in the same form as lapis_aggregate_samples.
-            Filter on the primary key to fetch named records.
-        latest_version_only: Return only the latest version of each sequence
-            and skip revocations (default True).
-        limit: Maximum number of records to fetch (default 5, max 50). The
-            character budget can still cut the list short.
-
-    A FASTA header carries no terms of use, so Pathoplexus sequences come with
-    a data_use_terms block. Keep that block with the sequences, and follow it
-    before you pass them on or publish from them.
-
-    Returns:
-        The sequences as FASTA, the length of each one, whether the budget cut
-        the list short, the data use terms of the records, and the exact query
-        sent to LAPIS.
+        alignment: "unaligned_nucleotide" as submitted, "aligned_nucleotide"
+            padded to the reference, or "aligned_amino_acid" for a gene.
+        gene_or_segment: Required for "aligned_amino_acid", e.g. "S". A
+            segment for a nucleotide query on a multi-segment organism, e.g.
+            "seg4". Empty gives every segment.
+        filters: As in lapis_aggregate_samples. Filter on the accession to
+            fetch named records.
+        latest_version_only: As in lapis_aggregate_samples.
+        limit: Records to fetch (default 5, max 50). The budget can still cut
+            the list short.
 
     Example questions:
-        "Give me the HA segment of the 5 most recent H5N1 sequences from
-        cattle."
-        "Fetch the spike protein sequences of SARS-CoV-2 samples from
-        Switzerland this year."
-        "Download the measles genomes collected in Nigeria since January."
+        "Give me the HA segment of 5 recent H5N1 sequences from cattle."
+        "Fetch spike protein sequences from Swiss SARS-CoV-2 samples."
     """
     database, url = _lapis_organism(organism)
     schema = _lapis_schema(organism)
@@ -1041,46 +953,27 @@ def lapis_get_insertions(
     order_by: Literal["count", "position"] = "count",
     max_insertions: int = 50,
 ) -> dict:
-    """List the insertions found in the sequences of one organism.
+    """List the insertions in one organism's sequences.
 
-    An insertion adds symbols that the reference does not have, so
-    lapis_get_mutations never reports one. It covers substitutions and
-    deletions only. Some insertions matter: the SARS-CoV-2 insertion
-    ins_22204:GAGCCAGAA marks the Omicron BA.1 lineage.
-
-    An insertion reads ins_<position>:<symbols>, or
-    ins_<gene or segment>:<position>:<symbols> wherever the organism has more
-    than one, e.g. ins_22204:GAGCCAGAA or ins_seg8:79:TG.
-
-    LAPIS reports no coverage for an insertion, so a count carries no
-    proportion. For something to compare a count against, call
-    lapis_aggregate_samples with the same filters.
+    lapis_get_mutations reports substitutions and deletions only, so an
+    insertion needs this tool. The SARS-CoV-2 insertion ins_22204:GAGCCAGAA
+    marks Omicron BA.1. An insertion reads ins_<position>:<symbols>, or
+    ins_<gene or segment>:<position>:<symbols>, e.g. ins_seg8:79:TG. LAPIS
+    reports no coverage for an insertion, so a count carries no proportion.
 
     Args:
         organism: An organism name from lapis_list_organisms, e.g. "h5n1".
-        sequence_type: "nucleotide" for insertions in the genome, or
-            "amino_acid" for insertions within a gene.
-        gene_or_segment: Only return insertions in this gene (amino_acid) or
-            segment (nucleotide), e.g. "S" or "seg8". Leave empty for all.
-        filters: Field filters, in the same form as lapis_aggregate_samples.
-        latest_version_only: Use only the latest version of each sequence and
-            skip revocations (default True).
-        min_count: Leave out an insertion that fewer sequences than this carry
-            (default 1, which keeps all of them). It applies to the rows the
-            query returns.
-        order_by: "count" lists the most common insertions first. "position"
-            lists them in genome order.
-        max_insertions: Maximum number of insertions to return (default 50,
-            max 500).
-
-    Returns:
-        Rows of insertions with their counts, whether max_insertions cut the
-        rows off, notes on how to read a count, and the exact query sent to
-        LAPIS.
+        sequence_type: "nucleotide" for the genome, or "amino_acid" within
+            genes.
+        gene_or_segment: One gene or segment, e.g. "S". Empty gives all.
+        filters: As in lapis_aggregate_samples.
+        latest_version_only: As in lapis_aggregate_samples.
+        min_count: Drop an insertion that fewer sequences carry (default 1).
+        order_by: "count" for the most common first, or "position".
+        max_insertions: Insertions to return (default 50, max 500).
 
     Example questions:
         "Which insertions do SARS-CoV-2 spike sequences carry?"
-        "Do H5N1 sequences from cattle carry any insertions?"
         "Which mpox insertions are most common?"
     """
     database, url = _lapis_organism(organism)
