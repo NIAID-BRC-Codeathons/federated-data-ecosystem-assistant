@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "nde": {
+      "type": "stdio",
+      "command": ".venv/bin/nde-mcp",
+      "args": [],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,19 @@
+[project]
+name = "federated-data-ecosystem-assistant"
+version = "0.0.1"
+requires-python = "==3.13.*"
+
+dependencies = [
+    "mcp >=1.15.0",
+    "requests >=2.34.2",
+    "chainlit >=2.8.1",
+    "langchain >=1.3.1",
+    "langchain-mcp-adapters >=0.2.2",
+    "langchain-openai >=1.2.1",
+    "langchain-ollama >=1.1.0",
+    "langchain-mistralai >=1.1.4",
+    "langchain-anthropic >=1.7.2",
+    "SQLAlchemy >=2.0.40",
+    "aiosqlite >=0.22.1",
+    "greenlet >=3.5.1",
+]
