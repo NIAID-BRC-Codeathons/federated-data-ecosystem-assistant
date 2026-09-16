@@ -278,8 +278,11 @@ async def nde_search_datasets(
         repository: Source repository name, e.g. "NCBI SRA", "Zenodo", "dbGaP".
             Call nde_list_repositories for the full list.
         record_type: One of Dataset, ComputationalTool, ResourceCatalog,
-            DataCollection, Sample. Defaults to Dataset. Pass "" or "any" to
-            search all types.
+            DataCollection, Sample, or Inference. Defaults to Dataset. Pass ""
+            or "any" to search all types. Inference records are gene-level
+            differential-expression findings and currently exist only on the
+            staging deployment; their numeric result appears in each hit's
+            `finding` field.
         date_from: Earliest date, ISO format (YYYY-MM-DD or YYYY).
         date_to: Latest date, ISO format.
         conditions_of_access: Access tier, e.g. "Open", "Restricted", "Closed".

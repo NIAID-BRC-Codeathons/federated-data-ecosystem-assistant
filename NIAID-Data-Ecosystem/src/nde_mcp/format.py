@@ -187,7 +187,68 @@ def summarize_hit(hit: dict[str, Any]) -> dict[str, Any]:
     }
     out.update({k: v for k, v in access.items() if v})
 
+    finding = measured_finding(hit)
+    if finding:
+        out["finding"] = finding
+
     return out
+
+
+def measured_finding(hit: dict[str, Any]) -> dict[str, Any] | None:
+    """Pull the quantitative result out of an observation-style record.
+
+    `Inference` records (Expression Atlas differential expression, ~10.4M on
+    the staging deployment) put their actual result in `value` / `unitText`
+    with significance in `marginOfError` and the gene in `observationAbout`.
+    Those are the point of the record, so they must survive summarization
+    rather than being dropped as unrecognized schema.org cruft.
+    """
+    value = hit.get("value")
+    subject = first_name(hit.get("observationAbout"))
+    if value is None and not subject:
+        return None
+
+    out: dict[str, Any] = {}
+    if subject:
+        out["about"] = subject
+        identifier = (
+            hit["observationAbout"].get("identifier")
+            if isinstance(hit.get("observationAbout"), dict)
+            else None
+        )
+        if isinstance(identifier, str) and identifier != subject:
+            out["about_id"] = identifier
+    if value is not None:
+        out["value"] = value
+    for key, field in (("unit", "unitText"), ("comparison", "measurementQualifier")):
+        if isinstance(hit.get(field), str) and hit[field].strip():
+            out[key] = hit[field].strip()
+    for key, field in (
+        ("measured_property", "measuredProperty"),
+        ("observation_type", "observationType"),
+    ):
+        name = first_name(hit.get(field))
+        if name:
+            out[key] = name
+
+    # marginOfError carries the significance statistic, e.g. adjusted p-value.
+    margin = hit.get("marginOfError")
+    if isinstance(margin, dict) and margin.get("value") is not None:
+        out["margin_of_error"] = {
+            "name": margin.get("name"),
+            "value": margin.get("value"),
+        }
+        out["margin_of_error"] = {k: v for k, v in out["margin_of_error"].items() if v is not None}
+
+    source_study = hit.get("subjectOf")
+    if isinstance(source_study, dict):
+        identifier = source_study.get("identifier")
+        if isinstance(identifier, list):
+            identifier = identifier[0] if identifier else None
+        if isinstance(identifier, str):
+            out["from_study"] = identifier
+
+    return out or None
 
 
 def clean_detail(hit: dict[str, Any], *, description_chars: int = DETAIL_DESCRIPTION_CHARS) -> dict[str, Any]:
