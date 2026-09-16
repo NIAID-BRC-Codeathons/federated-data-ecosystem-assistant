@@ -47,17 +47,21 @@ This repository is the team's working space for the codeathon — code, notebook
 
 # NCBI MCP server
 
-The first of the "at least three resources" in the MVP. Exposes NCBI
-E-utilities — SRA, BioSample, BioProject, PubMed, Taxonomy, Gene, Assembly, and
-sequence databases — as 16 MCP tools, all prefixed `ncbi_` so the assistant can
-tell them apart from BV-BRC and PDN tools when routing.
+The first of the "at least three resources" in the MVP. Exposes two NCBI
+services as 20 MCP tools, all prefixed `ncbi_` so the assistant can tell them
+apart from BV-BRC and PDN tools when routing:
+
+- **E-utilities** — SRA, BioSample, BioProject, PubMed, Taxonomy, Gene,
+  Assembly, and sequence databases.
+- **Pathogen Detection** — the Isolates Browser, a curated index of bacterial
+  isolates with computed AMR genotypes.
 
 ## Setup
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m pytest          # 58 offline tests
+.venv/bin/python -m pytest          # 80 offline tests
 ```
 
 Then copy the `mcpServers` block from `mcp.json.example` into your client's MCP
@@ -172,6 +176,48 @@ accession), `ncbi_sra_run_metadata`
 need), `ncbi_linked_records` (cross-database links), `ncbi_entrez_raw` (escape
 hatch for anything uncovered)
 
+**Pathogen Detection** — `ncbi_pathogen_isolate_count`, `ncbi_pathogen_isolates`,
+`ncbi_pathogen_amr_genes`, `ncbi_pathogen_organisms`
+
+## Pathogen Detection: the right tool for resistance questions
+
+Ask "how many methicillin-resistant *S. aureus* are there" through E-utilities
+and you get a **floor, not a count**. BioSample can only match the free text a
+submitter chose to write: `Staphylococcus aureus[ORGN] AND MRSA` returns 16,360
+of 230,466 S. aureus BioSamples — 7% — and the missing 93% are not sensitive,
+they are differently worded.
+
+Pathogen Detection answers the same question from curated AMR genotype calls.
+Measured 2026-09-16: **94,336 of 171,412** sequenced S. aureus isolates carry
+`mecA` or `mecC` — **55.0%**, consistent with the 30–50% clinical prevalence
+range the free-text number is nowhere near.
+
+```
+ncbi_pathogen_isolate_count(organism="Staphylococcus aureus", amr_genes="mecA,mecC")
+→ 94,336 isolates · coverage 55.03% of all S. aureus isolates in Pathogen Detection
+```
+
+Three things to know before trusting a number from it.
+
+**Filter values are matched literally, and a typo returns 0 rather than an
+error** — indistinguishable from a real negative. `ncbi_pathogen_organisms` and
+`ncbi_pathogen_amr_genes` return the exact vocabulary; the coverage
+denominator is the other tell, since a denominator of 0 means the *organism*
+was not recognized. Note the groupings are curated, not taxonomic: `"E.coli and
+Shigella"` is one value.
+
+**The index stores every isolate twice**, so `totalCount` is ~2x the isolate
+count. Every count here comes from a `target_acc` facet's `numBuckets` instead,
+which agrees exactly with the deduplicated FTP table; records are deduplicated
+on the way out and the raw figure is only ever exposed under the name
+`raw_row_count`.
+
+**The endpoint is undocumented.** `pathogens-srv` is the backend the Isolates
+Browser web UI calls, found in its JavaScript. NCBI's *published* programmatic
+routes are BigQuery and FTP. It needs no auth and works today, but it is
+unversioned with no deprecation policy and can change without notice. Every
+behavior the code relies on was measured, because there is nothing to read.
+
 ## Why the code looks the way it does
 
 Everything below was measured against the live API, not read out of the
@@ -205,11 +251,23 @@ documentation, and several items contradict what the documentation implies.
   so the tools never claim which input produced which link.
 - **Every tool is `async def`**, enforced by a test. FastMCP runs sync tools on a
   worker thread, which would bypass the rate limiter entirely.
+- **Pathogen Detection returns HTTP 200 for every failure**, including three
+  that are not even JSON: an unknown `action` gives a zero-byte body,
+  `limit=abc` gives a plain-text CGI `Status: 500`, and a malformed `sort` gives
+  `ERROR: CJsonObject...`. Nothing branches on the status code.
+- **Asking Pathogen Detection for a facet empties `content`** — any facet, even
+  on an unrelated field, while `totalCount` stays correct. So rows and the
+  echoed Solr query are mutually exclusive in one request, and record fetches
+  report no `query_translation`. `count_params`/`record_params` make that a
+  decision taken once rather than a landmine under every call site.
+- **Both services share one rate limiter.** The 3/sec ceiling is per IP and
+  NCBI-wide; two independently paced clients in one process would each believe
+  they had the whole budget and together spend six.
 
 ## Testing
 
 ```sh
-.venv/bin/python -m pytest          # 58 offline tests, no network
+.venv/bin/python -m pytest          # 80 offline tests, no network
 .venv/bin/python -m pytest -m live  # 7 tests against the real API
 ```
 
@@ -228,6 +286,13 @@ allowance the whole room shares.
   controlled-access fields, measured empty on one open-access viral study. They
   should be expected to populate for controlled data, which this server cannot
   reach. If that ever changes, turn the stripping off.
+- **The Pathogen Detection endpoint is unversioned and undocumented**, so the
+  four `ncbi_pathogen_*` tools rest on behavior that could change without
+  notice. If it breaks, NCBI's supported routes for the same data are BigQuery
+  (`ncbi-pathogen-detect.pdbrowser.isolates`) and FTP. Whether the 2x row
+  duplication is a bug or intentional is **unverified** — if it is ever fixed,
+  the `numBuckets` counts stay correct but the 2x over-fetch in
+  `record_params` becomes wasteful rather than wrong.
 - **NCBI asks that `tool` and `email` be registered** by emailing
   `eutilities@ncbi.nlm.nih.gov` — sending them is not by itself compliance.
   Worth doing before demo day, since a block would hit the whole venue's IP.

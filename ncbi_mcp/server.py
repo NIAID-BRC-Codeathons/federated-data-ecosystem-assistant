@@ -34,17 +34,30 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
 
-from . import coverage, databases, parsing
+from . import coverage, databases, parsing, pathogens
 from .databases import DATABASES, RUNINFO_OPEN_ACCESS_EMPTY
 from .envelope import NCBIError, envelope, provenance
 from .eutils import MAX_ESUMMARY_UIDS, EUtilsClient, Timer, TransportError
+from .pathogens import PathogensClient
 
 server = FastMCP(
     name="fdea-ncbi",
     instructions=(
-        "NCBI E-utilities: sequencing runs (SRA), samples (BioSample), "
-        "projects (BioProject), literature (PubMed), organisms (Taxonomy), "
-        "genes, genome assemblies, and sequences.\n\n"
+        "Two NCBI services.\n\n"
+        "E-utilities: sequencing runs (SRA), samples (BioSample), projects "
+        "(BioProject), literature (PubMed), organisms (Taxonomy), genes, "
+        "genome assemblies, and sequences.\n\n"
+        "Pathogen Detection (`ncbi_pathogen_*`): a curated, deduplicated index "
+        "of bacterial isolates with computed antimicrobial-resistance "
+        "genotypes. **Prefer it for any question about resistance genes or "
+        "resistant strains.** It answers those from curated AMR calls, whereas "
+        "the E-utilities databases can only match free-text sample "
+        "descriptions --- searching BioSample for 'MRSA' finds the isolates "
+        "whose submitter happened to use that word, which undercounts "
+        "severalfold. Use ncbi_pathogen_organisms and ncbi_pathogen_amr_genes "
+        "to get exact filter values first: values are matched literally, and "
+        "an unrecognized one returns 0 rather than an error, so a typo is "
+        "indistinguishable from a real negative.\n\n"
         "Every result carries a `provenance` block. Read it before answering, "
         "and cite it:\n"
         "- `sources` --- which databases produced the data, and each one's "
@@ -57,7 +70,11 @@ server = FastMCP(
         "asked for.\n"
         "- `query_translation` --- the query NCBI actually ran, which is often "
         "not the one that was sent. Report it when it differs from the "
-        "request.\n\n"
+        "request. Absent on Pathogen Detection record fetches, which cannot "
+        "return it and rows together.\n"
+        "- `notes` --- caveats that change how a number should be read. The "
+        "Pathogen Detection tools use these to flag that raw row counts are "
+        "about twice the isolate count.\n\n"
         "Results may be truncated. When `truncated` is true, `next` holds the "
         "parameters for the following page; do not describe a truncated "
         "result as complete."
@@ -66,11 +83,18 @@ server = FastMCP(
 
 client = EUtilsClient()
 
+# A second service, deliberately sharing the first one's limiter. NCBI's rate
+# limit is per IP address and applies across its services, so two independently
+# paced clients in one process would each believe they had the whole 3/sec
+# budget and together spend six.
+pathogen_client = PathogensClient(client.limiter, client.email)
+
 # Caps chosen from measured payload sizes, not guessed. Exceeding them produces
 # a ToolError naming the smaller alternative rather than a 30 MB tool result.
 MAX_RECORDS_DEFAULT = 100
 MAX_SRA_FULL_RUNS = 50  # full SRA XML is ~9.3 KB/record
 MAX_TAXONOMY_RECORDS = 50  # taxonomy efetch is ~7.7 KB/taxon
+MAX_PATHOGEN_ROWS = 200  # isolate records are ~1 KB each before dedup
 
 
 # --------------------------------------------------------------------------
@@ -98,7 +122,11 @@ async def _run(coro_fn, tool_name: str):
     ``records_by_database``
         Per-database record attribution, for the tools that touch more than one.
     """
+    # Both services are drained, every time. A tool that used only one leaves
+    # the other's log empty, which costs nothing --- but leaving a stale call
+    # behind would credit the next tool's result with a request it never made.
     client.reset_call_log()
+    pathogen_client.reset_call_log()
     try:
         with Timer() as timer:
             summary, data, extra = await coro_fn()
@@ -109,7 +137,7 @@ async def _run(coro_fn, tool_name: str):
         raise _fail(str(exc)) from exc
 
     prov = provenance(
-        client.reset_call_log(),
+        client.reset_call_log() + pathogen_client.reset_call_log(),
         elapsed_ms=timer.elapsed_ms,
         tool=tool_name,
         query_translation=extra.get("query_translation"),
@@ -135,6 +163,11 @@ async def _coverage(extra: dict[str, Any], data: Any) -> dict[str, Any] | None:
     same way rather than escaping as an untranslated exception. ``coverage``
     itself already degrades to None on error, so this is belt and braces.
     """
+    if "pathogen_coverage_organism" in extra:
+        return await _pathogen_coverage(
+            extra["pathogen_coverage_organism"], extra.get("result_count")
+        )
+
     db = extra.get("coverage_db")
     if not db:
         return None
@@ -144,10 +177,44 @@ async def _coverage(extra: dict[str, Any], data: Any) -> dict[str, Any] | None:
         return coverage.for_fetch(db, int(requested), returned)
     term = extra.get("coverage_term")
     if term and extra.get("result_count") is not None:
-        return await coverage.for_search(
-            client, db, term, int(extra["result_count"])
-        )
+        return await coverage.for_search(client, db, term, int(extra["result_count"]))
     return None
+
+
+async def _pathogen_coverage(
+    organism: str | None, matched: int | None
+) -> dict[str, Any] | None:
+    """Coverage for a Pathogen Detection count: what share of the organism matched.
+
+    Same shape and same purpose as the E-utilities search flavor --- an AMR
+    count is meaningless without knowing how many isolates of that organism
+    exist. The organism is the denominator; the gene filter is the selection
+    being measured, so it is the clause that gets dropped.
+
+    Degrades to None on any failure, like ``coverage.for_search``: this is
+    commentary on a result that already succeeded.
+    """
+    if matched is None or not coverage.enabled():
+        return None
+    if not organism:
+        return None
+    try:
+        fq = pathogens.build_fq({"taxgroup_name": [organism]})
+        ngout = await pathogen_client.retrieve(
+            pathogens.count_params(fq), purpose="coverage"
+        )
+        denominator = pathogens.distinct_count(ngout)
+    except Exception:  # noqa: BLE001 -- never turn a good result into an error
+        return None
+    if denominator is None:
+        return None
+    return {
+        "database": "pathogen detection isolates",
+        "matched": matched,
+        "denominator": denominator,
+        "percent": round(matched / denominator * 100, 2) if denominator else None,
+        "basis": f"all {organism} isolates in Pathogen Detection",
+    }
 
 
 def _split_ids(value: str | list[str]) -> list[str]:
@@ -244,9 +311,7 @@ async def _sra_history_for_accessions(accessions: list[str]) -> dict[str, Any]:
     short URL instead of a multi-kilobyte id list.
     """
     term = " OR ".join(accessions)
-    result = await _esearch(
-        "sra", term, retmax=len(accessions), use_history=True
-    )
+    result = await _esearch("sra", term, retmax=len(accessions), use_history=True)
     count = int(result.get("count", 0))
     if count == 0:
         raise _fail(
@@ -296,8 +361,10 @@ async def ncbi_list_databases() -> dict[str, Any]:
             for info in DATABASES.values()
         ]
         return (
-            (f"{len(data)} curated NCBI databases. "
-            "Use ncbi_entrez_raw for any Entrez database not listed here."),
+            (
+                f"{len(data)} curated NCBI databases. "
+                "Use ncbi_entrez_raw for any Entrez database not listed here."
+            ),
             data,
             {"result_count": len(data)},
         )
@@ -359,8 +426,10 @@ async def ncbi_describe_database(
             data["notes"] = local.efetch_note
             data["use_tool"] = local.tool
         return (
-            (f"{info.get('dbname')}: {len(fields)} search fields, "
-            f"{len(links)} link targets, {info.get('count')} records."),
+            (
+                f"{info.get('dbname')}: {len(fields)} search fields, "
+                f"{len(links)} link targets, {info.get('count')} records."
+            ),
             data,
             {},
         )
@@ -509,9 +578,7 @@ async def ncbi_sra_runs_for_project(
         # two BioProject UIDs, and following the wrong one returns zero links,
         # which reads as "this project has no sequencing data" rather than as
         # an error.
-        result = await _esearch(
-            "sra", accession, retmax=max_results, use_history=True
-        )
+        result = await _esearch("sra", accession, retmax=max_results, use_history=True)
         count = int(result.get("count", 0))
         translation = result.get("querytranslation")
         if count == 0:
@@ -537,9 +604,7 @@ async def ncbi_sra_runs_for_project(
             params["id"] = ",".join(result.get("idlist") or [])
 
         text, _ = await client.request("efetch", params, db="sra")
-        rows = parsing.parse_runinfo_csv(
-            text, drop_columns=RUNINFO_OPEN_ACCESS_EMPTY
-        )
+        rows = parsing.parse_runinfo_csv(text, drop_columns=RUNINFO_OPEN_ACCESS_EMPTY)
 
         extra: dict[str, Any] = {
             "result_count": count,
@@ -625,9 +690,7 @@ async def ncbi_sra_run_metadata(
             {**fetch_params, "rettype": "runinfo", "retmode": "text"},
             db="sra",
         )
-        rows = parsing.parse_runinfo_csv(
-            text, drop_columns=RUNINFO_OPEN_ACCESS_EMPTY
-        )
+        rows = parsing.parse_runinfo_csv(text, drop_columns=RUNINFO_OPEN_ACCESS_EMPTY)
         # runinfo row order does not follow the requested order.
         rows = parsing.order_runinfo(rows, ids)
         missing = parsing.missing_accessions(rows, ids)
@@ -638,9 +701,11 @@ async def ncbi_sra_run_metadata(
         }
         if missing:
             extra["notes"] = [
-                (f"NCBI returned no row for: {', '.join(missing)}. "
-                "These accessions may be invalid, suppressed, or "
-                "dbGaP-controlled.")
+                (
+                    f"NCBI returned no row for: {', '.join(missing)}. "
+                    "These accessions may be invalid, suppressed, or "
+                    "dbGaP-controlled."
+                )
             ]
         return (
             f"Metadata for {len(rows)} of {len(ids)} requested SRA run(s).",
@@ -712,8 +777,10 @@ async def ncbi_pubmed_search(
             extra["truncated"] = True
             extra["next"] = {"max_results": min(count, 200)}
         return (
-            (f"{count} PubMed citations matched (showing {len(data)}). "
-            "Abstracts require ncbi_pubmed_abstracts."),
+            (
+                f"{count} PubMed citations matched (showing {len(data)}). "
+                "Abstracts require ncbi_pubmed_abstracts."
+            ),
             data,
             extra,
         )
@@ -892,10 +959,7 @@ async def ncbi_taxonomy_lookup(
         returned = {r.get("taxid") for r in data}
         missing = [uid for uid in uids if uid not in returned]
         notes = (
-            [
-                "NCBI returned no taxonomy record for these IDs: "
-                + ", ".join(missing)
-            ]
+            ["NCBI returned no taxonomy record for these IDs: " + ", ".join(missing)]
             if missing
             else None
         )
@@ -1068,8 +1132,7 @@ async def ncbi_find_uids(
         str | list[str],
         Field(
             description=(
-                "Accessions or names to resolve, e.g. 'SAMN02604091' or "
-                "'PRJNA257197'."
+                "Accessions or names to resolve, e.g. 'SAMN02604091' or 'PRJNA257197'."
             )
         ),
     ],
@@ -1102,8 +1165,10 @@ async def ncbi_find_uids(
             # UIDs. Picking one arbitrarily can yield an empty downstream
             # result that looks like a legitimate "no data".
             notes = [
-                (f"Ambiguous --- more than one UID matched: {', '.join(multi)}. "
-                "Inspect each UID rather than assuming the first is correct.")
+                (
+                    f"Ambiguous --- more than one UID matched: {', '.join(multi)}. "
+                    "Inspect each UID rather than assuming the first is correct."
+                )
             ]
         return (
             f"Resolved {found} of {len(wanted)} identifier(s) in db={db!r}.",
@@ -1154,8 +1219,10 @@ async def ncbi_linked_records(
         notes = None
         if len(uids) > 1:
             notes = [
-                ("Links from multiple source UIDs are merged by NCBI; "
-                "per-source attribution is not available.")
+                (
+                    "Links from multiple source UIDs are merged by NCBI; "
+                    "per-source attribution is not available."
+                )
             ]
         if not links:
             return (
@@ -1223,14 +1290,364 @@ async def ncbi_entrez_raw(
         text, _ = await client.request(utility, extra, db=db)
         if len(text) > 200_000:
             return (
-                (f"{utility} on db={db!r} returned {len(text)} bytes; "
-                "truncated to 200,000. Narrow the request."),
+                (
+                    f"{utility} on db={db!r} returned {len(text)} bytes; "
+                    "truncated to 200,000. Narrow the request."
+                ),
                 text[:200_000],
                 {"truncated": True},
             )
         return (f"{utility} on db={db!r}: {len(text)} bytes.", text, {})
 
     return await _run(body, "ncbi_entrez_raw")
+
+
+# --------------------------------------------------------------------------
+# NCBI Pathogen Detection --- a separate service. See pathogens.py.
+# --------------------------------------------------------------------------
+
+
+def _pathogen_filter(
+    organism: str | None,
+    amr_genes: str | list[str] | None,
+    host: str | None,
+    isolation_source: str | None,
+    epi_type: str | None,
+) -> tuple[str | None, dict[str, list[str]]]:
+    clauses: dict[str, list[str]] = {}
+    if organism:
+        clauses["taxgroup_name"] = [organism]
+    if amr_genes:
+        clauses["AMR_genotypes"] = _split_ids(amr_genes)
+    if host:
+        clauses["host"] = [host]
+    if isolation_source:
+        clauses["isolation_source"] = [isolation_source]
+    if epi_type:
+        clauses["epi_type"] = [epi_type]
+    return pathogens.build_fq(clauses), clauses
+
+
+@server.tool()
+async def ncbi_pathogen_isolate_count(
+    organism: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Pathogen Detection organism group, e.g. 'Staphylococcus "
+                "aureus'. These are curated groups, not taxonomy names --- "
+                "'E.coli and Shigella' is one group. List them with "
+                "ncbi_pathogen_organisms."
+            )
+        ),
+    ] = None,
+    amr_genes: Annotated[
+        str | list[str] | None,
+        Field(
+            description=(
+                "AMR gene symbols, e.g. 'mecA,mecC'. Multiple genes are OR-ed, "
+                "so this counts isolates carrying ANY of them. List the "
+                "symbols available for an organism with ncbi_pathogen_amr_genes."
+            )
+        ),
+    ] = None,
+    host: Annotated[
+        str | None, Field(description="Host organism, e.g. 'Homo sapiens'.")
+    ] = None,
+    isolation_source: Annotated[
+        str | None, Field(description="Isolation source, e.g. 'blood'.")
+    ] = None,
+    epi_type: Annotated[
+        str | None,
+        Field(description="Epidemiological type: 'clinical' or 'environmental/other'."),
+    ] = None,
+) -> dict[str, Any]:
+    """Count DISTINCT pathogen isolates matching a filter, without fetching them.
+
+    Use this for "how many isolates ..." questions. One request. Returns the
+    deduplicated isolate count, which is NOT the row count the service reports
+    --- see the note in the result.
+    """
+
+    async def body():
+        fq, clauses = _pathogen_filter(
+            organism, amr_genes, host, isolation_source, epi_type
+        )
+        ngout = await pathogen_client.retrieve(pathogens.count_params(fq))
+
+        isolates = pathogens.distinct_count(ngout)
+        rows = pathogens.raw_row_count(ngout)
+        if isolates is None:
+            raise _fail(
+                "Pathogen Detection did not return the target_acc facet, so "
+                "the distinct isolate count could not be determined. The row "
+                f"count was {rows}, which is roughly twice the isolate count "
+                "and must not be reported as one."
+            )
+
+        described = ", ".join(f"{k}={v}" for k, v in clauses.items()) or "no filter"
+        notes = [
+            (
+                f"'isolates' ({isolates:,}) is the distinct count from the "
+                f"target_acc facet. The service's own totalCount for this "
+                f"query is {rows:,} --- it indexes each isolate twice, so "
+                f"that figure is not an isolate count. Report 'isolates'."
+            )
+        ]
+        if isolates == 0:
+            # Every filter matches literally, and an unrecognized VALUE is not
+            # an error --- only an unrecognized FIELD is. So a misspelled
+            # organism or gene returns a confident zero indistinguishable from a
+            # real negative. The coverage denominator settles it (zero there
+            # means the organism itself matched nothing), but say so here rather
+            # than relying on the agent to cross-reference two blocks.
+            notes.append(
+                "Zero matched. Filter values are matched literally and an "
+                "unrecognized value returns 0 rather than an error, so this may "
+                "be a misspelling rather than a real absence. Confirm spellings "
+                "with ncbi_pathogen_organisms and ncbi_pathogen_amr_genes; if "
+                "the coverage denominator is also 0, the organism name is wrong."
+            )
+        return (
+            f"{isolates:,} distinct isolates ({described}).",
+            {
+                "isolates": isolates,
+                "index_rows": rows,
+                "filter": clauses or None,
+            },
+            {
+                "result_count": isolates,
+                "query_translation": pathogens.solr_query(ngout),
+                "pathogen_coverage_organism": organism,
+                "notes": notes,
+            },
+        )
+
+    return await _run(body, "ncbi_pathogen_isolate_count")
+
+
+@server.tool()
+async def ncbi_pathogen_isolates(
+    organism: Annotated[
+        str | None,
+        Field(
+            description="Pathogen Detection organism group, e.g. 'Staphylococcus aureus'."
+        ),
+    ] = None,
+    amr_genes: Annotated[
+        str | list[str] | None,
+        Field(description="AMR gene symbols to require, e.g. 'mecA,mecC' (OR-ed)."),
+    ] = None,
+    host: Annotated[str | None, Field(description="Host organism.")] = None,
+    isolation_source: Annotated[
+        str | None, Field(description="Isolation source, e.g. 'blood'.")
+    ] = None,
+    epi_type: Annotated[
+        str | None,
+        Field(description="Epidemiological type: 'clinical' or 'environmental/other'."),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(
+            description=(
+                f"Isolates to return, 1-{MAX_PATHOGEN_ROWS}. Use "
+                "ncbi_pathogen_isolate_count for totals rather than a large limit."
+            ),
+            ge=1,
+            le=MAX_PATHOGEN_ROWS,
+        ),
+    ] = 20,
+    start: Annotated[int, Field(description="Row offset for paging.", ge=0)] = 0,
+) -> dict[str, Any]:
+    """Fetch pathogen isolate records: AMR genotypes, AST phenotypes, and linked
+    BioSample/SRA/assembly accessions.
+
+    Each isolate carries its resistance genotype (`AMR_genotypes`), any
+    measured susceptibility phenotypes (`AST_phenotypes`), and the accessions
+    needed to pull the underlying data from the other NCBI tools here.
+    """
+
+    async def body():
+        fq, clauses = _pathogen_filter(
+            organism, amr_genes, host, isolation_source, epi_type
+        )
+        # record_params over-fetches 2x (the index stores every isolate twice)
+        # and refuses to carry a facet, which would empty `content` outright.
+        ngout = await pathogen_client.retrieve(
+            pathogens.record_params(
+                fq,
+                limit=min(limit, MAX_PATHOGEN_ROWS),
+                start=start,
+                fl="target_acc,biosample_acc,asm_acc,Run,bioproject_acc,scientific_name,taxgroup_name,epi_type,collection_date,geo_loc_name,isolation_source,host,number_amr_genes,AMR_genotypes,AMR_genotypes_core,AST_phenotypes",
+            )
+        )
+
+        rows = pathogens.records(ngout)[:limit]
+        total_rows = pathogens.raw_row_count(ngout)
+        described = ", ".join(f"{k}={v}" for k, v in clauses.items()) or "no filter"
+        truncated = total_rows > start + limit * 2
+
+        return (
+            f"{len(rows)} isolate(s) ({described}).",
+            rows,
+            {
+                "result_count": len(rows),
+                # No query_translation here, deliberately: this service echoes
+                # the translated query only when facets are requested, and a
+                # facet would empty this result. See pathogens.py.
+                "truncated": truncated,
+                "next": {"start": start + limit * 2} if truncated else None,
+                "notes": [
+                    (
+                        "Records are deduplicated on target_acc: the index stores "
+                        "each isolate twice. Use ncbi_pathogen_isolate_count for a "
+                        "total; do not infer one from this page."
+                    ),
+                    (
+                        "The translated Solr query is not available alongside "
+                        "records --- requesting it would return zero records. "
+                        "ncbi_pathogen_isolate_count reports it for the same "
+                        "filter."
+                    ),
+                ],
+            },
+        )
+
+    return await _run(body, "ncbi_pathogen_isolates")
+
+
+@server.tool()
+async def ncbi_pathogen_amr_genes(
+    organism: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Restrict the vocabulary to one organism group, e.g. "
+                "'Staphylococcus aureus'. Strongly recommended --- the "
+                "unfiltered list spans every organism."
+            )
+        ),
+    ] = None,
+    contains: Annotated[
+        str | None,
+        Field(description="Case-insensitive substring filter, e.g. 'mec' or 'bla'."),
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum gene symbols to return.", ge=1, le=2000)
+    ] = 100,
+) -> dict[str, Any]:
+    """List the AMR gene symbols that actually exist in Pathogen Detection, with
+    how many index rows carry each.
+
+    Call this before filtering by gene. The field is matched literally, and a
+    symbol that does not exist returns zero isolates rather than an error, so a
+    typo is indistinguishable from a real negative.
+    """
+
+    async def body():
+        fq, _ = _pathogen_filter(organism, None, None, None, None)
+        ngout = await pathogen_client.retrieve(
+            {"limit": 0, "facets": "AMR_genotypes[||1|20000]", "fq": fq}
+        )
+        buckets = pathogens.facet_buckets(ngout, "AMR_genotypes")
+
+        # The field is indexed with both the bare symbol ("mecA") and the
+        # symbol=STATUS token ("mecA=COMPLETE"). Bare symbols are what a caller
+        # filters on; the status variants are kept out of the default view
+        # because they triple the list without adding genes.
+        bare = [b for b in buckets if "=" not in str(b.get("val", ""))]
+        if contains:
+            needle = contains.lower()
+            bare = [b for b in bare if needle in str(b.get("val", "")).lower()]
+
+        shown = bare[:limit]
+        data = [{"gene": b.get("val"), "index_rows": b.get("count")} for b in shown]
+        scope = f" in {organism}" if organism else ""
+        return (
+            f"{len(data)} AMR gene symbol(s){scope}"
+            + (f" matching {contains!r}" if contains else "")
+            + f" (of {len(bare)} total).",
+            data,
+            {
+                "result_count": len(data),
+                "query_translation": pathogens.solr_query(ngout),
+                "truncated": len(bare) > limit,
+                "notes": [
+                    (
+                        "index_rows is a row count, about twice the isolate count "
+                        "(each isolate is indexed twice). For isolate counts call "
+                        "ncbi_pathogen_isolate_count with the gene symbol."
+                    ),
+                    (
+                        "Each gene is also indexed as 'gene=STATUS' (COMPLETE, "
+                        "PARTIAL, PARTIAL_END_OF_CONTIG, MISTRANSLATION, HMM, "
+                        "POINT); those variants are omitted here. Filtering on the "
+                        "bare symbol counts all statuses."
+                    ),
+                ],
+            },
+        )
+
+    return await _run(body, "ncbi_pathogen_amr_genes")
+
+
+@server.tool()
+async def ncbi_pathogen_organisms(
+    contains: Annotated[
+        str | None, Field(description="Case-insensitive substring filter, e.g. 'coli'.")
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum organism groups to return.", ge=1, le=500)
+    ] = 50,
+) -> dict[str, Any]:
+    """List the organism groups Pathogen Detection covers, largest first.
+
+    These are curated groups, not taxonomy names: 'E.coli and Shigella' is a
+    single group. Filters match them literally, so confirm the exact spelling
+    here before using ncbi_pathogen_isolate_count or ncbi_pathogen_isolates.
+    """
+
+    async def body():
+        ngout = await pathogen_client.retrieve(
+            {"limit": 0, "facets": "taxgroup_name[||1|500]"}
+        )
+        buckets = pathogens.facet_buckets(ngout, "taxgroup_name")
+        if contains:
+            needle = contains.lower()
+            buckets = [b for b in buckets if needle in str(b.get("val", "")).lower()]
+
+        shown = buckets[:limit]
+        data = [
+            {
+                "organism": b.get("val"),
+                # Halved, not raw: this is the one place a per-organism isolate
+                # count is available without a request each, and the 2x
+                # duplication is uniform. Flagged as approximate because it is
+                # derived rather than measured per organism.
+                "approx_isolates": int(b["count"]) // 2 if b.get("count") else None,
+            }
+            for b in shown
+        ]
+        return (
+            f"{len(data)} organism group(s)"
+            + (f" matching {contains!r}" if contains else "")
+            + ".",
+            data,
+            {
+                "result_count": len(data),
+                "query_translation": pathogens.solr_query(ngout),
+                "truncated": len(buckets) > limit,
+                "notes": [
+                    (
+                        "approx_isolates halves the service's row count, which "
+                        "double-indexes every isolate. For an exact figure call "
+                        "ncbi_pathogen_isolate_count with the organism."
+                    )
+                ],
+            },
+        )
+
+    return await _run(body, "ncbi_pathogen_organisms")
 
 
 def run() -> None:

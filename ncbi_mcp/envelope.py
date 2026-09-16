@@ -98,7 +98,7 @@ def provenance(
     without the per-database breakdown.
     """
     calls = list(calls)
-    block: dict[str, Any] = {"source": EUTILS_SOURCE}
+    block: dict[str, Any] = {"source": _service_label(calls)}
     if tool is not None:
         block["tool"] = tool
 
@@ -125,6 +125,24 @@ def provenance(
     return block
 
 
+def _service_label(calls: list[Any]) -> str:
+    """Which NCBI service(s) this result came from.
+
+    Not a constant, because this server now talks to two: E-utilities and
+    Pathogen Detection, which are different hosts with different query
+    languages. Labelling a Pathogen Detection result "NCBI E-utilities" would
+    point a reader checking the provenance at an API that cannot reproduce it.
+    """
+    seen: list[str] = []
+    for call in calls:
+        service = getattr(call, "service", None) or EUTILS_SOURCE
+        if service not in seen:
+            seen.append(service)
+    if not seen:
+        return EUTILS_SOURCE
+    return " + ".join(seen)
+
+
 def _sources(
     calls: list[Any], records_by_database: dict[str, int] | None
 ) -> list[dict[str, Any]]:
@@ -142,17 +160,24 @@ def _sources(
     if not primary:
         return []
 
-    order: list[str] = []
-    per_db: dict[str, dict[str, Any]] = {}
+    # Keyed by (service, database), not database alone: "isolates" under
+    # Pathogen Detection and a same-named Entrez db would otherwise merge into
+    # one entry crediting a database that supplied none of it.
+    multi_service = len({getattr(c, "service", EUTILS_SOURCE) for c in primary}) > 1
+    order: list[tuple[str, str]] = []
+    per_db: dict[tuple[str, str], dict[str, Any]] = {}
     for call in primary:
-        entry = per_db.get(call.db)
+        key = (getattr(call, "service", EUTILS_SOURCE), call.db)
+        entry = per_db.get(key)
         if entry is None:
-            order.append(call.db)
-            entry = per_db[call.db] = {
+            order.append(key)
+            entry = per_db[key] = {
                 "database": call.db,
                 "utilities": [],
                 "calls": 0,
             }
+            if multi_service:
+                entry["service"] = key[0]
         entry["calls"] += 1
         if call.utility not in entry["utilities"]:
             entry["utilities"].append(call.utility)
@@ -162,18 +187,17 @@ def _sources(
     # supplied everything. Inventing a split across several would be a
     # confident number with nothing behind it.
     counts = dict(records_by_database or {})
-    if not counts and len(order) == 1:
-        counts = {}
     total = sum(counts.values())
-    for db in order:
+    for key in order:
+        db = key[1]
         if db in counts:
-            per_db[db]["records"] = counts[db]
+            per_db[key]["records"] = counts[db]
             if total:
-                per_db[db]["percent_of_result"] = round(counts[db] / total * 100, 1)
+                per_db[key]["percent_of_result"] = round(counts[db] / total * 100, 1)
     if not counts and len(order) == 1:
         per_db[order[0]]["percent_of_result"] = 100.0
 
-    return [per_db[db] for db in order]
+    return [per_db[key] for key in order]
 
 
 def _request_cost(calls: list[Any]) -> dict[str, int]:

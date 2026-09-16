@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 import httpx2 as httpx
 from typing_extensions import Self
 
-from .envelope import NCBIError, check_for_error
+from .envelope import EUTILS_SOURCE, NCBIError, check_for_error
 from .limiter import RateLimiter
 
 BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -54,12 +54,19 @@ class Call(NamedTuple):
     --- request cost is a scored criterion and hiding a call would understate
     it --- but only "primary" calls count toward which database produced the
     data.
+
+    ``service`` names which NCBI service was called. It defaults to E-utilities
+    because that is what most of this server talks to, but Pathogen Detection is
+    a separate service on a separate host, and a result sourced from it must not
+    be labelled as coming from E-utilities --- provenance is scored on being
+    checkable, and a wrong service name sends the reader to the wrong API.
     """
 
     utility: str
     db: str | None
     url: str
     purpose: str = "primary"
+    service: str = EUTILS_SOURCE
 
 
 class EUtilsClient:
