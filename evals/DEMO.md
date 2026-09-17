@@ -1,135 +1,142 @@
-# Friday demo — the two servers, every model, side by side
+# DEMO — what to show on Friday, in what order, what to say
 
-Bobby built two data servers and measured them against three models on 15 questions.
-The measurement found a fault. That fault made one model state a confident false
-number. Both of his servers already fix it in code. That is the demo. It runs about
-five minutes and needs no live network.
+Bobby has two MCP servers in the federation. This page is the script for the five
+minutes that prove it. Every model the team could reach was measured.
 
-Open `evals/demo/index.html` in a browser.
+**Open:** `evals/demo/index.html`. **Rebuild:** `python evals/build_demo.py`.
 
-## What to show, in order
+## Do this first, at the podium
 
-### 1. The two servers (30 seconds)
+```
+python evals/build_demo.py
+```
 
-Say what they are before naming them.
+Every number below carries the time it was read. The run is still landing. Runner
+added two models in the 13 seconds between two of my rebuilds. Read the numbers off
+the page, not off this file.
 
-| What it does | Name | Port | Tools |
+The two servers, one name each, used the same way on every slide:
+
+| name here | file | port | tools |
 |---|---|---|---|
-| Finds gene-expression studies in NCBI GEO | `mcp_servers/geo.py` | 8009 | `geo_search`, `geo_series`, `geo_resolve_accession` |
-| Finds sequencing runs in ENA, with real totals | `mcp_servers/brc_analytics.py` | 8008 | `brc_ena_runs`, `brc_ena_search`, `brc_ena_study`, `brc_federation_status` |
+| the GEO server | `mcp_servers/geo.py` | 8009 | `geo_search`, `geo_series`, `geo_resolve_accession` |
+| the BRC server | `mcp_servers/brc_analytics.py` | 8008 | `brc_ena_runs`, `brc_ena_search`, `brc_ena_study`, `brc_federation_status` |
 
-They fail in different ways, and that is why both are here. A GEO search returns a zero
-that someone has to interpret. An ENA search matches the organism name letter for
-letter. One wrong letter returns nothing, and that looks exactly like an empty database.
+Two question sets. `BOBBY-LANES.md` holds 16 questions aimed at those seven tools.
+`QUESTIONS.md` holds 15 for the whole federation.
 
-### 2. The zero that was not a zero (2 minutes — this is the demo)
+---
 
-Three beats.
+## Beat 1 — both servers, every tool, every model
 
-**A tool reported "no match" as a quantity.** The model `argo/gpt4o` asked another team's
-tool for a count:
+Read at 16:35:39 on 17 Sep. 18 models have BOBBY-LANES transcripts. 12 finished all
+16 questions; 6 were still in flight. 234 records, 232 answered, 2 transport faults.
 
-```
-ncbi_pathogen_isolate_count(organism="Escherichia coli")
-  -> {"summary": "0 distinct isolates", "isolates": 0, "index_rows": 0}
-```
+**343 calls landed on the seven tools. All seven were used.**
 
-It then wrote: *"a total of zero isolates matching this filter, despite correct organism
-naming."* The model was not inventing anything. It reported what the tool told it. NCBI
-does not keep a group called `Escherichia coli`; the group is called `E.coli and Shigella`.
-The filter matched nothing, and the tool published that as the number zero.
+| tool | calls | server |
+|---|---|---|
+| `geo_search` | 92 | GEO |
+| `geo_series` | 77 | GEO |
+| `brc_ena_runs` | 64 | BRC |
+| `brc_ena_search` | 59 | BRC |
+| `geo_resolve_accession` | 18 | GEO |
+| `brc_ena_study` | 17 | BRC |
+| `brc_federation_status` | 16 | BRC |
 
-**The same model asked again and got it right.** Later the same day, same tool, one
-changed word:
+GEO server 187 calls. BRC server 156 calls. Neither is a side path that one model
+touched once.
 
-```
-ncbi_pathogen_isolate_count(organism="E.coli and Shigella")
-  -> {"summary": "581,464 distinct isolates", "isolates": 581464}
-```
+**Say:** both servers carry real traffic from every model, not incidental traffic.
 
-Say plainly that the older transcript carries no `code_sha`, so nobody knows which
-version of that server produced the zero. The two runs are not scored against each other.
-The filter value is visible in both files, and that is the whole finding.
+---
 
-**One model saw the trap coming.** On question 13, `argo/claudeopus5` listed the
-controlled vocabulary before it filtered on that vocabulary. It said why: *"that
-vocabulary is matched literally — a misspelled symbol returns zero isolates rather than
-an error."*
+## Beat 2 — the trap the BRC server defused
 
-**Then land it on Bobby's servers.** Both of them attach a note to every zero they return,
-so no model has to be clever:
+B12 asks what fraction of E. coli ENA runs mention carbapenem.
 
-```python
-# mcp_servers/brc_analytics.py:71
-"This returned 0 matches, which means the query matched nothing -- NOT that ENA
- holds no such data. ENA matches scientific_name EXACTLY, so a misspelling or a
- strain-level name returns zero. Check the spelling, or use taxonomy_id instead..."
-```
+BRC's public `search_ena_keywords` returns an ENA HTTP 400 **as tool text** instead
+of an error. A model reads that as "zero matches". It divides that by a real denominator
+of 551,679 and reports a confident **0%**. The arithmetic is correct and
+the numerator is fiction.
 
-Same guard in the GEO server at `mcp_servers/geo.py:136`, attached at line 603.
+**14 of 14 models with a B12 record called `brc_ena_search` instead. No exceptions.**
 
-### 3. The side-by-side (1 minute)
+**Say:** a broken upstream tool turns into a percentage with a decimal point. The BRC
+server gave every model a path that does not do that.
 
-Question down the page, model across. Scroll it; do not read it aloud. Point at two rows.
+---
 
-**Row Q2 — all three models correct.** This is the 581,464 question. Every model that
-ran it got it right once the filter value was right.
+## Beat 3 — the trap the models defused, which is a result about method
 
-**Row Q13 — one row, two different failures.** The question asks how many methicillin-
-resistant E. coli strains there are.
+B4 asks how many ciprofloxacin studies exist for "Escherichai coli". The misspelling
+is deliberate. The question expects a zero, and expects `geo_search` to attach
+`zero_result_note` so the zero cannot read as absence.
 
-- `argo/claudeopus5` is marked **critical**. It dodged the vocabulary trap and got the
-  581,464 denominator right. It still gave the wrong answer. **94,336** counts isolates
-  with `mecA` **or** `mecC`. The question asks for `mecA` alone, which is **93,260**.
-- `argo/claudesonnet45` is marked **retrieved, not reported**. It called the right tool
-  and got the number. It left the number out of its answer. Retrieval works; reporting
-  does not.
+That never happened.
 
-That row is the honest note. Avoiding the trap is not the same as being right.
-
-**Then scroll to the per-model table and say this.** All seven tools were called, 26
-times in total. The lane column in the matrix marks only 3 of the 15 questions as GEO
-and none as ENA. Those two facts do not conflict. The lane says what a question is
-*about*. The question set fixes it, so a question cannot drift. The per-model
-table says what the models actually *did*. His servers were reached far more often than
-the lane column alone suggests.
-
-The verdicts above are the ones on the page as generated at the stamp in its header.
-Runner is still landing models and judge is still rescoring, so rebuild before Friday
-and re-check these two rows. `argo/gpt4o` has 2 of 15 questions so far; its empty cells
-read "not run", which is not a score.
-
-### 4. What the numbers cannot say (45 seconds)
-
-Say this out loud rather than letting the table imply otherwise.
-
-- **`argo/claudesonnet45` cannot be ranked.** It lost 6 of its 15 questions to an empty
-  reply. Each one shows 37,571 input tokens, which is the tool list alone. One round
-  trip, no error, no denial.
-  It never got past the first turn. `argo/claudeopus5` lost 0 of 15 in the same run.
-  That is the gateway, not the model, so those 6 are held out rather than scored zero.
-- **Every dollar is an estimate nobody checked.** Token counts are measured. The prices
-  were written from memory, never read off a price page. Argo billed none of it.
-- **The full chatbot has never run end to end here.** These are per-question runs against
-  the servers. Nobody has driven the whole system from one plain-language request.
-- **Question 11 was run without BV-BRC's 18 tools.** It measures a source being down, not
-  whether the system can use that source.
-- **The 16 questions written for these two servers have not been run yet.** That set is
-  `evals/BOBBY-LANES.md`. Everything on the page comes from `evals/QUESTIONS.md`, which
-  asks about the whole federation. When the other set runs, rebuild and the page will
-  grow a second section on its own.
-
-## What not to claim
-
-Do not add GEO studies to ENA runs. A GEO Series is a curated study; an ENA run is one
-sequencing run. Any total across the two is meaningless, and the generator raises an
-error rather than print one.
-
-## Regenerate
+**17 of 17 models sent `organism="Escherichia coli"`, spelled correctly. Zero sent
+it as typed.** Every one got 37 GEO Series. Only 2 of 16 mentioned the spelling
+anywhere in the answer.
 
 ```
-python evals/build_demo.py              # rewrites evals/demo/index.html and model-matrix.md
-python evals/build_demo.py --self-test  # 12 guards, each observed failing before it was trusted
+argo_gpt5  b04.jsonl
+  CALL geo_search {"organism": "Escherichia coli", "term": "ciprofloxacin",
+                   "entry_type": "gse", "max_results": 10}
+  ANSWER "...with organism set to 'Escherichia coli'... a total_count of 37"
 ```
 
-The page rebuilds from whatever transcripts are in `evals/runs/` at the time.
+**Say:** you cannot test a server's zero handling through a model. The model repairs
+the input before the tool sees it. The trap was written for the tool and defused one
+layer upstream. State it as a finding, not as a failure.
+
+---
+
+## Beat 4 — the zero read as absence, where it is actually proven
+
+This is the headline failure of the project. It is real, and B4 is not the evidence.
+
+```
+evals/runs/_archive-pre-matrix/argo_gpt4o/q02.jsonl
+  CALL ncbi_pathogen_isolate_count {"organism": "Escherichia coli"}
+  TOOL -> {"isolates": 0, "index_rows": 0}
+  ANSWER "...a total of zero isolates matching this filter, despite correct
+          organism naming."
+```
+
+The true figure is 581,464. NCBI keeps no group called `Escherichia coli`; the group
+is `E.coli and Shigella`. The same model, same tool, same day, with the right filter
+value, returned 581,464.
+
+Both of Bobby's servers already fix this class in code. `mcp_servers/geo.py:136`,
+attached at `:603`, and `mcp_servers/brc_analytics.py:71`, attached at `:321`, add a
+`zero_result_note` to every zero.
+
+**Say:** the fix is in the code and it is readable. The proof is the archived
+transcript, not B4.
+
+---
+
+## The honest column — say this before anyone asks
+
+**234 BOBBY-LANES records are not scored.** Judge discovers all of them and then
+refuses them: question set B has no rubric in `judge.py`. Measured 16:34 — 222
+`no-rubric` skips, 0 B rows scored. Judge's own refusal text calls it "a gap in
+`judge.py`, not a model failure".
+
+The page prints **not asked** and **not scored** as two separate columns. They are
+opposite facts. "Not asked" means the model was never reached. "Not scored" means the
+model answered and nobody has graded it. An empty score column here means the second
+one.
+
+`argo_claudesonnet45` on QUESTIONS reads 15 **not asked**. Those transcripts were
+overwritten at 16:07 and are gone. That model cannot be ranked on QUESTIONS.
+
+## What was never tested
+
+- **Nobody opened the page in a browser.** The markup has a guard that was watched to
+  fail first. The markdown twin at `evals/demo/model-matrix.md` was read.
+- **No live calls.** Not to NCBI, not to ENA, not to any running server.
+- **The full chatbot has never run end to end here.**
+- **Every dollar on the page is unverified.** Token counts are measured. The prices
+  came from memory, not from a price page. The page says so wherever a dollar appears.
