@@ -1,6 +1,6 @@
 # Ground truth — every number this project asserts, with its unit and its read-date
 
-Maintained by `verifier`. Built 17 Sep 2026, 15:25.
+Maintained by `verifier`. Built 17 Sep 2026, 15:25. **Last updated 16:45.**
 
 A figure without its unit is not a fact. *S. aureus* is 171,412 or 93,260 or 94,336
 depending on whether you are counting isolates, isolates carrying `mecA`, or isolates
@@ -38,6 +38,11 @@ saw it**. Rows marked `stale-risk` are the ones that can embarrass us on Friday.
   answer wrong on B16, and on S14 for the separate reason in FINDING V6. Drop both cases
   before reading a number off it.
 - **One figure is mislabelled, not stale** — see FINDING V6 at the bottom.
+- **The whole organism list is now measured, and one of our tools is wrong by 2x on 90% of
+  it.** All 106 Pathogen Detection groups read at 16:30-16:34: 95 single-indexed, 11
+  double-indexed. `ncbi_pathogen_organisms` halves all of them. FINDING V11. **No row in
+  this table is affected and no scored question quotes that tool**, but a model handed that
+  list mid-demo gets half the true count — and a zero for a group that has one isolate.
 - **Two claims this project makes about its own plumbing are wrong**, both added at 16:20:
   the NCBI API key would make our rate over-subscription worse rather than better
   (FINDING V8), and the BV-BRC token does not expire in 20 minutes (FINDING V9). Each
@@ -82,9 +87,12 @@ experiments and isolates are three units over three services. That is the point 
 ## NCBI Pathogen Detection — `ncbi.nlm.nih.gov/pathogens/pathogens-srv/`
 
 Two units live here and they are not interchangeable: **distinct isolates** (the
-`target_acc` facet's `numBuckets`) and **index rows** (`totalCount`). The service
-double-indexes *E. coli* and does **not** double-index *S. aureus*, so no fixed ratio
-converts one into the other.
+`target_acc` facet's `numBuckets`) and **index rows** (`totalCount`). No fixed ratio
+converts one into the other, and **as of 16:34 on 17 Sep that is measured, not inferred**:
+all 106 organism groups were read, and **95 are single-indexed (ratio 1.000) while only 11
+are double-indexed (ratio ~2.000)**. Double-indexing is the minority case. The four largest
+groups are all double-indexed and the fifth is not, which is why sampling the head of the
+list confirms the wrong assumption — see FINDING V11.
 
 **Seven rows here were re-read live at 16:14-16:17 on 17 Sep and are marked `live`.**
 The matrix released the NCBI budget at 16:09:44. **Zero drift** — every figure came back
@@ -431,14 +439,65 @@ launching from `evals/`, but it is not what happened here.
 
 ---
 
+## FINDING V11 — `approx_isolates` is halved for 95 of 106 organism groups
+
+**Measured 16:30-16:34, 17 Sep. 107 calls, 228 s, zero errors. Escalated to the hub 16:40.**
+Full census and method in `_reports/verifier.md`.
+
+`mcp_servers/ncbi_lib/server.py:1691` divides every organism group's row count by two, on a
+comment that says "the 2x duplication is uniform". It is not. Measuring all 106 groups:
+
+| class | groups | `approx_isolates` |
+|---|---:|---|
+| single-indexed, ratio 1.000 | **95** | **halved — reports half the true isolate count** |
+| double-indexed, ratio ~2.000 | 11 | correct |
+
+815,447 isolates sit in mis-reported groups against 2,090,769 in correct ones — **28.1% of
+all isolates, 90% of all groups.**
+
+The eleven groups where the field is correct are the only ones that may be quoted from it:
+*Salmonella enterica*, *E.coli and Shigella*, *Klebsiella pneumoniae*, *Campylobacter
+jejuni*, *Neisseria gonorrhoeae*, *Pseudomonas aeruginosa*, *Acinetobacter baumannii*,
+*Clostridioides difficile*, *Vibrio parahaemolyticus*, *Legionella pneumophila*,
+*Enterobacter cloacae*.
+
+**`Kosakonia oryziphila` has 1 isolate and the tool reports 0**, because `1 // 2 == 0`. That
+is a zero standing in for a non-empty group, in the tool set whose headline finding is a
+model trusting exactly such a zero.
+
+**No figure in this table is affected.** Every Pathogen Detection row here comes from
+`distinct_count` (the `target_acc` facet) or from `records()`, which dedups. Both are
+correct for single- and double-indexed groups alike. The defect is confined to
+`ncbi_pathogen_organisms`, which no scored question quotes. **This breaks no Friday claim —
+it is a wrong number a model could be handed mid-demo.**
+
+### Same root cause — `truncated` under-reports on six groups
+
+`server.py:1552` — `truncated = total_rows > start + limit * 2`. At the default `limit=20`,
+six single-indexed groups return 20 isolates and report `truncated=False` while 3 to 20
+isolates remain: *Neisseria cinerea* (40 isolates, 20 hidden), *Vibrio metoecus* (15),
+*Enterobacter chuandaensis* (11), *Aeromonas sobria* (7), *Legionella bozemanae* (3),
+*Neisseria elongata* (3).
+
+Computed from the measured row counts for all 106 groups, **not** observed end to end — I
+have not watched the tool return a wrong flag. The same arithmetic flags `truncated=True`
+correctly for 89 groups, so it discriminates.
+
 ## What I have not done
 
 - ~~I did not re-measure any Pathogen Detection figure~~ — **done at 16:14-16:17, after
   BOBBY-LANES released the budget at 16:09:44.** Seven figures re-read through the real
   tool stack, paced at one call per 3 s: 581,464 · 2 · 93,260 · 94,336 · 171,412 · 75,487 ·
-  170,726. **Zero drift.** What I still have not done is measure the other **100 of 106**
-  organism groups, so I cannot say how far the `approx_isolates` defect in FINDING V10
-  spreads beyond the two groups where I caught it.
+  170,726. **Zero drift.** ~~What I still have not done is measure the other 100 of 106
+  organism groups~~ — **done at 16:30-16:34. All 106 measured, 107 calls, zero errors.**
+  The `approx_isolates` defect in FINDING V10 reaches **95 of 106 groups**, not the two I
+  caught it on. FINDING V11.
+- **I have not established whether the index ratio is a property of the group or of the
+  query.** The census filtered on `taxgroup_name` alone. One data point says it survives an
+  extra filter — the Q14 AST subsets of `E.coli and Shigella` came back at exactly 2x, and
+  the census puts that group at 2.000 — but I have **no** measurement of a single-indexed
+  group under an additional filter. That matters for the `truncated` arithmetic, which
+  assumes the doubling holds for whatever `fq` was used.
 - ~~I did not verify the Q14 AST figures~~ — **done at 16:23. All four match.** 378
   distinct phenotype values, 1,548 resistant, 6,563 susceptible, 9,036 with any
   ciprofloxacin AST. `QUESTIONS.md` is right that these are unreachable through the board's
