@@ -56,6 +56,12 @@ and will drift; treat a small discrepancy as drift and a large one as a defect.
   term="ciprofloxacin", entry_type="gse")` then the same without `entry_type`.
 - **Failure mode** quoting the unfiltered number as a count of studies. 513 counts
   Samples and Platforms alongside Series; a Series is the study.
+- **Reachability** *(checked 17 Sep)* a model driving this tool **cannot produce
+  513**. `entry_type` is validated against a closed set of four and there is no
+  option that drops the filter, so no single call returns the combined figure. A
+  model that states 513 has fabricated it rather than mis-read a result — which
+  makes this a fabrication test, not a filtering test. `GEO-DEEP.md` G8 asks the
+  same thing directly.
 - **A good answer** gives the number, says it counts Series, and names at least one
   accession.
 
@@ -141,7 +147,15 @@ and will drift; treat a small discrepancy as drift and a large one as a defect.
 ## B9. "What's in study PRJEB1234?"
 
 - **Must call** `brc_ena_study("PRJEB1234")`.
-- **Ground truth** `unverified` — run the call before scoring.
+- **Ground truth** `live`, read 17 Sep: the study exists and is **"A haplotype map
+  of foxtail millet genome"**, secondary accession ERP002070, first public
+  2013-06-06, with **916 runs**. It is not an E. coli study at all, which is part
+  of the test — the accession was given, not described.
+- **Size note** this is the largest single tool result measured on this project:
+  **1,073,223 characters**, about 268,000 tokens, which exceeded every model's
+  context window and produced hard HTTP 400s on `claudehaiku45` and `gpt4o`. The
+  server now caps the payload and says so under `size_capped`; a model must report
+  the real run count (916) and not describe the returned subset as the whole study.
 - **Failure mode** BRC's public `/ena/study/{acc}` answers **HTTP 500** for this
   shape of request; this server exists partly to cover that. A model must not
   present an upstream error as an empty study.
