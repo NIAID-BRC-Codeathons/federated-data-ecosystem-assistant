@@ -467,14 +467,31 @@ carry measured susceptibility. Verified today:
 
 ```
 fq=taxgroup_name==["E.coli and Shigella"]  facets=AST_phenotypes[||1|30]
-  -> 378 distinct phenotype values. gentamicin 19,922 rows · ampicillin 19,584 ·
-     ciprofloxacin 18,072 · ciprofloxacin=S 13,126 · meropenem=S 12,806
+  -> 378 distinct phenotype values. EVERY FIGURE ON THIS LINE IS INDEX ROWS:
+     gentamicin 19,922 ROWS · ampicillin 19,584 ROWS · ciprofloxacin 18,072 ROWS ·
+     ciprofloxacin=S 13,126 ROWS · meropenem=S 12,806 ROWS
 
 fq=taxgroup_name==["E.coli and Shigella"] and AST_phenotypes==["ciprofloxacin=R"]
-  -> distinct isolates: 1,548
+  -> 1,548 distinct ISOLATES   (3,096 rows)
 fq=... and AST_phenotypes==["ciprofloxacin=S"]
-  -> distinct isolates: 6,563
+  -> 6,563 distinct ISOLATES   (13,126 rows -- the same quantity as the line above)
 ```
+
+**Read the unit on every line.** `ciprofloxacin=S` appears twice here as **13,126
+rows** and **6,563 isolates**, and they are the same fact: this service indexes
+each isolate twice. A reader who takes the facet figure as an isolate count is
+wrong by exactly 2×, and both numbers are correct, so nothing looks wrong.
+
+That is the trap this whole question set exists to catch, sitting in our own
+file, four lines apart — found by the verifier chat on 17 Sep, not by review.
+
+Two further things measured the same day. The ciprofloxacin vocabulary has **six**
+values, not three: bare `ciprofloxacin`, and `=S`, `=R`, `=I`, `=ND`, `=NS`. ORing
+all six reproduces **9,036** isolates with any ciprofloxacin AST result; `=R` plus
+`=S` alone gives 8,111 and is short by 925. And the 2× indexing is **no longer
+uniform across organisms** — as of 17 Sep it holds for E. coli, Salmonella,
+Klebsiella and Campylobacter, and does **not** for *S. aureus* or *Listeria*, which
+are now indexed once.
 
 **1,548 ciprofloxacin-resistant *E. coli* isolates, measured, not inferred.** The service answers
 the phenotype question directly.
