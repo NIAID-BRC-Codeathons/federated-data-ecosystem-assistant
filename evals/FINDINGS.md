@@ -334,7 +334,13 @@ three faults in the code that produced them:
 | one denial abandoned a model for the rest of the matrix | why `argo_claudeopus5` has 2 rows and `argo_claudesonnet45` has 4 — the missing rows are transport, not model |
 
 None of that voids a number below: each was observed and each is reproducible from the
-archived file named beside it. It changes what they generalise to. **Token counts, routing
+archived file named beside it. **But that file is not in the repo.** `.gitignore`
+line 29 (`evals/runs/**/q*.jsonl`, added at `18e40e2`) keeps the scorecards, the manifests
+and `RUNS.md` and excludes every transcript, so a reviewer who clones this repository gets
+the paths cited below and none of the files. They exist on the laptop at
+`evals/runs/_archive-pre-matrix/` — 31 files, 484 KB in total. **Every citation in Part 2
+is checkable there and nowhere else**, which is a weaker claim than this file was written
+to make, and the reader should know which one they are getting. It changes what they generalise to. **Token counts, routing
 and trap behaviour stand. Wall-clock and cost-per-question do not transfer to the
 current tree**, and Finding 6 measures exactly how far the board has moved since.
 
