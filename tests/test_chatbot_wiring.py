@@ -28,10 +28,22 @@ from __future__ import annotations
 import ast
 import pathlib
 import re
+import sys
 
 import pytest
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
+
+# chatbot.py sits at the repo root, not in a package, so importing it needs the
+# root on sys.path. Locally that happened by accident -- an editable install and
+# running pytest from the root both supply it -- so these tests passed here and
+# failed on a clean checkout with ModuleNotFoundError: No module named 'chatbot'.
+#
+# Caught by the first CI run this branch has ever had, on the very commit that
+# made CI possible. A test that only passes on the machine that wrote it is the
+# same class of fault as a check that cannot come back dirty.
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
 
 
 # --------------------------------------------------------------------------
