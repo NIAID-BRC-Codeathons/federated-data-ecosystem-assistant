@@ -85,11 +85,34 @@ HEADERS = {
     ),
 }
 
-# 3 requests/second without an API key, NCBI-wide -- and the ceiling is per IP,
-# shared with everything else on this machine and network. 0.4s gives 2.5/s,
-# which leaves nothing spare once anything else is talking to NCBI; measured a
-# 429 reading 'count: 4, limit: 3' at that rate. 0.5s gives 2/s and a margin.
-MIN_REQUEST_GAP = 0.5   # overridden below when an API key raises the ceiling
+# NCBI's ceiling is 3 requests/second without an API key and 10 with one, and it
+# is PER IP -- shared with everything else on this machine and network.
+#
+# This file used to pace at 2/s, which read as comfortably under 3. It is not,
+# because it is not the only process talking to NCBI. Measured 17 Sep, the three
+# NCBI-touching servers pace independently:
+#
+#     geo.py     2.00/s      pubmed.py  2.50/s      ncbi_lib  3.00/s   = 7.50/s
+#
+# against a 3/s shared ceiling -- 2.5x over. Each file is individually correct
+# and the arithmetic across them is not, which is exactly how three processes
+# each "comfortably under" a shared ceiling end up well over it. Adding a key
+# made the absolute overshoot worse, not better: 6.67 + 9.09 + 10.0 = 25.76/s
+# against 10/s, so the excess goes from 4.5/s to 15.8/s.
+#
+# So this server now claims a SHARE of the budget rather than the whole thing,
+# and honours NCBI_MAX_RPS like ncbi_lib does. NCBI_SERVER_SHARE is the number of
+# NCBI-touching servers to divide the ceiling by; set it to 1 when running this
+# server alone and it takes the full budget.
+#
+# This is the cheap fix and it is crude: it wastes budget when only one server is
+# busy. The real fix is one budget per IP -- a lock file, or a single
+# NCBI-fronting process -- which is not a day-before-the-demo job. Found by the
+# verifier chat, from the constants rather than from an observed 429.
+NCBI_CEILING_KEYLESS = 3.0
+NCBI_CEILING_WITH_KEY = 10.0
+NCBI_SERVER_SHARE = max(1, int(os.environ.get("NCBI_SERVER_SHARE", "3")))
+MIN_REQUEST_GAP = NCBI_SERVER_SHARE / NCBI_CEILING_KEYLESS   # 1.0s -> 1 req/s
 
 # NCBI answers 429 when the shared per-IP ceiling is crossed, and 5xx under load.
 # Both are transient and both deserve a retry rather than a failed tool call.
@@ -164,10 +187,21 @@ _AUTOINDEX_ROW = re.compile(
     r"(?:\s+(?P<size>[\d.]+[KMGT]?|-))?"
 )
 
-# 10/s with a key, 3/s without. Stay under either with room to spare, because
-# the anonymous budget is shared with every other process on this IP.
+# A key raises the ceiling and meters per key rather than per shared venue IP,
+# which is the failure mode worth removing. It does not remove the need to share
+# the budget between our own servers.
 if NCBI_API_KEY:
-    MIN_REQUEST_GAP = 0.15
+    MIN_REQUEST_GAP = NCBI_SERVER_SHARE / NCBI_CEILING_WITH_KEY   # 0.3s -> 3.33 req/s
+
+# NCBI_MAX_RPS is an explicit override, read the same way ncbi_lib reads it, so
+# one variable can slow every NCBI server at the venue. It may only LOWER the
+# rate: a setting that could raise it past the ceiling would be a footgun.
+_max_rps = os.environ.get("NCBI_MAX_RPS", "").strip()
+if _max_rps:
+    try:
+        MIN_REQUEST_GAP = max(MIN_REQUEST_GAP, 1.0 / float(_max_rps))
+    except (ValueError, ZeroDivisionError):
+        pass
 
 _session = requests.Session()
 _session.headers.update(HEADERS)
