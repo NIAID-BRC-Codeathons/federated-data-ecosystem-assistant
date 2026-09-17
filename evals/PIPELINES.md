@@ -144,12 +144,13 @@ and what inputs does it need?"*
 
 | | |
 |---|---|
-| Ground truth | to be set — this is Everaldo's server and landed today |
-| The trap | NCBI rewrites terms through MeSH silently. A count is meaningless without reading `querytranslation`. |
-| Without the system | Search results ranked by relevance with no date control, and no path from a paper to its data |
+| Ground truth | **5,273** hits for "Escherichia coli ciprofloxacin resistance", verified 17 Sep |
+| The trap | NCBI rewrites the query through MeSH silently. That search becomes `("escherichia coli"[MeSH Terms] OR ("escherichia"[All Fields] AND "coli"[All Fields]) ...) AND ("ciprofloxacin"[Supplementary Concept] ...)`. The count follows the rewrite, so it is meaningless without reading `query_translation` — which the tool does return. |
+| Without the system | A count with no idea which query produced it |
 | Honest limit | The paper-to-data hop is sparse: only 137 of 3,644 E. coli AMR records in NDE carry a PMID. |
 
-**Status: unverified by us.** Needs a ground truth before it goes in a demo.
+**Status: spot-checked, not ours.** This is Everaldo's server; the ground truth above is one
+observation, not a suite. Its owner should set the rest.
 
 ---
 
@@ -162,12 +163,15 @@ fluoroquinolone-resistance mutations?"*
 
 | | |
 |---|---|
-| Ground truth | to be set |
-| The trap | `uniprot_get_entry`'s docstring promises "interactions" and an "AlphaFold structure URL"; the returned dict has **neither**. A router reading the docstring promises the user a field that never arrives. |
+| Ground truth | `P0AES4` · gyrA · 875 aa · *E. coli* K12 · cytoplasm · 2 function blocks · 10 GO terms, verified 17 Sep |
+| The trap | `uniprot_search("gyrA", organism="Escherichia coli")` returns 3 hits, and two of them are `ccdB` and `parC` — related proteins, not the one asked for. Take the hit whose gene symbol matches, never hit 1. |
 | Without the system | Manual UniProt browsing |
-| Honest limit | "Structural implications" — the board's fourth branch — is the weakest area on the whole board. BRC lists `PROTEIN_FOLDING` with **0** workflows, marked coming soon. |
+| Honest limit | "Structural implications" — the board's fourth branch — is the weakest area on the whole board. BRC lists `PROTEIN_FOLDING` with **0** workflows, marked coming soon, and `uniprot_get_entry` returns no structure link. |
 
-**Open defect**, in someone else's file, reported not patched.
+**Status: spot-checked, not ours.** An earlier draft of this file reported that
+`uniprot_get_entry`'s docstring promised interactions and an AlphaFold URL it did not
+return. **That was already fixed** before this was written — the returned keys now match
+the docstring exactly. The claim was stale and is withdrawn.
 
 ---
 
@@ -228,5 +232,15 @@ from a search engine.
 4. **P8 is scored like the others.** "Cannot answer" is a correct answer and should pass,
    not be excluded from the denominator.
 
-Coverage today: P2–P5 verified with ground truth · P1 blocked, not wired · P6, P7
-unverified · P8 specified, one case verified.
+Coverage today:
+
+| | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 |
+|---|---|---|---|---|---|---|---|---|
+| ground truth | — | yes | yes | yes | yes | one | one | yes |
+| in the harness | — | yes | yes | yes | yes | — | — | yes |
+| offline tests | — | — | 52 | — | 26 | — | — | — |
+| ours to own | — | part | **yes** | part | **yes** | no | no | shared |
+
+P1 is blocked and unowned. P3 and P5 are the two this branch owns outright and they are
+the two with regression tests. P6 and P7 belong to other people; the single observations
+recorded above are spot checks, not suites, and their owners should set the rest.
