@@ -662,13 +662,19 @@ def hidden_retry_note(runs) -> str:
             "measured from outside the file.** Every silent empty below was retried and "
             "stayed empty; the transcript records `retries: 0` for all of them. "
             "`unaccounted` is the wall gap between consecutive transcripts minus the "
-            "run" + APOS + "s own `elapsed_s`, and the driver" + APOS + "s retry sleeps are 2.0s "
-            "for one retry and 6.0s for two." + chr(10) + chr(10))
+            "run" + APOS + "s own `elapsed_s`. Under `code_sha bafed0f`, the build that "
+            "produced these rows, the retry sleep is `2.0 * attempts`: 2.0s for one "
+            "retry, 6.0s for two. The working tree has since changed it to "
+            "`EMPTY_BACKOFF = (4.0, 10.0)`, so read this column against the "
+            "`code_sha` in the summary, not against the driver as it stands today." + chr(10) + chr(10))
     tailtext = (chr(10) + "So one silent empty really costs about three times what its "
                 "transcript reports, and the `input_tokens` of the two discarded "
-                "attempts are in nobody" + APOS + "s total. Reported to `laptop_codeathon`; "
-                "the fix is to write the transcript after the retry loop rather than "
-                "inside `run_one`." + chr(10))
+                "attempts are in nobody" + APOS + "s total. Reported to `laptop_codeathon` at "
+                "15:08; a fix landed in the working tree at 15:17 as "
+                "`rewrite_summary()`, called whenever `attempts` is non-zero. It "
+                "cannot help this matrix: the running process imported the driver at "
+                "14:58:54 and Python does not reload a changed module, so every "
+                "remaining row here still writes `retries: 0`." + chr(10))
     return head + table(rows, ["model", "Q", "transcript", "recorded s", "true wall s",
                                "unaccounted s", "input tok recorded"]) + tailtext
 
