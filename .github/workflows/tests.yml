@@ -3,9 +3,15 @@ name: tests
 # Offline only. The suite must never depend on NCBI, ENA, UniProt or BRC being
 # up, and must never spend the shared per-IP rate budget from CI. Tests marked
 # `live` are deselected by pyproject's addopts and stay that way here.
+#
+# Triggers cover feature branches as well as main. Without the `bobby/**` line,
+# a push to a feature branch whose PR has already merged matched neither trigger,
+# so the branch tip carried no CI at all and could not get any -- its green
+# history stopped at the pre-merge commit while work continued on top. Found by
+# the sentinel chat on 17 Sep, the day after PR #8 merged.
 on:
   push:
-    branches: [main]
+    branches: [main, "bobby/**"]
   pull_request:
 
 jobs:
