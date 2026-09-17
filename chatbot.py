@@ -251,7 +251,7 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/google/gemma-4-26b-a4b-it")
 # LLM_MODEL="ollama/gemma4"
 # LLM_MODEL="mistralai/mistral-small-latest"
 # LLM_MODEL="anthropic/claude-opus-5"
-LLM_MODEL="argo/claudesonnet5"   # Argonne Argo gateway; see load_chat_model
+# LLM_MODEL="argo/claudesonnet5"   # Argonne Argo gateway; see load_chat_model
 
 # Argo exposes an OpenAI-compatible surface, so it needs no new SDK -- only a
 # base_url override. Two things differ from a normal OpenAI-compatible host:
@@ -363,6 +363,8 @@ async def init_agent():
             "No MCP server answered. Start them with run_mcp_servers.py, or trim "
             "MCP_SERVERS to the ones you are running."
         )
+    llm = load_chat_model(LLM_MODEL)
+    return create_agent(model=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
 
 
 @cl.on_chat_start
