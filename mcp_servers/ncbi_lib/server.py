@@ -29,7 +29,7 @@ shared across every in-flight call.
 Parameter descriptions use Annotated[..., Field(description=...)], which is what
 reaches the agent: a description written only in the docstring documents the
 tool but not its arguments. These strings are the agent's entire basis for
-choosing between sixteen similar-sounding tools; they are interface, not
+choosing between seventeen similar-sounding tools; they are interface, not
 comments.
 """
 
@@ -61,8 +61,9 @@ server = FastMCP(
     instructions=(
         "Two NCBI services.\n\n"
         "E-utilities: sequencing runs (SRA), samples (BioSample), projects "
-        "(BioProject), literature (PubMed), organisms (Taxonomy), genes, "
-        "genome assemblies, and sequences.\n\n"
+        "(BioProject), organisms (Taxonomy), genes, genome assemblies, and "
+        "sequences. Not literature: PubMed is the standalone pubmed server's, "
+        "and this server exposes no tool that reaches it.\n\n"
         "Pathogen Detection (`ncbi_pathogen_*`): a curated, deduplicated index "
         "of bacterial isolates with computed antimicrobial-resistance "
         "genotypes. **Prefer it for any question about resistance genes or "

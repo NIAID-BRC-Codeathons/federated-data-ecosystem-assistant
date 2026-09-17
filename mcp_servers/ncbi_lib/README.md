@@ -1,6 +1,6 @@
 # NCBI MCP server
 
-One of the MVP's "at least three resources". Exposes two NCBI services as 20 MCP
+One of the MVP's "at least three resources". Exposes two NCBI services as 17 MCP
 tools, all prefixed `ncbi_` so the assistant can tell them apart from the mygene,
 uniprot and PDN tools when routing:
 
@@ -92,6 +92,11 @@ key.
 The project brief asks the agent to expose "its resource-selection rationale,
 generated queries, API calls, and intermediate outputs rather than acting as an
 opaque chatbot", and scores provenance directly. So every tool returns:
+
+(The example below is a real `ncbi_pubmed_search` result, measured before that
+tool was unregistered — see [Tools](#tools). Its numbers are kept as measured
+rather than restated for a tool they were never taken from; the block's shape
+is the point and is unchanged.)
 
 ```json
 {

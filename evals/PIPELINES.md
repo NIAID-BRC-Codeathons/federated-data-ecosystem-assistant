@@ -226,10 +226,12 @@ unmeasured; it is what P2 and P3 do, with eight harness cases between them.
 **What "answered" means here, exactly.** These four cases call E-utilities, Datasets
 and UniProt REST directly on both sides, because the thing being compared is the shape
 of the call. They do **not** exercise our MCP servers. The NCBI server on this branch
-already exposes `ncbi_bioproject_summary`, `ncbi_taxonomy_lookup`, `ncbi_assembly_info`
-and `ncbi_pubmed_search`, which are the natural homes for three of these chains —
+already exposes `ncbi_bioproject_summary`, `ncbi_taxonomy_lookup` and
+`ncbi_assembly_info`, which are the natural homes for three of these chains —
 whether those tools carry the guards measured here is **untested**, and it belongs to
-their owner, not to this file.
+their owner, not to this file. The fourth, *latest in AMR for X*, was `ncbi_pubmed_search`
+when this was measured; that tool is no longer registered, so its home is the standalone
+pubmed server and the sort/datetype traps below are unmeasured against it.
 
 | Board sub-branch | Case | Ground truth (17 Sep) | Verdict | The trap the case measures |
 |---|---|---|---|---|
