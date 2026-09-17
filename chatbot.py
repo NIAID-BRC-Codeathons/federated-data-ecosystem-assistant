@@ -45,6 +45,27 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8005/mcp-ncbi",
             "transport": "streamable_http",
         },
+        "geo": {
+            # GEO is the only source here with processed gene expression.
+            "url": "http://127.0.0.1:8007/mcp-geo",
+            "transport": "streamable_http",
+        },
+        "brc_analytics": {
+            # Federated, not reimplemented: BRC Analytics publishes this server
+            # themselves and it is read-only and anonymous. 12 tools.
+            # The trailing slash is mandatory. Without it the server answers 307
+            # to a plain http:// URL, and the MCP client refuses to follow an
+            # https to http downgrade, so the call surfaces as an HTTP error.
+            "url": "https://brc-analytics.org/api/v1/mcp/",
+            "transport": "streamable_http",
+        },
+        "brc_analytics_local": {
+            # The complement to the line above, covering what their server does
+            # not: ENA paging past its hard 50-row cap, a working keyword search
+            # (theirs returns HTTP 400), and study lookup (theirs returns 500).
+            "url": "http://127.0.0.1:8006/mcp-brc-analytics",
+            "transport": "streamable_http",
+        },
     }
 
 LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
@@ -77,9 +98,53 @@ def load_chat_model(model: str) -> BaseChatModel:
     raise ValueError(f"Unknown provider: {provider}")
 
 
+def _root_cause(exc: BaseException) -> str:
+    """The innermost real error.
+
+    A failed MCP connection surfaces as an ExceptionGroup wrapping a TaskGroup,
+    whose str() is "unhandled errors in a TaskGroup" and says nothing about what
+    went wrong. Unwrap it so the startup line names the actual cause.
+    """
+    seen = 0
+    while seen < 10:
+        inner = getattr(exc, "exceptions", None)
+        if not inner:
+            break
+        exc = inner[0]
+        seen += 1
+    return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+
+
+async def load_tools(servers: dict) -> tuple[list, dict]:
+    """Collect tools from every server, skipping the ones that are down.
+
+    MultiServerMCPClient.get_tools() fans out across all servers and raises if
+    any one of them is unreachable, which took the whole chat down at startup
+    whenever a single local server was not running. Asking each server
+    separately costs a missing one its tools and nothing else.
+    """
+    tools: list = []
+    report: dict = {}
+    for name, config in servers.items():
+        try:
+            server_tools = await MultiServerMCPClient({name: config}).get_tools()
+        except Exception as exc:  # unreachable, refused, timed out, bad protocol
+            report[name] = f"unavailable: {_root_cause(exc)}"
+            continue
+        tools.extend(server_tools)
+        report[name] = f"{len(server_tools)} tools"
+    return tools, report
+
+
 async def init_agent():
-    mcp_client = MultiServerMCPClient(MCP_SERVERS)
-    tools = await mcp_client.get_tools()
+    tools, report = await load_tools(MCP_SERVERS)
+    for name, status in report.items():
+        print(f"  {name:22s} {status}")
+    if not tools:
+        raise RuntimeError(
+            "No MCP server answered. Start them with run_mcp_servers.py, or trim "
+            "MCP_SERVERS to the ones you are running."
+        )
     llm = load_chat_model(LLM_MODEL)
     return create_agent(model=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
 
@@ -151,5 +216,27 @@ async def set_starters(user: cl.User | None = None, language: str | None = None)
         cl.Starter(
             label="STRING interactions TP53",
             message="What are the interaction partners of TP53 with high confidence?",
+        ),
+        cl.Starter(
+            label="GEO expression under ciprofloxacin",
+            message=(
+                "Which E. coli gene expression studies involve ciprofloxacin, and "
+                "where are the actual expression values for the top one?"
+            ),
+        ),
+        cl.Starter(
+            label="BRC what can I run on E. coli",
+            message=(
+                "Which genome assemblies does BRC Analytics hold for Escherichia "
+                "coli, and which analysis workflows can I run on them?"
+            ),
+        ),
+        cl.Starter(
+            label="Expression study to runnable workflow",
+            message=(
+                "Find an E. coli antibiotic resistance expression study in GEO, "
+                "then tell me whether AMR Gene Detection can run on the E. coli "
+                "reference genome."
+            ),
         ),
     ]
