@@ -76,6 +76,12 @@ HEADERS = {
 # 3 requests/second without an API key, NCBI-wide. 0.4s leaves headroom.
 MIN_REQUEST_GAP = 0.4
 
+# NCBI answers 429 when the shared per-IP ceiling is crossed, and 5xx under load.
+# Both are transient and both deserve a retry rather than a failed tool call.
+MAX_ATTEMPTS = 4
+BACKOFF_SECONDS = 1.0
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
 # Measured 2026-09-17: 20 GSE records returned 67,426 bytes, about 3.3 KB each,
 # because a Series record inlines its abstract and its whole sample list. NCBI
 # accepts far more; this is the point at which the result stops being a sensible
@@ -138,21 +144,57 @@ _last_request_at = 0.0
 # ---------------------------------------------------------------- transport
 
 
-def _get(url: str, params: dict | None = None, timeout: int = 60):
-    """One rate-limited GET, raising ToolError on anything but a 2xx."""
+def _wait_turn() -> None:
+    """Hold the shared gap between requests to any NCBI host."""
     global _last_request_at
     with _rate_lock:
         wait = MIN_REQUEST_GAP - (time.monotonic() - _last_request_at)
         if wait > 0:
             time.sleep(wait)
         _last_request_at = time.monotonic()
-    try:
-        resp = _session.get(url, params=params, timeout=timeout)
-    except requests.RequestException as exc:
-        raise ToolError(f"Could not reach {url}: {exc}") from exc
-    if resp.status_code >= 400:
-        raise ToolError(f"{url} returned HTTP {resp.status_code}: {resp.text[:300]}")
-    return resp
+
+
+def _get(url: str, params: dict | None = None, timeout: int = 60):
+    """One rate-limited GET, retrying a throttle or a transient server error.
+
+    NCBI answers HTTP 429 with {"error": "API rate limit exceeded"} when the
+    3/second ceiling is crossed -- which happens whenever anything else on this
+    machine is also talking to NCBI, since the ceiling is per IP and shared
+    across every NCBI host. Failing the tool call on that would report a
+    throttle as "no data", so back off and retry instead.
+    """
+    last = None
+    for attempt in range(MAX_ATTEMPTS):
+        _wait_turn()
+        try:
+            resp = _session.get(url, params=params, timeout=timeout)
+        except requests.RequestException as exc:
+            last = f"Could not reach {url}: {exc}"
+            if attempt == MAX_ATTEMPTS - 1:
+                raise ToolError(last) from exc
+            time.sleep(BACKOFF_SECONDS * (attempt + 1))
+            continue
+
+        if resp.status_code in RETRYABLE_STATUS and attempt < MAX_ATTEMPTS - 1:
+            # Respect Retry-After when NCBI sends one; otherwise widen the gap.
+            delay = resp.headers.get("Retry-After")
+            try:
+                pause = float(delay) if delay else BACKOFF_SECONDS * (attempt + 1)
+            except ValueError:
+                pause = BACKOFF_SECONDS * (attempt + 1)
+            time.sleep(min(pause, 10.0))
+            continue
+
+        if resp.status_code >= 400:
+            hint = ""
+            if resp.status_code == 429:
+                hint = (" NCBI throttles at 3 requests/second per IP across all "
+                        "its hosts; an API key raises that to 10.")
+            raise ToolError(
+                f"{url} returned HTTP {resp.status_code}: {resp.text[:300]}{hint}"
+            )
+        return resp
+    raise ToolError(last or f"{url} failed after {MAX_ATTEMPTS} attempts.")
 
 
 def _eutils(endpoint: str, params: dict) -> dict:
@@ -316,16 +358,20 @@ def list_ftp_directory(url: str):
     Verified: GSM9284462 has no FTP directory at all, because its data is
     published at the Series level, while the bucket above it holds 275 siblings.
     """
-    global _last_request_at
-    with _rate_lock:
-        wait = MIN_REQUEST_GAP - (time.monotonic() - _last_request_at)
-        if wait > 0:
-            time.sleep(wait)
-        _last_request_at = time.monotonic()
-    try:
-        resp = _session.get(url, timeout=60)
-    except requests.RequestException as exc:
-        raise ToolError(f"Could not reach the GEO FTP site at {url}: {exc}") from exc
+    for attempt in range(MAX_ATTEMPTS):
+        _wait_turn()
+        try:
+            resp = _session.get(url, timeout=60)
+        except requests.RequestException as exc:
+            if attempt == MAX_ATTEMPTS - 1:
+                raise ToolError(
+                    f"Could not reach the GEO FTP site at {url}: {exc}") from exc
+            time.sleep(BACKOFF_SECONDS * (attempt + 1))
+            continue
+        if resp.status_code in RETRYABLE_STATUS and attempt < MAX_ATTEMPTS - 1:
+            time.sleep(BACKOFF_SECONDS * (attempt + 1))
+            continue
+        break
 
     if resp.status_code == 404:
         return None
