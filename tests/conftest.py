@@ -240,7 +240,7 @@ def mv_schema(myvariant):
 
 
 @pytest.fixture(autouse=True)
-def block_network(mygene, myvariant, pubmed, monkeypatch):
+def block_network(mygene, myvariant, pubmed, geo, monkeypatch):
     """Fail any request a test did not arrange, so the suite stays offline."""
 
     def refuse(method: str, url: str, **kwargs: Any):
@@ -257,6 +257,9 @@ def block_network(mygene, myvariant, pubmed, monkeypatch):
     monkeypatch.setattr(myvariant.requests, "request", refuse)
     # pubmed.py calls requests.get directly rather than requests.request.
     monkeypatch.setattr(pubmed.requests, "get", refuse_get)
+    # geo.py holds one module-level Session and calls .get on it, so the refusal
+    # goes on the session rather than on the requests module.
+    monkeypatch.setattr(geo._session, "get", refuse_get)
 
 
 @pytest.fixture
@@ -390,3 +393,101 @@ def pm_record(pubmed, block_network, monkeypatch) -> Callable[..., PMRecorder]:
         return recorder
 
     return install
+
+
+# ---------------------------------------------------------------------------
+# geo.py keeps one module-level requests.Session and a module-level pacer, and
+# reads both resp.json() and resp.text (the FTP listings are HTML). The mock
+# below matches that shape, and resets the pacer so the suite does not sleep.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class GeoCall:
+    url: str
+    params: dict
+
+
+class GeoFakeResponse:
+    def __init__(self, body: Any, status: int = 200, headers: dict | None = None):
+        self._body = body
+        self.status_code = status
+        self.headers = headers or {}
+
+    @property
+    def text(self) -> str:
+        if isinstance(self._body, str):
+            return self._body
+        return json.dumps(self._body)
+
+    def json(self) -> Any:
+        if isinstance(self._body, str):
+            return json.loads(self._body)
+        return self._body
+
+
+class GeoRecorder:
+    """Stands in for geo._session.get.
+
+    `responses` is a single body, or a list replayed in order, or a callable
+    taking (url, params). A body may be a (body, status) or
+    (body, status, headers) tuple to drive the retry paths.
+    """
+
+    def __init__(self, responses: Any = None):
+        self.calls: list[GeoCall] = []
+        self._responses = responses
+        self._index = 0
+
+    def __call__(self, url: str, params: dict | None = None, timeout: int = 60, **kw: Any):
+        self.calls.append(GeoCall(url, dict(params or {})))
+        body = self._responses
+        if callable(body):
+            body = body(url, params)
+        elif isinstance(body, list):
+            body = body[min(self._index, len(body) - 1)]
+            self._index += 1
+        status, headers = 200, {}
+        if isinstance(body, tuple):
+            if len(body) == 3:
+                body, status, headers = body
+            else:
+                body, status = body
+        return GeoFakeResponse(body, status, headers)
+
+    @property
+    def last(self) -> GeoCall:
+        return self.calls[-1]
+
+
+@pytest.fixture
+def geo():
+    """The GEO server module, with its request pacer reset so tests do not sleep."""
+    import geo as module
+
+    module._last_request_at = 0.0
+    yield module
+    module._last_request_at = 0.0
+
+
+@pytest.fixture
+def geo_record(geo, block_network, monkeypatch) -> Callable[..., GeoRecorder]:
+    """Install a GeoRecorder in place of geo._session.get."""
+
+    def install(responses: Any = None) -> GeoRecorder:
+        recorder = GeoRecorder(responses)
+        monkeypatch.setattr(geo._session, "get", recorder)
+        return recorder
+
+    return install
+
+
+def geo_esummary(uid: str, **fields: Any) -> dict:
+    """An esummary db=gds envelope around one record."""
+    record = {"uid": uid, "accession": "", "entrytype": "", "title": "", **fields}
+    return {"result": {"uids": [uid], uid: record}}
+
+
+def geo_esearch(count: int, ids: list[str], translation: str = "") -> dict:
+    return {"esearchresult": {"count": str(count), "idlist": ids,
+                              "querytranslation": translation}}
