@@ -1,0 +1,4 @@
+{"role": "user", "text": "Are there any E. coli expression studies about ciprofloxacin?"}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "geo_search", "args": {"organism": "Escherichia coli", "term": "ciprofloxacin", "entry_type": "gse"}}]}
+{"role": "tool", "tool": "geo_search", "result_excerpt": "{\"total_count\": 37, \"results\": [{\"accession\": \"GSE309890\"}]}", "result_chars": 58}
+{"summary": {"question_number": 3, "question": "Are there any E. coli expression studies about ciprofloxacin?", "model": "fixture", "elapsed_s": 0, "denied": false, "error": null, "tools_in_order": ["geo_search"], "tool_call_count": 1, "answer": "37 Series match, with entry_type restricted to gse. GSE309890 ranks first.", "answer_chars": 74}}

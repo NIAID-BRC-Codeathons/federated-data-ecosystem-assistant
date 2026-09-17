@@ -1,0 +1,2 @@
+{"role": "user", "text": "What does the PBP2a structure look like?"}
+{"summary": {"question_number": 15, "question": "What does the PBP2a structure look like?", "model": "fixture", "elapsed_s": 0, "denied": false, "error": null, "tools_in_order": [], "tool_call_count": 0, "answer": "I do not have that information.", "answer_chars": 31}}

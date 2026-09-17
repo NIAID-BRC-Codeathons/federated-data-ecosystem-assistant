@@ -1,0 +1,5 @@
+{"role": "user", "text": "Are there any E. coli expression studies about ciprofloxacin?"}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "geo_search", "args": {"organism": "Escherichia coli", "term": "ciprofloxacin"}}, {"tool": "search_ena_keywords", "args": {"keywords": "ciprofloxacin"}}, {"tool": "ncbi_pathogen_isolate_count", "args": {"organism": "Escherichia coli"}}]}
+{"role": "tool", "tool": "geo_search", "result_excerpt": "{\"total_count\": 513}", "result_chars": 20}
+{"role": "tool", "tool": "ncbi_pathogen_isolate_count", "result_excerpt": "{\"summary\": \"0 distinct isolates.\"}", "result_chars": 35}
+{"summary": {"question_number": 3, "question": "Are there any E. coli expression studies about ciprofloxacin?", "model": "fixture", "elapsed_s": 0, "denied": false, "error": null, "tools_in_order": ["geo_search", "search_ena_keywords", "ncbi_pathogen_isolate_count"], "tool_call_count": 3, "answer": "A total of 513 Series were found. ENA holds 50 runs for this taxon. The search returned 0 isolates for Escherichia coli.", "answer_chars": 120}}

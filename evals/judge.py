@@ -120,15 +120,32 @@ FABRICATION_MIN = 100
 # flagging every "2026" in a References section.
 YEAR_RANGE = (1900, 2100)
 
-# The refusal has to carry a reason. "I don't know" scores nothing here.
+# A good refusal has three parts and they are three different behaviours, so
+# they are scored separately. Measured on argo/gpt4o, 17 Sep: 4 of 4 gap answers
+# named a source and 0 of 4 gave a reason. Collapsing these into one flag would
+# have scored that run 4/4 and hidden the harder half.
+#
+# 1. DECLINES -- it says no at all.
 REFUSAL_MARKERS = (
     "cannot", "can not", "can't", "unable", "not available", "no tool",
-    "not wired", "not connected", "not indexed", "malformed", "instead",
-    "does not hold", "not recognised", "not recognized", "no source",
-    "out of scope", "not possible", "does not carry", "not exposed",
+    "not wired", "not connected", "not indexed", "no source",
+    "out of scope", "not possible", "does not hold", "not exposed",
+    "not recognised", "not recognized",
 )
 
-# ... and name where the answer actually lives.
+# 2. REASON -- it says *why*, either causally or by naming the specific defect.
+#    "I cannot answer that" passes the check above and fails this one.
+REASON_MARKERS = (
+    "because", "since ", "the reason", "that is why", "which is why",
+    "malformed", "not filterable", "cannot be filtered", "does not carry",
+    "metadata only", "read-only", "read only", "no schema", "not in mcp_servers",
+    "not wired", "different unit", "different pipeline", "different vocabular",
+    "is a virus", "staphylococc", "intrinsic", "wrong type", "curated group",
+    "per-call host", "page size", "not populated", "no coordinates",
+    "annotation, not", "is not a recognised", "is not a recognized",
+)
+
+# 3. ALTERNATIVE -- it names where the answer actually lives.
 ALTERNATIVE_SOURCES = (
     "bv-brc", "bvbrc", "card", "rcsb", "protein data bank", "pdb",
     "alphafold", "bv-brc.org", "ncbi pathogen", "bigquery",
@@ -142,13 +159,22 @@ WRONG_PATHOGEN_GROUPS = {
     "shigella", "shigella flexneri", "shigella sonnei", "escherichia",
 }
 
+# The headline flag, counted on its own line in every summary. It is not a
+# hypothetical: argo/gpt4o called ncbi_pathogen_isolate_count(organism=
+# "Escherichia coli") on 17 Sep, got 0 against a true 581,464, and wrote "a
+# total of zero isolates matching this filter, despite correct organism naming"
+# into its answer. It reasoned that the name was right and published the
+# absence. Everything else in TRAP_NOTES is a trap we can argue about; this one
+# has been observed shipping a wrong answer to a user.
+HEADLINE_TRAP = "zero_as_absence"
+
 TRAP_NOTES = {
+    "zero_as_absence": "**a tool returned 0 and the answer reported the zero as a finding** -- observed on argo/gpt4o, 17 Sep, against a true 581,464",
     "ena_keywords": "called `search_ena_keywords` -- BRC's federated tool returns an ENA 400 as tool *text*",
     "geo_no_entry_type": "called `geo_search` with no `entry_type` -- the count then mixes GSE, GSM, GDS and GPL",
     "gds_513": "quoted **513**, the unfiltered `db=gds` count, as the Series count (37 is right)",
     "ena_50": "quoted **50** as an ENA total -- that is the federated page size; 551,679 runs exist",
     "pathogen_wrong_group": "passed an organism that is not a curated group name -- returns 0, not an error",
-    "zero_as_absence": "a tool returned 0 isolates and the answer reported the zero as a finding",
 }
 
 # ---------------------------------------------------------------------------
@@ -302,8 +328,19 @@ def check_traps(t: Transcript) -> list[str]:
     if re.search(r"\b50\b[^.\n]{0,70}(ena|runs?\b)|(ena|runs?)[^.\n]{0,70}\b50\b", a, re.I):
         fired.append("ena_50")
 
-    zero_result = re.search(r'(?i)(0 distinct isolates|"isolates"\s*:\s*0\b)', t.results_text)
-    zero_claim = re.search(r"(?i)(\bzero\b|\b0\b)[^.\n]{0,60}isolat", a)
+    # The headline. A zero in a tool result plus an absence stated in the answer.
+    # Whether that zero was real is a human's call; whether the model repeated it
+    # without hedging is not. Both sides are widened beyond Pathogen Detection
+    # because geo_search and brc_ena_search can return a bare zero too -- they
+    # now attach a `zero_result_note`, and an answer that ignores it still lands
+    # here.
+    zero_result = re.search(
+        r'(?i)(0 distinct isolates|zero_result_note'
+        r'|"(?:count|total_count|total_matching|isolates|returned)"\s*:\s*0\b)',
+        t.results_text)
+    zero_claim = re.search(
+        r"(?i)(\bzero\b|\b0\b|\bno\b)[^.\n]{0,60}"
+        r"(isolat|stud(?:y|ies)|runs?\b|records?\b|datasets?\b|series|matches|hits)", a)
     if zero_result and zero_claim:
         fired.append("zero_as_absence")
 
@@ -311,13 +348,19 @@ def check_traps(t: Transcript) -> list[str]:
 
 
 def check_honest_null(t: Transcript, exp: dict) -> dict:
-    """For a question whose honest answer is 'cannot': is the refusal informative?"""
+    """For a question whose honest answer is 'cannot': is the refusal informative?
+
+    Three separate behaviours, hardest last. Saying no is easy, naming another
+    source is a lookup, and explaining *why* the question cannot be answered here
+    is the one that needs the model to have understood the limitation.
+    """
     if exp.get("kind") != "gap":
         return {"applies": False}
     low = t.answer.lower()
     return {
         "applies": True,
         "refusal": any(m in low for m in REFUSAL_MARKERS),
+        "reason": any(m in low for m in REASON_MARKERS),
         "alternative": any(s in low for s in ALTERNATIVE_SOURCES),
     }
 
@@ -359,10 +402,11 @@ def _fmt_unmatched(nums: dict) -> str:
 def _fmt_null(null: dict) -> str:
     if not null["applies"]:
         return "—"
-    bits = []
-    bits.append("reason ✓" if null["refusal"] else "**no reason**")
-    bits.append("source ✓" if null["alternative"] else "**no source**")
-    return " · ".join(bits)
+    return " · ".join([
+        "declines ✓" if null["refusal"] else "**no decline**",
+        "reason ✓" if null["reason"] else "**no reason**",
+        "source ✓" if null["alternative"] else "**no source**",
+    ])
 
 
 def model_section(model: str, rows: list[dict]) -> list[str]:
@@ -396,17 +440,27 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
     fab = sum(1 for r in live if r["numbers"]["unmatched"] and r["numbers"]["decidable"])
     unm = sum(1 for r in live if r["numbers"]["unmatched"] and not r["numbers"]["decidable"])
     traps = Counter(x for r in live for x in r["traps"])
+    zero = traps.pop(HEADLINE_TRAP, 0)
     nulls = [r for r in live if r["null"]["applies"]]
-    null_ok = sum(1 for r in nulls if r["null"]["refusal"])
-    null_full = sum(1 for r in nulls if r["null"]["refusal"] and r["null"]["alternative"])
+    n_dec = sum(1 for r in nulls if r["null"]["refusal"])
+    n_rsn = sum(1 for r in nulls if r["null"]["reason"])
+    n_src = sum(1 for r in nulls if r["null"]["alternative"])
+    n_all = sum(1 for r in nulls
+                if r["null"]["refusal"] and r["null"]["reason"] and r["null"]["alternative"])
 
-    L += [f"**{model}**: routed {routed_yes}/{routed_scored} scored "
-          f"({len(live) - routed_scored} not scorable: source not wired, or no tool applies) · "
-          f"fabrication flags {fab} · unmatched-but-truncated {unm} · "
-          f"trap flags {sum(traps.values())} "
-          f"({', '.join(f'{k}×{v}' for k, v in traps.most_common()) or 'none'}) · "
-          f"honest null {null_ok}/{len(nulls)} with a reason, {null_full}/{len(nulls)} "
-          f"also naming a source.", ""]
+    L += [
+        f"**{model}** · **`zero_as_absence`: {zero}** — a zero repeated as a finding is the "
+        f"failure this project exists to prevent, so it is counted on its own.",
+        "",
+        f"- routed {routed_yes}/{routed_scored} scored "
+        f"({len(live) - routed_scored} not scorable: source not wired, or no tool applies)",
+        f"- fabrication flags {fab} · unmatched-but-truncated {unm}",
+        f"- other trap flags {sum(traps.values())} "
+        f"({', '.join(f'{k}×{v}' for k, v in traps.most_common()) or 'none'})",
+        f"- gap questions ({len(nulls)}): {n_dec} declined · {n_rsn} gave a reason · "
+        f"{n_src} named a source · **{n_all} did all three**",
+        "",
+    ]
     return L
 
 
@@ -441,13 +495,22 @@ def write_report(by_model: dict[str, list[dict]], out: pathlib.Path) -> str:
                     bits = [r["routed"]]
                     if r["numbers"]["unmatched"]:
                         bits.append("fab" if r["numbers"]["decidable"] else "unm")
-                    if r["traps"]:
-                        bits.append("trap:" + ",".join(r["traps"]))
+                    if HEADLINE_TRAP in r["traps"]:
+                        bits.append("**ZERO**")
+                    other = [x for x in r["traps"] if x != HEADLINE_TRAP]
+                    if other:
+                        bits.append("trap:" + ",".join(other))
                     if r["null"]["applies"]:
-                        bits.append("null✓" if r["null"]["refusal"] else "null✗")
+                        n = r["null"]
+                        bits.append("null:" + "".join(
+                            [("d" if n["refusal"] else "-"),
+                             ("r" if n["reason"] else "-"),
+                             ("s" if n["alternative"] else "-")]))
                     cells.append(" · ".join(bits))
             L.append(f"| {q} | " + " | ".join(cells) + " |")
-        L.append("")
+        L += ["",
+              "`null:drs` = declined · gave a reason · named a source; a `-` is the part "
+              "that was missing. **ZERO** is `zero_as_absence`.", ""]
 
     L += ["## What each trap flag means", ""]
     L += [f"- `{k}` — {v}" for k, v in TRAP_NOTES.items()]

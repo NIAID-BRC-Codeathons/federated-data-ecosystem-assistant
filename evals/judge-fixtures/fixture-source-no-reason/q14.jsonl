@@ -1,0 +1,2 @@
+{"role": "user", "text": "Which E. coli isolates are clinically resistant to ciprofloxacin, and what are their MICs?"}
+{"summary": {"question_number": 14, "question": "Which E. coli isolates are clinically resistant to ciprofloxacin, and what are their MICs?", "model": "fixture", "elapsed_s": 0, "denied": false, "error": null, "tools_in_order": [], "tool_call_count": 0, "answer": "This assistant cannot return MIC values for these isolates. For curated susceptibility data, consult BV-BRC or CARD.", "answer_chars": 116}}
