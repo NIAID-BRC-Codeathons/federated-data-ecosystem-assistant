@@ -1244,9 +1244,16 @@ def lapis_get_mutations_over_time(
 
 
 if __name__ == "__main__":
-    import sys
-    if "--stdio" in sys.argv:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--stdio", action="store_true")
+    parser.add_argument("--port", type=int, default=8001)
+    args = parser.parse_args()
+
+    if args.stdio:
         mcp.run(transport="stdio")
     else:
-        print("PDN MCP Server starting on http://localhost:8001/mcp-pdn ...")
+        mcp.settings.port = args.port
+        print(f"PDN MCP Server starting on http://localhost:{args.port}/mcp-pdn ...")
         mcp.run(transport="streamable-http")
