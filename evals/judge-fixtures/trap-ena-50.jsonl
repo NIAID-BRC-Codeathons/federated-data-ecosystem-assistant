@@ -1,0 +1,4 @@
+{"role": "user", "text": "I want the raw reads behind GSE309890."}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "brc_ena_runs", "args": {"taxonomy_id": "562"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "brc_ena_runs", "seconds": 0.4, "result_excerpt": "{\"results\": [], \"returned\": 50, \"has_more\": true}", "result_chars": 49}
+{"summary": {"question_number": 8, "question": "I want the raw reads behind GSE309890.", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": ["brc_ena_runs"], "tool_call_count": 1, "denied": false, "error": null, "answer": "ENA holds 50 runs for this taxon.", "answer_chars": 33, "input_tokens": 1000, "output_tokens": 50}}

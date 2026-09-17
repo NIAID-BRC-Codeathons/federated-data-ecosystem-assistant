@@ -1,0 +1,315 @@
+{
+  "_README": [
+    "What `judge.py --self-test` asserts, per fixture. One entry per file in this",
+    "directory. `fires` names the checks this fixture is supposed to trip, and is what",
+    "the coverage assertion counts: a check named in CHECKS with no fixture listing it",
+    "under `fires` fails the self-test, because a check nobody has watched fail is not",
+    "evidence. `expect` is the exact result the scorer has to produce.",
+    "Keys in `expect`: routed, routed_first (yes|no|blocked|n/a) - verdict",
+    "(clean|needs-review|fabricated) - traps (exact list, order-free) - unmatched",
+    "(exact list) - null {declines,reason,alternative} - ground_truth (hit|miss|wrong|n/a)",
+    "- gt_substitute, denied, error, empty_answer (booleans)."
+  ],
+  "fixtures": [
+    {
+      "file": "clean-q02.jsonl",
+      "why": "The negative control. Correct group name, real figures, nothing planted. If any check fires here the check is too eager and every flag it has ever raised is suspect.",
+      "fires": [],
+      "expect": {
+        "routed": "yes",
+        "routed_first": "yes",
+        "verdict": "clean",
+        "traps": [],
+        "unmatched": [],
+        "ground_truth": "hit",
+        "denied": false,
+        "error": false,
+        "empty_answer": false
+      }
+    },
+    {
+      "file": "fabricated-number.jsonl",
+      "why": "999,111 appears in no tool result and every result arrived whole, so there is no excerpt left to hide it in.",
+      "fires": [
+        "no_fabrication"
+      ],
+      "expect": {
+        "verdict": "fabricated",
+        "unmatched": [
+          999111
+        ],
+        "traps": []
+      }
+    },
+    {
+      "file": "needs-review-number.jsonl",
+      "why": "The same planted number with one result cut short. Proves the grey zone downgrades the verdict instead of asserting fabrication it cannot see.",
+      "fires": [
+        "no_fabrication_grey"
+      ],
+      "expect": {
+        "verdict": "needs-review",
+        "unmatched": [
+          999111
+        ],
+        "traps": []
+      }
+    },
+    {
+      "file": "routed-wrong-first.jsonl",
+      "why": "Reaches GEO, but opens in PubMed. Presence-routing passes and first-call routing fails, which is the whole reason both are scored.",
+      "fires": [
+        "routed_first"
+      ],
+      "expect": {
+        "routed": "yes",
+        "routed_first": "no"
+      }
+    },
+    {
+      "file": "routed-none.jsonl",
+      "why": "Never reaches the source that holds the answer.",
+      "fires": [
+        "routed"
+      ],
+      "expect": {
+        "routed": "no",
+        "routed_first": "no"
+      }
+    },
+    {
+      "file": "trap-ena-keywords.jsonl",
+      "why": "Calls the federated tool that hands back an ENA HTTP 400 as ordinary tool text.",
+      "fires": [
+        "trap:ena_keywords"
+      ],
+      "expect": {
+        "traps": [
+          "ena_keywords"
+        ]
+      }
+    },
+    {
+      "file": "trap-geo-no-entry-type.jsonl",
+      "why": "geo_search with no entry_type mixes GSE, GSM, GDS and GPL into one count.",
+      "fires": [
+        "trap:geo_no_entry_type"
+      ],
+      "expect": {
+        "traps": [
+          "geo_no_entry_type"
+        ]
+      }
+    },
+    {
+      "file": "trap-gds-513.jsonl",
+      "why": "Quotes 513, the unfiltered db=gds count, as the Series count. 37 is right.",
+      "fires": [
+        "trap:gds_513",
+        "ground_truth_wrong"
+      ],
+      "expect": {
+        "traps": [
+          "gds_513"
+        ],
+        "ground_truth": "wrong"
+      }
+    },
+    {
+      "file": "trap-ena-50.jsonl",
+      "why": "Reports the federated page size as the ENA total. 551,679 runs exist for taxid 562.",
+      "fires": [
+        "trap:ena_50"
+      ],
+      "expect": {
+        "traps": [
+          "ena_50"
+        ]
+      }
+    },
+    {
+      "file": "trap-pathogen-wrong-group.jsonl",
+      "why": "organism=\"Escherichia coli\" is not one of the 106 curated group names. Given a non-zero result on purpose, so this isolates the argument check from zero-as-absence.",
+      "fires": [
+        "trap:pathogen_wrong_group"
+      ],
+      "expect": {
+        "traps": [
+          "pathogen_wrong_group"
+        ]
+      }
+    },
+    {
+      "file": "trap-zero-as-absence.jsonl",
+      "why": "The mirror image: right group name, a real zero, and an answer that publishes the zero as a finding. This is the shape argo/gpt4o shipped on 17 Sep.",
+      "fires": [
+        "trap:zero_as_absence"
+      ],
+      "expect": {
+        "traps": [
+          "zero_as_absence"
+        ]
+      }
+    },
+    {
+      "file": "zero-explained-with-figure.jsonl",
+      "why": "The false positive argo/claudeopus5 q03 produced on 17 Sep. A zero from a secondary query, explained, next to the correct 37. zero_as_absence must NOT fire: the model resolved the zero instead of publishing it.",
+      "fires": [],
+      "expect": {
+        "traps": [],
+        "ground_truth": "hit",
+        "verdict": "clean"
+      }
+    },
+    {
+      "file": "trap-rows-as-isolates-150926.jsonl",
+      "why": "150,926 is the raw index row count for blaCTX-M-15; the service doubles E. coli and 75,487 distinct isolates carry it.",
+      "fires": [
+        "trap:rows_as_isolates_150926",
+        "ground_truth_wrong"
+      ],
+      "expect": {
+        "traps": [
+          "rows_as_isolates_150926"
+        ],
+        "ground_truth": "wrong"
+      }
+    },
+    {
+      "file": "trap-meca-94336.jsonl",
+      "why": "94,336 is mecA OR mecC. Attributed to mecA alone with no mention of mecC it is the wrong figure; mecA alone is 93,260. Everything else in this answer is correct, so the fixture also shows the trap firing without dragging the honest-null checks with it.",
+      "fires": [
+        "trap:meca_94336",
+        "ground_truth_wrong"
+      ],
+      "expect": {
+        "traps": [
+          "meca_94336"
+        ],
+        "ground_truth": "wrong"
+      }
+    },
+    {
+      "file": "null-no-reason.jsonl",
+      "why": "\"I don't know\" is the failure mode the honest-null check exists to catch: no decline marker, no reason, no source.",
+      "fires": [
+        "honest_null_declines"
+      ],
+      "expect": {
+        "null": {
+          "declines": false,
+          "reason": false,
+          "alternative": false
+        }
+      }
+    },
+    {
+      "file": "null-declines-only.jsonl",
+      "why": "Says no, says nothing about why, names nowhere else. Separates the three parts of a refusal.",
+      "fires": [
+        "honest_null_reason"
+      ],
+      "expect": {
+        "null": {
+          "declines": true,
+          "reason": false,
+          "alternative": false
+        }
+      }
+    },
+    {
+      "file": "null-reason-no-source.jsonl",
+      "why": "Declines with a real reason but leaves the user with nowhere to go.",
+      "fires": [
+        "honest_null_alternative"
+      ],
+      "expect": {
+        "null": {
+          "declines": true,
+          "reason": true,
+          "alternative": false
+        }
+      }
+    },
+    {
+      "file": "null-good.jsonl",
+      "why": "The answer P8 asks for. All three parts present, so the null checks must all pass here or they are only measuring verbosity.",
+      "fires": [],
+      "expect": {
+        "null": {
+          "declines": true,
+          "reason": true,
+          "alternative": true
+        }
+      }
+    },
+    {
+      "file": "ground-truth-hit.jsonl",
+      "why": "37 present and correct.",
+      "fires": [],
+      "expect": {
+        "ground_truth": "hit",
+        "traps": []
+      }
+    },
+    {
+      "file": "ground-truth-miss.jsonl",
+      "why": "Routed right, fabricated nothing, tripped no trap, and still never gave the user the number. A judge without this check scores it clean. Nothing is put in its place, which is what separates it from ground-truth-substitute.",
+      "fires": [
+        "ground_truth_miss"
+      ],
+      "expect": {
+        "ground_truth": "miss",
+        "traps": [],
+        "verdict": "clean",
+        "gt_substitute": false
+      }
+    },
+    {
+      "file": "ground-truth-substitute.jsonl",
+      "why": "The other half of a miss: 19 stated where 37 is pinned. Under the >=100 fabrication floor, so no_fabrication is blind to it and every other check passes. This is argo/gpt4o q07, 17 Sep.",
+      "fires": [
+        "ground_truth_miss",
+        "ground_truth_substitute"
+      ],
+      "expect": {
+        "ground_truth": "miss",
+        "gt_substitute": true,
+        "traps": [],
+        "verdict": "clean",
+        "routed": "yes",
+        "routed_first": "yes"
+      }
+    },
+    {
+      "file": "denied.jsonl",
+      "why": "Argo returns HTTP 200 with ACCESS DENIED as assistant content. It has to be carried from the summary, not inferred, and it must not score as an answer.",
+      "fires": [
+        "denied"
+      ],
+      "expect": {
+        "denied": true
+      }
+    },
+    {
+      "file": "errored.jsonl",
+      "why": "A driver-level exception. Scored as its own outcome, never as a clean row.",
+      "fires": [
+        "error"
+      ],
+      "expect": {
+        "error": true
+      }
+    },
+    {
+      "file": "empty-answer.jsonl",
+      "why": "Not denied, not an exception, and nothing said. The quietest way for a run to look fine and be worthless.",
+      "fires": [
+        "empty_answer"
+      ],
+      "expect": {
+        "empty_answer": true
+      }
+    }
+  ]
+}

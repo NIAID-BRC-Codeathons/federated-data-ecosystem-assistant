@@ -1,0 +1,2 @@
+{"role": "user", "text": "How many E. coli isolates has NCBI sequenced?"}
+{"summary": {"question_number": 2, "question": "How many E. coli isolates has NCBI sequenced?", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": [], "tool_call_count": 0, "denied": false, "error": "stream closed before any content", "answer": "", "answer_chars": 0, "input_tokens": 1000, "output_tokens": 50}}

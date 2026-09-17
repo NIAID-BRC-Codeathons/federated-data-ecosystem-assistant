@@ -175,7 +175,46 @@ TRAP_NOTES = {
     "gds_513": "quoted **513**, the unfiltered `db=gds` count, as the Series count (37 is right)",
     "ena_50": "quoted **50** as an ENA total -- that is the federated page size; 551,679 runs exist",
     "pathogen_wrong_group": "passed an organism that is not a curated group name -- returns 0, not an error",
+    "rows_as_isolates_150926": "quoted **150,926** as an isolate count -- that is the raw index row count for `blaCTX-M-15`; the service doubles E. coli and **75,487** distinct isolates carry it",
+    "meca_94336": "quoted **94,336** for `mecA` without naming `mecC` -- that figure is `mecA` *or* `mecC`; `mecA` alone is **93,260** (QUESTIONS.md Q13)",
 }
+
+# Where PIPELINES.md and QUESTIONS.md give an exact figure, the figure a correct
+# answer has to reach -- and the near-miss that means the model took the wrong
+# row out of the same response. `decoys` is what makes this more than a word
+# search: a missing figure is a `miss`, a decoy in its place is a `wrong`, and
+# those are different failures with different fixes. A `miss` is the quietest
+# way to pass every other check and still leave the user without the number.
+#
+# `weak` is set automatically for values under 100. A bare "2" is easy to hit by
+# accident in any prose, so those rows are marked in the report rather than
+# quietly counted as strong evidence.
+GROUND_TRUTH: dict[int, list[dict]] = {
+    2:  [{"value": 581464, "what": "distinct isolates in the `E.coli and Shigella` group",
+          "decoys": {1162675: "index rows, not distinct isolates"}}],
+    3:  [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin",
+          "decoys": {513: "the unfiltered `db=gds` count over four record types"}}],
+    4:  [{"value": 2, "what": "E. coli assemblies in BRC Analytics"},
+         {"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
+    6:  [{"value": 75487, "what": "distinct isolates carrying `blaCTX-M-15`",
+          "decoys": {150926: "raw index rows for the same gene"}}],
+    7:  [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin",
+          "decoys": {513: "the unfiltered `db=gds` count"}}],
+    9:  [{"value": 170726, "what": "distinct isolates carrying `gyrA_S83L`",
+          "decoys": {341342: "raw index rows for the same mutation"}}],
+    13: [{"value": 2, "what": "E. coli isolates carrying `mecA` -- the proof number"},
+         {"value": 581464, "what": "the denominator it is 2 out of"},
+         {"value": 93260, "what": "S. aureus isolates carrying `mecA`",
+          "decoys": {94336: "`mecA` *or* `mecC`, which is a different question"}}],
+}
+
+# Figures a correct answer may legitimately reach but that no demo question is
+# required to produce, kept here so every number in this file has a provenance.
+# 551,679 ENA runs for taxid 562 and 13 distinct organisms in PRJNA715470 are
+# ADVERSARIAL.md and PIPELINES.md P2 ground truths, not QUESTIONS.md ones, so
+# they are referenced by the `ena_50` trap rather than scored per question.
+CONTEXT_FIGURES = {551679: "ENA runs for taxid 562 (ADVERSARIAL.md A8)",
+                   13: "distinct organisms in PRJNA715470 (PIPELINES.md P2)"}
 
 # ---------------------------------------------------------------------------
 # AND HERE. Below this line is machinery.
@@ -288,6 +327,94 @@ def check_routed(t: Transcript, exp: dict) -> tuple[str, str]:
     return ("no", "none of " + ", ".join(sorted(primary)))
 
 
+def check_routed_first(t: Transcript, exp: dict) -> tuple[str, str]:
+    """Did it *open* on the right source?
+
+    `check_routed` asks whether the right source was reached at all, which is the
+    forgiving question and the one worth reporting on its own: a chain in the
+    wrong order still got there. This asks the strict one, because the first call
+    is the routing decision -- everything after it can be recovery. On argo/gpt4o
+    the two answers differ, and a single `routed` column would hide that.
+    """
+    primary = exp.get("primary") or set()
+    if not primary:
+        return ("n/a", "no tool on this board can answer it")
+    if not t.tools:
+        return ("no", "no tool was called")
+    first = t.tools[0]
+    if first in primary:
+        return ("yes", f"`{first}`")
+    if exp.get("wired") is False:
+        return ("blocked", "expected source is not in MCP_SERVERS")
+    return ("no", f"opened with `{first}`")
+
+
+def _all_answer_numbers(text: str) -> set[int]:
+    """Every standalone integer in an answer, with no size floor.
+
+    `answer_numbers` drops anything under FABRICATION_MIN because a small number
+    is rarely a claim worth tracing. The ground-truth check needs them: 37, 17,
+    13 and 2 are all real answers to real questions.
+    """
+    out = set()
+    for m in _ANSWER_NUM.finditer(text or ""):
+        n = _as_int(m.group(1))
+        if n is not None:
+            out.add(n)
+    return out
+
+
+def check_ground_truth(t: Transcript) -> dict:
+    """Is the figure PIPELINES.md pins for this question actually in the answer?
+
+    Three states per figure. `hit` -- present. `wrong` -- a named decoy is there
+    instead, which is a specific, diagnosable mistake. `miss` -- neither, which
+    is the failure every other check in this file is blind to: correctly routed,
+    nothing fabricated, no trap tripped, and no number delivered.
+    """
+    specs = GROUND_TRUTH.get(t.number) or []
+    if not specs:
+        return {"applies": False}
+    said = _all_answer_numbers(t.answer)
+    rows = []
+    for spec in specs:
+        decoy_hit = next((d for d in (spec.get("decoys") or {}) if d in said), None)
+        # Order matters, and the negative control is what proved it. An answer
+        # that gives 581,464 distinct isolates *and* 1,162,675 index rows is
+        # correct -- it is explaining the difference, not substituting one for
+        # the other. A decoy is only a wrong answer when the right figure is
+        # missing. Checking the decoy first scored the model answer we most
+        # want as the failure case.
+        if spec["value"] in said:
+            state = "hit"
+        elif decoy_hit is not None:
+            state = "wrong"
+        else:
+            state = "miss"
+        # A miss says the pinned figure is absent. It does not say what the model
+        # put there instead, and the difference matters: an answer that omits the
+        # number is a different failure from one that states a competing one.
+        # `no_fabrication` cannot see the competing figure when it is under
+        # FABRICATION_MIN, which is how argo/gpt4o q07 said "19 expression
+        # profiling Series" against a pinned 37 and passed every other check.
+        # Reported as a flag, not a list, because every "2 of them" in ordinary
+        # prose would otherwise land in the column.
+        substitute = (state == "miss" and any(
+            n < FABRICATION_MIN and n not in t.evidence for n in said))
+        rows.append({"value": spec["value"], "what": spec["what"], "state": state,
+                     "decoy": decoy_hit,
+                     "decoy_note": (spec.get("decoys") or {}).get(decoy_hit),
+                     "substitute": substitute,
+                     "weak": spec["value"] < FABRICATION_MIN})
+    if any(r["state"] == "wrong" for r in rows):
+        overall = "wrong"
+    elif any(r["state"] == "miss" for r in rows):
+        overall = "miss"
+    else:
+        overall = "hit"
+    return {"applies": True, "state": overall, "rows": rows}
+
+
 def check_numbers(t: Transcript) -> dict:
     """Every number >= 100 in the answer, against everything the model was shown."""
     claimed = answer_numbers(t.answer)
@@ -341,8 +468,36 @@ def check_traps(t: Transcript) -> list[str]:
     zero_claim = re.search(
         r"(?i)(\bzero\b|\b0\b|\bno\b)[^.\n]{0,60}"
         r"(isolat|stud(?:y|ies)|runs?\b|records?\b|datasets?\b|series|matches|hits)", a)
+    # ...but a zero is only the *finding* when the answer has nothing else to
+    # give. Measured on argo/claudeopus5 q03, 17 Sep: it reported "the
+    # curated-DataSet search returned 0 records, consistent with GEO's DataSet
+    # tier being thinly populated for bacterial studies" while delivering the
+    # correct 37 Series. That is the behaviour this project wants, and the check
+    # flagged it. So the flag is cleared when the answer carries the figure
+    # `PIPELINES.md` pins for the question: the model resolved the zero rather
+    # than publishing it. Where no figure is pinned there is nothing to clear it
+    # with, and the flag stands.
     if zero_result and zero_claim:
-        fired.append("zero_as_absence")
+        gt = check_ground_truth(t)
+        resolved = gt.get("applies") and gt["state"] == "hit"
+        if not resolved:
+            fired.append("zero_as_absence")
+
+    # 150,926 is the raw index row count for `blaCTX-M-15`; 75,487 distinct
+    # isolates carry it, because the service double-indexes E. coli. Quoting the
+    # row count is only a trap when the answer does not say it is a row count --
+    # an answer that names both is doing the right thing and must not be flagged.
+    if 150926 in answer_numbers(a) and not re.search(
+            r"(?i)150,?926[^.\n]{0,40}(index[ -]?)?rows?"
+            r"|(index[ -]?)?rows?[^.\n]{0,40}150,?926", a):
+        fired.append("rows_as_isolates_150926")
+
+    # 94,336 is `mecA` OR `mecC`. Attributed to `mecA` alone it is the wrong
+    # figure -- `mecA` alone is 93,260. Naming mecC anywhere in the answer clears
+    # it, which is the cheapest reliable signal that the model knows which query
+    # produced the number.
+    if 94336 in answer_numbers(a) and not re.search(r"(?i)\bmec-?c\b", a):
+        fired.append("meca_94336")
 
     return fired
 
@@ -368,7 +523,14 @@ def check_honest_null(t: Transcript, exp: dict) -> dict:
 def judge_one(t: Transcript) -> dict:
     exp = EXPECTED.get(t.number, {"primary": set(), "kind": "answer", "source": "unknown"})
     routed, routed_detail = check_routed(t, exp)
+    routed_first, routed_first_detail = check_routed_first(t, exp)
     nums = check_numbers(t)
+    if not nums["unmatched"]:
+        verdict = "clean"
+    elif nums["decidable"]:
+        verdict = "fabricated"
+    else:
+        verdict = "needs-review"
     return {
         "q": t.number,
         "question": t.question,
@@ -376,8 +538,12 @@ def judge_one(t: Transcript) -> dict:
         "source": exp.get("source", ""),
         "routed": routed,
         "routed_detail": routed_detail,
+        "routed_first": routed_first,
+        "routed_first_detail": routed_first_detail,
         "tools": t.tools,
         "numbers": nums,
+        "verdict": verdict,
+        "ground_truth": check_ground_truth(t),
         "traps": check_traps(t),
         "null": check_honest_null(t, exp),
         "denied": t.denied,
@@ -395,8 +561,28 @@ def _fmt_unmatched(nums: dict) -> str:
         return "—"
     shown = ", ".join(f"{n:,}" for n in nums["unmatched"][:4])
     more = "" if len(nums["unmatched"]) <= 4 else f" +{len(nums['unmatched']) - 4}"
-    tag = "**fabricated**" if nums["decidable"] else "unmatched"
+    tag = "**fabricated**" if nums["decidable"] else "needs-review"
     return f"{tag}: {shown}{more}"
+
+
+def _fmt_ground_truth(gt: dict) -> str:
+    """One cell. A `wrong` names the decoy, because which wrong number it is
+    tells you which row of the response the model read."""
+    if not gt.get("applies"):
+        return "—"
+    bits = []
+    for r in gt["rows"]:
+        mark = {"hit": "✓", "miss": "**missing**", "wrong": "**wrong**"}[r["state"]]
+        weak = "?" if (r["weak"] and r["state"] == "hit") else ""
+        if r["state"] == "wrong":
+            bits.append(f"{r['value']:,} {mark} (said {r['decoy']:,})")
+        elif r["state"] == "miss" and r.get("substitute"):
+            bits.append(f"{r['value']:,} {mark} (a competing small figure is in the answer)")
+        elif r["state"] == "hit" and r["decoy"] is not None:
+            bits.append(f"{r['value']:,} {mark}{weak} (also cites {r['decoy']:,})")
+        else:
+            bits.append(f"{r['value']:,} {mark}{weak}")
+    return " · ".join(bits)
 
 
 def _fmt_null(null: dict) -> str:
@@ -411,25 +597,28 @@ def _fmt_null(null: dict) -> str:
 
 def model_section(model: str, rows: list[dict]) -> list[str]:
     L = [f"## `{model}`", "",
-         "| Q | expects | routed | tools called | nums ≥100 | unmatched | traps | honest null |",
-         "|---|---|---|---|---:|---|---|---|"]
+         "| Q | expects | routed | first | tools called | nums ≥100 | unmatched | "
+         "ground truth | traps | honest null |",
+         "|---|---|---|---|---|---:|---|---|---|---|"]
     for r in sorted(rows, key=lambda x: x["q"] or 0):
         if r["denied"]:
-            L.append(f"| {r['q']} | — | **denied** | — | — | — | — | — |")
+            L.append(f"| {r['q']} | — | **denied** | — | — | — | — | — | — | — |")
             continue
         if r["error"]:
-            L.append(f"| {r['q']} | — | **error** | {r['error'][:60]} | — | — | — | — |")
+            L.append(f"| {r['q']} | — | **error** | — | {r['error'][:60]} | — | — | — | — | — |")
             continue
         if not r["answer_chars"]:
             # Not denied, not an exception, and nothing said. That is its own
             # failure and must not read as a clean row.
-            L.append(f"| {r['q']} | {r['kind']} | {r['routed']} | **empty answer** | — | — | — | — |")
+            L.append(f"| {r['q']} | {r['kind']} | {r['routed']} | {r['routed_first']} | "
+                     f"**empty answer** | — | — | — | — | — |")
             continue
         chain = " → ".join(f"`{x}`" for x in r["tools"]) or "*none*"
         traps = ", ".join(f"`{x}`" for x in r["traps"]) or "—"
         L.append(
-            f"| {r['q']} | {r['kind']} | {r['routed']} | {chain[:120]} | "
-            f"{r['numbers']['claimed']} | {_fmt_unmatched(r['numbers'])} | {traps} | "
+            f"| {r['q']} | {r['kind']} | {r['routed']} | {r['routed_first']} | {chain[:120]} | "
+            f"{r['numbers']['claimed']} | {_fmt_unmatched(r['numbers'])} | "
+            f"{_fmt_ground_truth(r['ground_truth'])} | {traps} | "
             f"{_fmt_null(r['null'])} |"
         )
     L.append("")
@@ -437,6 +626,12 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
     live = [r for r in rows if not r["denied"] and not r["error"]]
     routed_yes = sum(1 for r in live if r["routed"] == "yes")
     routed_scored = sum(1 for r in live if r["routed"] in ("yes", "no"))
+    first_yes = sum(1 for r in live if r["routed_first"] == "yes")
+    first_scored = sum(1 for r in live if r["routed_first"] in ("yes", "no"))
+    gts = [r for r in live if r["ground_truth"].get("applies") and r["answer_chars"]]
+    gt_hit = sum(1 for r in gts if r["ground_truth"]["state"] == "hit")
+    gt_wrong = sum(1 for r in gts if r["ground_truth"]["state"] == "wrong")
+    gt_miss = sum(1 for r in gts if r["ground_truth"]["state"] == "miss")
     fab = sum(1 for r in live if r["numbers"]["unmatched"] and r["numbers"]["decidable"])
     unm = sum(1 for r in live if r["numbers"]["unmatched"] and not r["numbers"]["decidable"])
     traps = Counter(x for r in live for x in r["traps"])
@@ -454,6 +649,10 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
         "",
         f"- routed {routed_yes}/{routed_scored} scored "
         f"({len(live) - routed_scored} not scorable: source not wired, or no tool applies)",
+        f"- opened on the right source {first_yes}/{first_scored} — the strict read of "
+        f"the same question",
+        f"- ground truth, where PIPELINES.md pins one ({len(gts)} questions): "
+        f"{gt_hit} correct · {gt_wrong} **wrong figure** · {gt_miss} **never stated**",
         f"- fabrication flags {fab} · unmatched-but-truncated {unm}",
         f"- other trap flags {sum(traps.values())} "
         f"({', '.join(f'{k}×{v}' for k, v in traps.most_common()) or 'none'})",
@@ -519,28 +718,169 @@ def write_report(by_model: dict[str, list[dict]], out: pathlib.Path) -> str:
           "- **Truncated evidence.** `run_questions.py` keeps the first 600 characters of",
           "  each tool result. A number the model was shown further down looks unmatched",
           "  here, so an unmatched number is only called **fabricated** when every tool",
-          "  result in that transcript arrived whole. Everything else says `unmatched`",
-          "  and means a human has to look.",
+          "  result in that transcript arrived whole. Everything else says",
+          "  `needs-review` and means a human has to look.",
           "- **Derived numbers.** 29% of 581,464 is arithmetic, not fabrication, and this",
           "  script cannot tell the two apart. A subtraction or a percentage the model",
           "  computed correctly will still be flagged.",
           "- **Years.** A bare four-digit number between 1900 and 2100 is skipped, so a",
           "  real count in that range is skipped with it.",
-          "- **Order.** `routed` asks whether the right source was reached, not whether",
-          "  the chain ran in the documented order.",
+          "- **Order.** `routed` asks whether the right source was reached at all. The",
+          "  `first` column is the strict read -- was the *first* call the right source --",
+          "  and the two differ whenever a model wanders before it lands. Neither checks",
+          "  that the rest of the chain ran in the documented order.",
+          "- **A ground truth is matched by value, not by claim.** The `ground truth`",
+          "  column asks whether the figure `PIPELINES.md` pins appears in the answer. It",
+          "  cannot tell whether the model attached it to the right noun, and a figure",
+          "  under 100 (the `2` in Q13, the `37` in Q3) is marked `?` because a small",
+          "  integer turns up in ordinary prose by accident. A `wrong` is stronger",
+          "  evidence than a `hit`.",
+          "- **A figure under 100 is never traced to evidence.** `no_fabrication` starts",
+          "  at 100, so a wrong small count is invisible to it. Measured on argo/gpt4o",
+          "  q07, 17 Sep: the answer states *19 expression profiling Series* where",
+          "  `PIPELINES.md` pins **37**, and 19 appears in no visible tool result -- yet",
+          "  the row is clean apart from the ground-truth column. All the ground-truth",
+          "  column can add is that *some* unevidenced small figure is present; it cannot",
+          "  say which sentence it belongs to. Raising the floor was not done here",
+          "  because the rubric sets it at 100.",
           "- **Identifiers are checked like counts, on purpose.** A PMID or a UID in the",
           "  answer with no tool result behind it is a fabricated citation, which the",
           "  SYSTEM_PROMPT forbids in as many words, so it is flagged rather than exempted.",
           "  Accessions glued to letters (`GSE309890`, `P0AES4`) are not, because the",
           "  letters make them unambiguous and the model was handed them.",
           "- **Whether the answer is true.** A correctly routed, fully evidenced answer",
-          "  can still misread its own tool result. Compare against the ground truths in",
-          "  `PIPELINES.md` by hand.", ""]
+          "  can still misread its own tool result. The ground-truth column covers the",
+          "  seven questions `PIPELINES.md` pins a figure for; the rest are unchecked.",
+          "- **Whether these checks work at all.** That question is not answered by this",
+          "  report. `python evals/judge.py --self-test` scores 22 deliberately broken",
+          "  transcripts in `evals/judge-fixtures/` and fails unless every check above is",
+          "  observed firing on at least one of them and *none* fires on the clean",
+          "  control. A green report from a scorer whose self-test has not been run is",
+          "  not evidence.", ""]
 
     text = "\n".join(L)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")
     return text
+
+
+# --- the self-test ---------------------------------------------------------
+#
+# A check that has never been seen to fail is not evidence that it works. So
+# every check named here has to have at least one fixture under
+# `evals/judge-fixtures/` that makes it fire, and `clean-q02.jsonl` has to make
+# none of them fire. Both halves are asserted: a check that always fires is as
+# useless as one that never does, and only the clean control can tell them apart.
+
+FIXTURES = REPO / "evals" / "judge-fixtures"
+
+CHECKS = [
+    "routed", "routed_first",
+    "no_fabrication", "no_fabrication_grey",
+    "ground_truth_miss", "ground_truth_wrong", "ground_truth_substitute",
+    "honest_null_declines", "honest_null_reason", "honest_null_alternative",
+    "denied", "error", "empty_answer",
+]
+
+
+def _observed(row: dict) -> dict:
+    """The scorer's result, flattened to the vocabulary the manifest asserts in."""
+    return {
+        "routed": row["routed"],
+        "routed_first": row["routed_first"],
+        "verdict": row["verdict"],
+        "traps": sorted(row["traps"]),
+        "unmatched": row["numbers"]["unmatched"],
+        "ground_truth": row["ground_truth"]["state"] if row["ground_truth"].get("applies") else "n/a",
+        "gt_substitute": any(r.get("substitute")
+                             for r in row["ground_truth"].get("rows") or []),
+        "null": {"declines": row["null"].get("refusal"),
+                 "reason": row["null"].get("reason"),
+                 "alternative": row["null"].get("alternative")} if row["null"]["applies"] else None,
+        "denied": bool(row["denied"]),
+        "error": bool(row["error"]),
+        "empty_answer": row["answer_chars"] == 0,
+    }
+
+
+def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
+    manifest_path = fixtures / "manifest.json"
+    if not manifest_path.is_file():
+        print(f"no manifest at {manifest_path}", file=sys.stderr)
+        return 2
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = manifest["fixtures"]
+
+    on_disk = {f.name for f in fixtures.glob("*.jsonl")}
+    listed = {e["file"] for e in entries}
+    failures: list[str] = []
+    if on_disk - listed:
+        failures.append(f"fixtures on disk with no manifest entry: {sorted(on_disk - listed)}")
+    if listed - on_disk:
+        failures.append(f"manifest entries with no fixture on disk: {sorted(listed - on_disk)}")
+
+    print(f"self-test: {len(entries)} fixtures under {fixtures}\n")
+    width = max(len(e["file"]) for e in entries)
+    all_checks = CHECKS + [f"trap:{k}" for k in TRAP_NOTES]
+    fired_by: dict[str, list[str]] = {c: [] for c in all_checks}
+
+    for e in entries:
+        path = fixtures / e["file"]
+        if not path.is_file():
+            continue
+        row = judge_one(Transcript(path))
+        got = _observed(row)
+        bad = []
+        for key, want in e["expect"].items():
+            have = got.get(key)
+            if key == "traps":
+                have = sorted(have or [])
+                want = sorted(want)
+            if key == "null" and isinstance(want, dict):
+                have = have or {}
+                if any(have.get(k) != v for k, v in want.items()):
+                    bad.append(f"{key}: want {want}, got {have}")
+                continue
+            if have != want:
+                bad.append(f"{key}: want {want!r}, got {have!r}")
+        for c in e.get("fires", []):
+            if c in fired_by:
+                fired_by[c].append(e["file"])
+            else:
+                bad.append(f"fires names an unknown check: {c!r}")
+        status = "PASS" if not bad else "FAIL"
+        print(f"  {status}  {e['file']:<{width}}  {e['why'][:64]}")
+        for b in bad:
+            print(f"        ! {b}")
+            failures.append(f"{e['file']}: {b}")
+
+    # Coverage. This is the assertion the whole directory exists for.
+    print("\n  check → the fixture that proves it can fire")
+    uncovered = []
+    for c in all_checks:
+        who = ", ".join(fired_by[c]) or "— NOTHING PROVES THIS FIRES —"
+        print(f"    {c:<32} {who}")
+        if not fired_by[c]:
+            uncovered.append(c)
+    if uncovered:
+        failures.append(f"checks with no fixture that makes them fire: {uncovered}")
+
+    # The negative control, asserted separately and loudly.
+    clean = next((e for e in entries if e["file"] == "clean-q02.jsonl"), None)
+    if clean is None:
+        failures.append("no clean-q02.jsonl negative control in the manifest")
+    elif clean.get("fires"):
+        failures.append("the negative control is listed as firing something")
+
+    print()
+    if failures:
+        print(f"SELF-TEST FAILED — {len(failures)} problem(s):", file=sys.stderr)
+        for f in failures:
+            print(f"  - {f}", file=sys.stderr)
+        return 1
+    print(f"SELF-TEST PASSED — {len(entries)} fixtures, {len(all_checks)} checks, "
+          f"every check observed firing, nothing fired on the clean control.")
+    return 0
 
 
 def collect(runs: pathlib.Path) -> dict[str, list[dict]]:
@@ -563,7 +903,15 @@ def main() -> int:
                     help="directory of <model>/qNN.jsonl transcripts")
     ap.add_argument("--out", type=pathlib.Path, default=OUT, help="markdown report to write")
     ap.add_argument("--quiet", action="store_true", help="write the report, print nothing")
+    ap.add_argument("--self-test", action="store_true",
+                    help="score the deliberately broken transcripts in evals/judge-fixtures/ "
+                         "and assert every check fires on at least one of them")
+    ap.add_argument("--fixtures", type=pathlib.Path, default=FIXTURES,
+                    help="directory of fixtures for --self-test")
     args = ap.parse_args()
+
+    if args.self_test:
+        return self_test(args.fixtures)
 
     if not args.runs.is_dir():
         print(f"no transcripts: {args.runs} is not a directory", file=sys.stderr)

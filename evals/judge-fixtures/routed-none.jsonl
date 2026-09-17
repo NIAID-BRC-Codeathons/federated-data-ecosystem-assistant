@@ -1,0 +1,4 @@
+{"role": "user", "text": "Are there any E. coli expression studies about ciprofloxacin?"}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "pubmed_search_articles", "args": {"query": "E. coli ciprofloxacin expression"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "pubmed_search_articles", "seconds": 0.4, "result_excerpt": "{\"count\": 5273, \"pmids\": [\"40000001\"]}", "result_chars": 38}
+{"summary": {"question_number": 3, "question": "Are there any E. coli expression studies about ciprofloxacin?", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": ["pubmed_search_articles"], "tool_call_count": 1, "denied": false, "error": null, "answer": "There is literature on this, so there are probably expression studies too.", "answer_chars": 74, "input_tokens": 1000, "output_tokens": 50}}
