@@ -120,7 +120,7 @@ a ratio of 1, not 2, so the tool would report 85,706 and be wrong by half. *E. c
 
 | step | tool | arguments |
 |---|---|---|
-| 1 | `ncbi_geo_search` ⚠️ | `organism="Escherichia coli"`, `term="ciprofloxacin"`, `entry_type="gse"` |
+| 1 | `geo_search` | `organism="Escherichia coli"`, `term="ciprofloxacin"`, `entry_type="gse"` |
 
 **Answer ✅** (verified through the underlying E-utilities call; the tool itself had not landed in
 the working tree when I checked):
@@ -215,7 +215,7 @@ carry `geo_loc_name`.
 | `mdtM` | 868,024 |
 | `sul2` | 396,464 |
 | `gyrA_S83L` | 341,342 |
-| `blaCTX-M-15` | 150,926 |
+| `blaCTX-M-15` | 75,487 distinct isolates (150,926 raw index rows -- the service doubles E. coli) |
 | `mcr-1.1` | 20,608 |
 
 **Honest failure, three of them.** `index_rows` is a row count, not an isolate count, and the
@@ -234,8 +234,8 @@ The headline chain. Two servers, five calls, and every hop verified.
 
 | step | server | tool | arguments |
 |---|---|---|---|
-| 1 | ncbi | `ncbi_geo_search` ⚠️ | `organism="Escherichia coli"`, `term="ciprofloxacin"`, `entry_type="gse"` |
-| 2 | ncbi | `ncbi_geo_series` ⚠️ | `accession="GSE309890"` |
+| 1 | ncbi | `geo_search` | `organism="Escherichia coli"`, `term="ciprofloxacin"`, `entry_type="gse"` |
+| 2 | ncbi | `geo_series` | `accession="GSE309890"` |
 | 3 | brc_analytics | `get_assemblies` | `taxonomy_id="562"` |
 | 4 | brc_analytics | `check_compatibility` | `iwc_id="amr_gene_detection-main"`, `accession="GCF_000005845.2"` |
 | 5 | brc_analytics | `resolve_workflow_inputs` | same arguments |
@@ -270,7 +270,7 @@ Say that rather than implying the analysis happened.
 
 | step | server | tool | arguments |
 |---|---|---|---|
-| 1 | ncbi | `ncbi_geo_series` ⚠️ | `accession="GSE309890"` |
+| 1 | ncbi | `geo_series` | `accession="GSE309890"` |
 | 2 | ncbi | `ncbi_sra_runs_for_project` | `accession="PRJNA1363958"` |
 | 3 | ncbi | `ncbi_sra_run_metadata` | `accessions=<the runs>`, `detail="summary"` |
 | 4 | brc_analytics | `get_compatible_workflows` | `ploidies=["HAPLOID"]`, `taxonomy_id="562"` |
@@ -452,8 +452,8 @@ category does not exist in *E. coli*. Meanwhile the same query against *S. aureu
 which is MRSA, the question the user probably meant.
 
 **The router's answer should be:** name the flaw, give the 2-out-of-581,464 number as proof, then
-offer the three reframings — "MRSA?" (94,336 isolates ✅), "ESBL-producing *E. coli*?"
-(`blaCTX-M-15`, 150,926 index rows ✅), or "fluoroquinolone-resistant *E. coli*?" (`gyrA_S83L`,
+offer the three reframings — "MRSA?" (94,336 isolates carrying mecA or mecC ✅; mecA alone is 93,260), "ESBL-producing *E. coli*?"
+(`blaCTX-M-15`, 75,487 isolates ✅), or "fluoroquinolone-resistant *E. coli*?" (`gyrA_S83L`,
 170,726 isolates ✅) — and say that a curated phenotype call still needs BV-BRC or CARD.
 
 ---
@@ -523,7 +523,7 @@ story falls apart. Worth showing the model getting this right.
 | ≥2 the board cannot answer | Q13, Q14, Q15 — three |
 | the methicillin example, with the reframing | Q13, with the 2-of-581,464 proof |
 
-**Not verified anywhere in this document:** the two GEO tools (`ncbi_geo_search`, `ncbi_geo_series`
+**Since verified:** the two GEO tools (`geo_search`, `geo_series` in `mcp_servers/geo.py`, 52 offline tests, and live in `run_eval.py`
 had not landed in `mcp_servers/ncbi/ncbi_mcp/server.py` when I checked — I verified the E-utilities
 calls behind them instead); the four `brc_analytics_local` tools; any call through the MCP layer of
 the **local** servers (uniprot, mygene, myvariant, pdn, ncbi, nde were not running, so their
