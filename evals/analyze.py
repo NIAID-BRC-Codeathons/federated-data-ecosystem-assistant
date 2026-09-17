@@ -37,6 +37,7 @@ set would otherwise make every model score zero and look like a model finding.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import pathlib
 import re
@@ -133,6 +134,18 @@ REFRAME_MARKERS = ("instead", "did you mean", "you probably want", "the question
 ALT_SOURCES = ("bv-brc", "bvbrc", "card", "rcsb", "protein data bank", "pdb",
                "alphafold", "ena ", "bigquery", "galaxy")
 # The number that proves the refusal, per gap question, from QUESTIONS.md.
+#
+# THESE ARE LIVE DATABASE COUNTS, NOT CONSTANTS. NCBI Pathogen Detection grows every
+# day. 581464 was read through the real tool stack on 17 Sep 2026 at 14:37 by `runner`
+# -- ncbi_pathogen_isolate_count(organism="E.coli and Shigella") -> "581,464 distinct
+# isolates", coverage 100.0% -- and it is the figure the headline gap finding turns on
+# (argo/gpt4o reported 0 against it). If it goes stale, a model that reports the LARGER
+# current number is right and gets scored wrong, and nothing in the output would say so.
+# So the read date travels with the value and the generated block prints its age.
+# Re-read before Friday: change the value AND the date together.
+# 93260 (mecA) and 94336 (mecA OR mecC) are different questions; 171412 is a third unit
+# again. All three are spelled out with their units in GROUND-TRUTH.md (verifier, 15:43).
+PROOF_NUMBERS_READ = "2026-09-17"
 PROOF_NUMBERS = {13: {2, 581464, 93260, 171412, 94336},
                  14: {1548, 9036, 581464, 378},
                  15: set(),          # nothing on the board; the proof is naming RCSB
@@ -398,6 +411,105 @@ def _q_from_name(path: pathlib.Path) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def _readme_title(d):
+    """First heading of a directory's README, or None.
+
+    An archived run states in its own README why it must not be scored. Quoting
+    that is honest; paraphrasing it from the directory name is a guess.
+    """
+    for name in ("README.md", "readme.md"):
+        f = d / name
+        if f.exists():
+            for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+                if line.strip().startswith("#"):
+                    return line.lstrip("#").strip()
+    return None
+
+
+def _summary_of(path: pathlib.Path) -> dict:
+    """The last line's `summary` object, or {} if the file has none."""
+    out: dict = {}
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                obj = json.loads(line)
+                if "summary" in obj:
+                    out.update(obj["summary"])
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return out
+
+
+def _questions_file_of(path: pathlib.Path) -> str:
+    qf = _summary_of(path).get("questions_file")
+    return f"`{qf}`" if qf else "question file not recorded"
+
+
+def _turn1_in(path: pathlib.Path):
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            u = (json.loads(line).get("usage") or {})
+            if u.get("input_tokens"):
+                return u["input_tokens"]
+    except (OSError, json.JSONDecodeError):
+        return None
+    return None
+
+
+def other_sets(root: pathlib.Path) -> str:
+    """Every question set under `runs/` that is NOT the qNN set, counted per model.
+
+    These rows are deliberately kept out of every dimension above: their expected
+    chains come from a different question file, their ids do not share a numbering
+    with Q1-Q15, and merging them would silently inflate per-question tables. But
+    they are real runs and the largest block of cross-model data we have, so they
+    are counted here rather than left to look like absence.
+    """
+    sets: dict[str, dict[str, list[pathlib.Path]]] = {}
+    for d in sorted(p for p in root.iterdir() if p.is_dir()):
+        if sorted(d.glob("q*.jsonl")):
+            continue
+        for f in sorted(d.glob("*.jsonl")):
+            qf = _summary_of(f).get("questions_file") or "unrecorded question file"
+            sets.setdefault(qf, {}).setdefault(d.name, []).append(f)
+    if not sets:
+        return ""
+    out = ["\n## Other question sets, counted but not scored above\n"]
+    for qf, models in sorted(sets.items()):
+        rows, total, empties = [], 0, 0
+        for model, files in sorted(models.items()):
+            nums, emp, floors = [], [], []
+            for f in files:
+                s = _summary_of(f)
+                m = re.search(r"(\d+)", f.stem)
+                if m:
+                    nums.append(int(m.group(1)))
+                t = _turn1_in(f)
+                if t:
+                    floors.append(t)
+                if (not (s.get("output_tokens") or 0) and not (s.get("tool_call_count") or 0)
+                        and not s.get("denied") and not s.get("error")):
+                    emp.append(f.stem)
+            missing = ([str(i) for i in range(1, max(nums) + 1) if i not in nums]
+                       if nums else [])
+            rows.append([f"`{model}`", str(len(files)),
+                         f"**{len(emp)}**" if emp else "0",
+                         fmt(min(floors), 0) if floors else "\u2014",
+                         ", ".join(missing) if missing else "\u2014"])
+            total += len(files)
+            empties += len(emp)
+        out.append(f"**`{qf}`** \u2014 {total} transcript(s) across {len(models)} model(s), "
+                   f"{empties} silent empt{'y' if empties == 1 else 'ies'}.\n")
+        out.append(table(rows, ["model", "rows", "silent empties",
+                                "turn-1 floor (tok)", "ids absent"]))
+        out.append("\n*`ids absent` are files that were never written \u2014 not empty "
+                   "answers. A run still in progress shows them too, so this column "
+                   "is only a defect list once its run has ended.*\n")
+    return "\n".join(out)
+
+
 def load_runs(root: pathlib.Path, chains: dict[int, list[str]],
               only: str | None = None) -> tuple[list[Run], list[str]]:
     """Every `evals/runs/<model>/qNN.jsonl`, one directory deep.
@@ -415,10 +527,44 @@ def load_runs(root: pathlib.Path, chains: dict[int, list[str]],
             continue
         files = sorted(d.glob("q*.jsonl"))
         if not files:
+            # " and is empty." was a lie for ten directories on 17 Sep: the BOBBY-LANES
+            # run writes bNN.jsonl, this glob wants qNN.jsonl, and 84 transcripts were
+            # reported as an empty directory. An empty container must never stand for
+            # "I could not look" -- so count what is actually there and name the set.
+            # ...and the fix above had the same hole one level down. At 16:10 the
+            # lane run archived 15 directories into `_archive-lanes-truncated/`,
+            # whose transcripts are `bNN.jsonl` in subdirectories -- so `*/q*.jsonl`
+            # missed them, `*.jsonl` missed them, and this function called 174
+            # transcripts "genuinely empty". Look for any set at any depth before
+            # saying nothing is there, and quote the directory's own README for why
+            # it is not scored rather than inventing a reason.
             deeper = len(list(d.glob("*/q*.jsonl")))
-            notes.append(f"`{d.name}/` holds no `qNN.jsonl` of its own"
-                         + (f" but {deeper} one level deeper — treated as a snapshot and "
-                            "**not loaded**." if deeper else " and is empty."))
+            other = sorted(d.glob("*.jsonl"))
+            deeper_any = sorted(d.glob("*/*.jsonl"))
+            if deeper:
+                notes.append(f"`{d.name}/` holds no `qNN.jsonl` of its own but {deeper} one "
+                             "level deeper — treated as a snapshot and **not loaded**.")
+            elif deeper_any:
+                subs = sorted({f.parent.name for f in deeper_any})
+                sets = sorted({re.sub(r"\d+$", "", f.stem).upper() or "?" for f in deeper_any})
+                why = _readme_title(d)
+                notes.append(
+                    f"**`{d.name}/` holds {len(deeper_any)} transcript(s) across "
+                    f"{len(subs)} subdirectory(ies)** — `"
+                    + "`, `".join(s + "NN" for s in sets)
+                    + "`, one level deeper than this glob looks. "
+                    + (f"Its own README says: “{why}” " if why else "")
+                    + "**Not loaded, and not empty.**")
+            elif other:
+                sets = sorted({re.sub(r"\d+$", "", f.stem).upper() or "?" for f in other})
+                notes.append(
+                    f"**`{d.name}/` holds {len(other)} transcript(s) that are not scored "
+                    f"below** — they are `{'`, `'.join(s + 'NN' for s in sets)}`, not "
+                    f"`qNN`, so they belong to another question set "
+                    f"({_questions_file_of(other[0])}). **Not loaded, and not empty** — "
+                    "see the question-set table.")
+            else:
+                notes.append(f"`{d.name}/` is genuinely empty — no `.jsonl` at all.")
             continue
         for f in files:
             try:
@@ -995,6 +1141,25 @@ def unknown_tools(runs):
             + ", ".join(f"`{t}`" for t in sorted(unknown)) + "\n")
 
 
+def proof_age() -> str:
+    """Say how old the hardcoded ground-truth counts are, every time.
+
+    A number with no date reads as a constant. These are live counts, and the one the
+    headline gap finding turns on grows daily, so the block states its age and starts
+    shouting the moment it is not today's reading.
+    """
+    read = datetime.date.fromisoformat(PROOF_NUMBERS_READ)
+    days = (datetime.date.today() - read).days
+    if days <= 0:
+        return (f"*Ground-truth proof numbers (`PROOF_NUMBERS`) were read live on "
+                f"{PROOF_NUMBERS_READ} \u2014 today. 581,464 is one reading of NCBI "
+                f"Pathogen Detection, which grows daily.*\n")
+    return (f"**The ground-truth proof numbers are {days} day(s) old** \u2014 read "
+            f"{PROOF_NUMBERS_READ}, and NCBI Pathogen Detection grows every day. A model "
+            f"reporting a number LARGER than 581,464 may be correct and scored wrong here. "
+            f"Re-read before quoting any gap result.\n")
+
+
 def build(runs, judge, judge_rows, notes, root: pathlib.Path = RUNS) -> str:
     models = sorted({r.model for r in runs})
     head = [
@@ -1005,6 +1170,7 @@ def build(runs, judge, judge_rows, notes, root: pathlib.Path = RUNS) -> str:
         "difference between models until `--repeat 3` shows it exceeds a model's spread "
         "against itself.\n",
         alias_note(runs),
+        proof_age(),
     ]
     # `judge-report.md` is written by another chat against whatever had landed when it
     # ran. If it has scored fewer transcripts than exist, every judge-derived cell is a
@@ -1025,7 +1191,8 @@ def build(runs, judge, judge_rows, notes, root: pathlib.Path = RUNS) -> str:
         head.append("**Input notes:** " + " ".join(notes) + "\n")
     parts = [d0_completion(runs), d1_routing(runs, judge_rows), d2_depth(runs),
              d3_fabrication(runs, judge, notes), d4_refusal(runs), d5_traps(runs, judge_rows),
-             d6_cost(runs), d7_transport(runs), d8_plateau(runs, judge)]
+             d6_cost(runs), d7_transport(runs), d8_plateau(runs, judge),
+             other_sets(root)]
     return "\n".join(head + parts) + unknown_tools(runs)
 
 
