@@ -66,6 +66,16 @@ ENA_FIELDS = (
     "fastq_ftp,fastq_bytes"
 )
 
+# A zero from ENA usually means the value did not match, not that no data exists.
+# scientific_name is matched exactly, so one wrong letter returns 0 with no hint.
+ZERO_RESULT_NOTE = (
+    "This returned 0 matches, which means the query matched nothing -- NOT that ENA "
+    "holds no such data. ENA matches scientific_name EXACTLY, so a misspelling or a "
+    "strain-level name returns zero. Check the spelling, or use taxonomy_id instead, "
+    "which matches the taxon and its descendants: tax_eq(562) covers every "
+    "Escherichia coli record regardless of how the submitter spelled the name."
+)
+
 MAX_LIMIT = 1000  # ENA's documented ceiling; asking for more is an error, not a bigger page.
 
 
@@ -308,7 +318,9 @@ def brc_ena_search(
         "results": shaped,
         "api_call": {"url": f"{ENA_API}/search", "params": {"query": query, "limit": limit}},
     }
-    if total is not None and total > len(shaped):
+    if total == 0:
+        result["zero_result_note"] = ZERO_RESULT_NOTE
+    elif total is not None and total > len(shaped):
         result["note"] = (
             f"{total} runs match; {len(shaped)} returned. Raise limit or narrow the query."
         )

@@ -129,6 +129,20 @@ PROCESSED_VALUES_NOTE = (
     "supplementary_files, which must be downloaded from the GEO FTP tree."
 )
 
+# A zero from a search is ambiguous, and the ambiguity is dangerous: a model that
+# reads "0" as "this does not exist" publishes an absence that is really a typo.
+# Measured 17 Sep: argo/gpt4o did exactly that with a sibling tool and wrote the
+# zero into an answer as a finding. Every zero here says which kind it might be.
+ZERO_RESULT_NOTE = (
+    "This returned 0, which means the query matched nothing -- NOT that GEO holds no "
+    "such data. Before reporting an absence, check: (1) the organism spelling, which "
+    "must be a name NCBI Taxonomy knows, e.g. 'Escherichia coli'; (2) the entry_type "
+    "filter, since a Series-only search excludes Samples and Platforms; (3) the "
+    "query_translation below, because NCBI rewrites terms through MeSH and may have "
+    "rewritten yours into something narrower. Re-run with a broader term before "
+    "concluding there is nothing."
+)
+
 NO_PUBMED_NOTE = (
     "No PubMed record is linked to this GEO record. That means no link is "
     "registered in GEO, typically an unpublished or not-yet-indexed study. It "
@@ -586,6 +600,8 @@ def geo_search(
             "params": {"db": GEO_DB, "term": query, "retmax": max_results},
         },
     }
+    if count == 0:
+        result["zero_result_note"] = ZERO_RESULT_NOTE
     if translation.strip() != query.strip():
         result["query_translation_note"] = (
             "NCBI rewrote the query before running it, usually through MeSH. The "
