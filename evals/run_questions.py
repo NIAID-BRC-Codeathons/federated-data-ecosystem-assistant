@@ -401,6 +401,7 @@ async def run_one(agent, model: str, number: str, question: str,
     tool_timings: list[dict] = []      # per tool call: name, seconds
     last_activity: float = t0          # when the model last emitted anything
     tool_seconds = 0.0
+    finish_reasons: list = []   # one per LLM round trip, in order
 
     def flush_ai():
         nonlocal ai_acc, answer, denied, llm_round_trips
@@ -414,8 +415,30 @@ async def run_one(agent, model: str, number: str, question: str,
         text = _text(ai_acc)
         if DENIAL in text.upper():
             denied = True
-        steps.append({"role": "assistant", "text": text, "tool_calls": calls,
-                      "usage": {k: int(um.get(k) or 0) for k in usage}})
+        # response_metadata is the ONLY thing that separates a refusal from a
+        # truncation from a crash, and it was being thrown away on exactly the
+        # records that needed it. An empty answer with finish_reason "stop" is a
+        # different fault from one with "content_filter" or "length", and for a
+        # whole afternoon we could not tell which we had -- two hypotheses were
+        # built and killed on evidence this field would have settled in one call.
+        # (Measured 17 Sep: the silent empties report "stop" with 0 output tokens,
+        # never content_filter and never length, which is what finally ruled out
+        # both a size threshold and a safety filter.)
+        meta = dict(getattr(ai_acc, "response_metadata", None) or {})
+        step = {"role": "assistant", "text": text, "tool_calls": calls,
+                "usage": {k: int(um.get(k) or 0) for k in usage}}
+        if meta:
+            step["finish_reason"] = meta.get("finish_reason") or meta.get("stop_reason")
+            step["model_name"] = meta.get("model_name") or meta.get("model")
+            step["response_id"] = meta.get("id")
+            # Keep the whole envelope too, minus anything bulky, so a question we
+            # have not thought to ask yet is still answerable from the transcript.
+            step["response_metadata"] = {
+                k: v for k, v in meta.items()
+                if k not in ("logprobs",) and len(str(v)) < 2000
+            }
+        finish_reasons.append(step.get("finish_reason"))
+        steps.append(step)
         tools_in_order.extend(c["tool"] for c in calls if c["tool"])
         if text and not calls:
             answer = text          # the last text-only AI message is the answer
@@ -485,6 +508,11 @@ async def run_one(agent, model: str, number: str, question: str,
         "tool_seconds": round(tool_seconds, 2),
         "model_seconds": round(max(elapsed - tool_seconds, 0.0), 2),
         "tool_timings": tool_timings,
+        # The finish reason of every round trip, in order. An empty answer whose
+        # last reason is "stop" is a provider defect; "length" is truncation;
+        # "content_filter" is a refusal. Without this they are indistinguishable.
+        "finish_reasons": finish_reasons,
+        "last_finish_reason": finish_reasons[-1] if finish_reasons else None,
         "list_cost_usd": list_cost_usd,
         "list_cost_note": list_cost_note,
         # Stamped per QUESTION, not only per run: the fault we have hit twice is a
@@ -588,6 +616,7 @@ def _error_record(model: str, number: str, question: str, exc: Exception) -> dic
             "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "usage_reported": False,
             "ttft_s": None, "llm_round_trips": 0, "tool_result_chars": 0, "list_cost_usd": None,
             "tool_seconds": 0.0, "model_seconds": 0.0, "tool_timings": [],
+            "finish_reasons": [], "last_finish_reason": None,
             "list_cost_note": "run failed before any usage was reported",
             "run_id": _RUN_ID[0], "code_sha": _CODE_SHA[0],
             "questions_file": QUESTIONS_MD.relative_to(REPO).as_posix(),
