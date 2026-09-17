@@ -122,7 +122,9 @@ MCP_SERVERS = {
         },
     }
 
-LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
+# Overridable from .env so nobody has to commit a model switch. The default is
+# unchanged; the commented lines below are the other providers that are wired.
+LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/google/gemma-4-26b-a4b-it")
 # LLM_MODEL="openrouter/mistralai/mistral-small-2603"
 # LLM_MODEL="cesnet/qwen3-coder"
 # LLM_MODEL="ollama/qwen3.5:9b"
