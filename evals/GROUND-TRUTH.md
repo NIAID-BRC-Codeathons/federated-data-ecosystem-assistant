@@ -32,7 +32,16 @@ saw it**. Rows marked `stale-risk` are the ones that can embarrass us on Friday.
   `_reports/verifier.md`; do not score B16 until it is fixed.
 - **ENA and BRC Analytics are different hosts** and do not touch the NCBI budget, so
   those rows are live as of 15:05–15:22.
+- **B16 was already scored before the warning existed.** A BOBBY-LANES run started at
+  15:52 (five model directories under `evals/runs/*-bobby-lanes`, read-only listing);
+  FINDING V7 did not exist until 15:55. Any scorecard from that run marks a *correct*
+  answer wrong on B16, and on S14 for the separate reason in FINDING V6. Drop both cases
+  before reading a number off it.
 - **One figure is mislabelled, not stale** — see FINDING V6 at the bottom.
+- **Two claims this project makes about its own plumbing are wrong**, both added at 16:20:
+  the NCBI API key would make our rate over-subscription worse rather than better
+  (FINDING V8), and the BV-BRC token does not expire in 20 minutes (FINDING V9). Each
+  changes an item Bobby is being asked to act on in `_reports/STATUS.md`.
 
 ---
 
@@ -214,6 +223,10 @@ These are asserted on slides and in `_reports/`, so they belong here too.
 | 66 | `@*.tool()` **definitions in source** across the nine ported servers on `main`; 66 unique, no collisions. **Excludes** the four remote `MCP_SERVERS` entries (`string`, `expasy`, `brc-analytics`, `bv-brc`) | `_reports/sentinel.md:155` | 17 Sep | same-day | sentinel |
 | 99 | tools that **load at runtime** across 12 of 13 servers with `bv-brc` forced to fail. **Includes** the remote servers — `string` alone advertises 17 | runner, against a forced BV-BRC failure | 17 Sep | same-day | runner |
 | 7.5 / 3 | req/s our three NCBI servers **target in sum** vs the per-IP ceiling | FINDING V5, from the source constants | 15:13 | live | verifier |
+| 25.8 / 10 | req/s the same three servers would target in sum **once an API key is set**, vs the keyed ceiling | FINDING V8, from the source constants | 16:12 | live | verifier |
+| 5.5 / 3 | req/s in sum with runner's `NCBI_MAX_RPS=1`; only `ncbi_lib` reads that variable | FINDING V8 | 16:12 | live | verifier |
+| 7200 s | BV-BRC token lifetime the token itself **declares** (`expires_in`) | `.bvbrc_oauth_tokens.json`, key present, value read | 16:20 | live | verifier |
+| ~21 min | interval after which a re-auth was observed. **This is not a lifetime.** See FINDING V9 | `chatbot.py:112-120` comment, 14:20 to 14:41 | 16:20 | **WRONG as stated** | verifier |
 | 10 | local commits not on `origin/bobby/ncbi-and-brc-analytics` (`d5429ca`) | `_reports/STATUS.md` | 14:52 | same-day | lead |
 
 ---
@@ -302,6 +315,54 @@ Full write-up and a suggested rewrite in `_reports/verifier.md`. Escalated to th
 
 ---
 
+## FINDING V8 — the NCBI API key does not fix the rate problem, it scales it
+
+`_reports/STATUS.md` item 1 asks Bobby for an NCBI API key on the reasoning that it triples
+our limit. That is true of the ceiling and not of what we emit, because all three limiters
+raise themselves independently the moment the key is non-empty.
+
+| process | keyless | with a key | source |
+|---|---:|---:|---|
+| `mcp_servers/geo.py` | `MIN_REQUEST_GAP = 0.5` → 2.0/s | `0.15` → 6.67/s | lines 91, 169 |
+| `mcp_servers/pubmed.py` | `_MIN_INTERVAL = 0.4` → 2.5/s | `0.11` → 9.09/s | line 77 |
+| `mcp_servers/ncbi_lib/limiter.py` | `DEFAULT_RPS_KEYLESS = 3.0` | `DEFAULT_RPS_WITH_KEY = 10.0` | lines 28-29 |
+| **sum** | **7.5/s** vs a 3/s ceiling, 2.50× over | **25.76/s** vs a 10/s ceiling, 2.58× over | |
+
+Each file is correct **per process**; the ceiling is per IP. `NCBI_MAX_RPS` is read in exactly
+one place, `limiter.py:35`, and `grep` finds it in neither `geo.py` nor `pubmed.py`, so
+runner's `NCBI_MAX_RPS=1` reaches one limiter of three and takes the sum to 5.5/s. No
+environment setting reaches 3/s.
+
+Runner measured the bound this does *not* cross: a BOBBY-LANES run at `--parallel 6` produced
+zero 429s, because the six workers are async tasks in one driver process sharing one set of
+MCP client connections, so a single limiter still sees all six. The figure above is a
+cross-process sum and says nothing about concurrency inside one driver.
+
+**Not demonstrated.** I have not observed a 429 from this stack. This is arithmetic off the
+constants; provoking a real throttle on the shared venue IP is not something I will do.
+
+---
+
+## FINDING V9 — the BV-BRC token does not expire in 20 minutes
+
+The one token file in the workspace, `federated-data-ecosystem-assistant/.bvbrc_oauth_tokens.json`,
+has `mtime 14:20:15`, carries `expires_in: 7200`, and **has no `obtained_at` key**. The discard
+path at `chatbot.py:119` is guarded by `if obtained_at and expires_in:`, so it is skipped and
+the token is returned unconditionally. A token issued at 14:20 was alive until 16:20; the
+re-auth happened at 14:41. Not expiry, and not the guard.
+
+The fix written for this has therefore **never taken effect**: `obtained_at` is written only by
+`set_tokens()` on a successful login, and the file has not been rewritten since 14:20:15. Same
+shape as STATUS.md's own NCBI caveat — wiring in place, never exercised.
+
+I killed my own first theory rather than recording it as the answer. `OAUTH_TOKEN_FILE` is a
+relative path, so I expected a different working directory to explain it; the matrix ran
+`uv run evals/run_questions.py` from the repo root, the same directory as `chainlit run
+chatbot.py`. Same CWD, file visible. The relative path stays a latent hazard for anyone
+launching from `evals/`, but it is not what happened here.
+
+---
+
 ## What I have not done
 
 - **I did not re-measure any Pathogen Detection figure, including 581,464** — the number
@@ -312,7 +373,9 @@ Full write-up and a suggested rewrite in `_reports/verifier.md`. Escalated to th
 - I did not download `GSE309890_FPKMs_allSamples.csv.gz`. Its size and date are GEO's own
   directory listing, not my observation of the file.
 - I did not re-run the four GEO rows still marked `stale-risk`.
-- I did not check the BV-BRC token lifetime (Job 3 claim D); it needs an OAuth login I
-  am not permitted to perform.
+- **On the BV-BRC token (Job 3 claim D) I now have a partial answer, not none** — see
+  FINDING V9. I still have not logged in, so I have not observed the token being accepted
+  or rejected by `dev-9.bv-brc.org`, and I cannot say which mechanism forces the re-auth.
+  What I can say from the artifact on disk is that it is not expiry and not the age guard.
 - I did not verify the NDE, PubMed, UniProt or MyGene rows beyond reading where they
   came from. They are outside my lane and are recorded, not audited.
