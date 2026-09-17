@@ -15,7 +15,7 @@ what exists, then follow the record to NCBI or BRC for the payload -- is not
 reachable from the chatbot at all.
 
 This wrapper imports Bob's package unchanged and re-exports its 9 tools on a
-`FastMCP` instance configured for port 8009 at /mcp-nde, the same house pattern
+`FastMCP` instance configured for port 8007 at /mcp-nde, the same house pattern
 as mcp_servers/geo.py and mcp_servers/brc_analytics.py. Bob's source is not
 edited, imported-and-monkeypatched, or vendored. If his tools change, this file
 picks the change up on the next restart; if he adds a tenth tool, the startup
@@ -59,14 +59,14 @@ data does not exist". (IEDB is present on staging under its full catalog name, "
 
 RUN
 ---
-    HTTP :   uv run proposals/nde-http-transport/nde_http.py --port 8009
+    HTTP :   uv run proposals/nde-http-transport/nde_http.py --port 8007
     stdio:   uv run proposals/nde-http-transport/nde_http.py --stdio
     staging: NDE_API_URL=https://api-staging.data.niaid.nih.gov/v1 \
-                 uv run proposals/nde-http-transport/nde_http.py --port 8009
+                 uv run proposals/nde-http-transport/nde_http.py --port 8007
 
 Then in chatbot.py MCP_SERVERS:
 
-    "nde": {"url": "http://127.0.0.1:8009/mcp-nde", "transport": "streamable_http"},
+    "nde": {"url": "http://127.0.0.1:8007/mcp-nde", "transport": "streamable_http"},
 
 See README.md in this directory for the observed output and the alternative
 (a `transport: "stdio"` entry, which also works and needs no new file).
@@ -119,7 +119,7 @@ mcp = FastMCP(
         "returns zero hits with no warning. Check `nde_host` before reporting that "
         "something does not exist."
     ),
-    port=8009,
+    port=8007,
     streamable_http_path="/mcp-nde",
 )
 
@@ -215,7 +215,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="NDE MCP server over streamable HTTP")
     parser.add_argument("--stdio", action="store_true", help="run over stdio")
-    parser.add_argument("--port", type=int, default=8009, help="HTTP port")
+    parser.add_argument("--port", type=int, default=8007, help="HTTP port")
     args = parser.parse_args()
 
     host = nde.get_client().base_url

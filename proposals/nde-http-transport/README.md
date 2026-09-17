@@ -12,7 +12,15 @@ from the chatbot, and the Discovery pipeline (P1 in `evals/PIPELINES.md`) is blo
 ## What this is
 
 `nde_http.py` imports Bob's `nde_mcp` package **unchanged** and re-exports its 9 tools onto
-an SDK `FastMCP` on port **8009** at `/mcp-nde`. Two things it adds on the way through:
+an SDK `FastMCP` on port **8007** at `/mcp-nde`.
+
+> **Port note.** This proposal originally specified **8009**, which was free when
+> it was written and is now `mcp_servers/geo.py`. It has been corrected to
+> **8007**, which is where the NDE server already runs — so this is a drop-in
+> replacement for that process rather than a tenth port. Caught by the sentinel
+> chat's port sweep, which widened from a `port =` pattern to every `80xx`
+> literal in every `.py` after it found its narrower version blind to a server
+> that declares its port through argparse. Two things it adds on the way through:
 
 - every response carries `nde_host`, because `NDE_API_URL` selects production vs staging
   and only 6 of the 9 tools echo the host themselves — `nde_list_repositories`, where the
@@ -25,7 +33,7 @@ an SDK `FastMCP` on port **8009** at `/mcp-nde`. Two things it adds on the way t
 ## Run it
 
 ```
-uv run proposals/nde-http-transport/nde_http.py            # port 8009
+uv run proposals/nde-http-transport/nde_http.py            # port 8007
 NDE_API_URL=https://api-staging.data.niaid.nih.gov/v1 uv run proposals/nde-http-transport/nde_http.py
 ```
 
@@ -50,11 +58,11 @@ process per invocation, and a stdio child does not see `.env`.
 
 ```python
 # chatbot.py, MCP_SERVERS
-"nde": {"url": "http://127.0.0.1:8009/mcp-nde", "transport": "streamable_http"},
+"nde": {"url": "http://127.0.0.1:8007/mcp-nde", "transport": "streamable_http"},
 ```
 ```python
 # run_mcp_servers.py, SERVERS
-"../proposals/nde-http-transport/nde_http.py",   # 8009 -- or move it to mcp_servers/nde.py
+"../proposals/nde-http-transport/nde_http.py",   # 8007 -- or move it to mcp_servers/nde.py
 ```
 
 The longer write-up — both transports measured, and a note on why a name search for
