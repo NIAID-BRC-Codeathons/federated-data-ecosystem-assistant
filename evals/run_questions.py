@@ -560,6 +560,28 @@ def _write_transcript(path: pathlib.Path, steps: list[dict], record: dict) -> No
         f.write(json.dumps({"summary": _summary_of(record)}, ensure_ascii=False) + "\n")
 
 
+def _has_successful_summary(path: pathlib.Path) -> bool:
+    """True when this transcript already holds a completed, error-free run.
+
+    Deliberately conservative: anything unreadable, unparseable or ambiguous
+    counts as SUCCESSFUL, so the caller declines to overwrite. Losing a stub is
+    free; losing a completed transcript is not, and one such loss has already
+    happened on this project.
+    """
+    if not path.exists():
+        return False
+    try:
+        for line in reversed(path.read_text(encoding="utf-8").splitlines()):
+            if not line.strip():
+                continue
+            obj = json.loads(line)
+            if "summary" in obj:
+                return not obj["summary"].get("error")
+        return True          # a file with no summary line at all -- do not clobber
+    except Exception:
+        return True          # unreadable -- do not clobber
+
+
 def rewrite_summary(record: dict) -> bool:
     """Replace the summary line of a record's transcript with the current one.
 
@@ -852,8 +874,28 @@ async def run_model(model: str, questions: list[tuple[str, str]],
             try:
                 d = RUNS / _safe(model, tag)
                 d.mkdir(parents=True, exist_ok=True)
+                target = d / f"{_filename_id(n)}.jsonl"
+                # NEVER let a failure stub overwrite a transcript that succeeded.
+                #
+                # The stub was added so a crashed question would stop vanishing
+                # from the run directory. Written unconditionally, it did something
+                # far worse: a re-run that fails writes three lines OVER a complete
+                # transcript. Measured 17 Sep -- a run that hit RecursionError on
+                # all 15 questions replaced fifteen good argo/claudesonnet45
+                # transcripts with stubs, and they were unrecoverable because
+                # evals/runs/**/q*.jsonl is gitignored and no archive held a copy.
+                # Among them were the six silent empties that are the entire raw
+                # evidence for how that fault was characterised.
+                #
+                # So the fix for a missing file must never be able to destroy a
+                # present one. A failure beside a success goes to its own path.
+                if _has_successful_summary(target):
+                    stamp = time.strftime("%H%M%S")
+                    target = d / f"{_filename_id(n)}.error-{stamp}.jsonl"
+                    say(f"  (a successful transcript already exists; the failure "
+                        f"is recorded beside it as {target.name})")
                 _write_transcript(
-                    d / f"{_filename_id(n)}.jsonl",
+                    target,
                     [{"role": "user", "text": q},
                      {"role": "error", "exception": type(exc).__name__,
                       "message": str(exc)[:4000]}],
