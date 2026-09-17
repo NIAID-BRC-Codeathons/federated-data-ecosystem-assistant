@@ -169,7 +169,18 @@ def load_chat_model(model: str) -> BaseChatModel:
             model=model_name,
             base_url=ARGO_BASE_URL,
             api_key=SecretStr(os.environ["ARGO_USER"]),
-            max_completion_tokens=2048,
+            # The Argo shim ignores max_completion_tokens -- which is what LangChain
+            # renames max_tokens to -- and honours max_tokens only. Without it the
+            # model runs to its maximum output length, and on the Claude models a
+            # non-streaming call then trips the upstream ten-minute guard with
+            # HTTP 500 "Streaming is required". extra_body bypasses the rename.
+            # Measured by laptop_system_improvement, 17 Sep 2026. 4096 rather than
+            # 2048 because the reasoning tiers spend part of the cap on reasoning
+            # tokens and return empty at 2048.
+            extra_body={"max_tokens": 4096},
+            # Ask for usage on the final streamed chunk, so token counts are
+            # recorded even on the streaming path chatbot.py and the evals use.
+            stream_usage=True,
         )
     if provider == "ollama":
         from langchain_ollama import ChatOllama

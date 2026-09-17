@@ -71,6 +71,19 @@ _Q = re.compile(r'^## Q(\d+)\.\s+"(.+?)"')
 
 DENIAL = "ACCESS DENIED"
 
+# Reference list prices, USD per 1M tokens (input, output), for the "what would this
+# cost outside Argonne" column. Argo bills NONE of this -- it draws on Argonne's
+# allocation -- so the column is a comparison aid, not a bill. Approximate, from
+# public price pages as remembered on 17 Sep 2026; verify before quoting, and a
+# model absent here simply gets no cost column. Keys are the Argo aliases.
+LIST_PRICE_PER_M = {
+    "gpt4o": (2.50, 10.00),
+    "gpt41": (2.00, 8.00), "gpt41mini": (0.40, 1.60), "gpt41nano": (0.10, 0.40),
+    "gpto3": (2.00, 8.00), "gpto3mini": (1.10, 4.40), "gpto4mini": (1.10, 4.40),
+    "claudesonnet45": (3.00, 15.00), "claudehaiku45": (1.00, 5.00),
+    "claudeopus45": (15.00, 75.00), "claudeopus41": (15.00, 75.00),
+}
+
 # Prompt ablation. "paper" is whatever chatbot.py ships (the 57-line research-paper
 # prompt on main); "minimal" is the three-line prompt the repo started with; "none"
 # is no system prompt at all. Comparing the three per model measures what the
@@ -135,16 +148,25 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
     answer = ""
     denied = False
     ai_acc = None
+    usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+    llm_round_trips = 0
+    tool_result_chars = 0
+    ttft: float | None = None          # time to the first token from the model
 
     def flush_ai():
-        nonlocal ai_acc, answer, denied
+        nonlocal ai_acc, answer, denied, llm_round_trips
         if ai_acc is None:
             return
+        llm_round_trips += 1
+        um = getattr(ai_acc, "usage_metadata", None) or {}
+        for k in usage:
+            usage[k] += int(um.get(k) or 0)
         calls = _tool_calls(ai_acc)
         text = _text(ai_acc)
         if DENIAL in text.upper():
             denied = True
-        steps.append({"role": "assistant", "text": text, "tool_calls": calls})
+        steps.append({"role": "assistant", "text": text, "tool_calls": calls,
+                      "usage": {k: int(um.get(k) or 0) for k in usage}})
         tools_in_order.extend(c["tool"] for c in calls if c["tool"])
         if text and not calls:
             answer = text          # the last text-only AI message is the answer
@@ -163,9 +185,17 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
                 "result_chars": len(raw),
             })
         elif isinstance(chunk, AIMessageChunk):
+            if ttft is None and (chunk.content or getattr(chunk, "tool_call_chunks", None)):
+                ttft = round(time.monotonic() - t0, 2)
             ai_acc = chunk if ai_acc is None else ai_acc + chunk
     flush_ai()
     elapsed = round(time.monotonic() - t0, 1)
+    tool_result_chars = sum(st.get("result_chars", 0) for st in steps if st.get("role") == "tool")
+    alias = model.split("/", 1)[-1]
+    price = LIST_PRICE_PER_M.get(alias)
+    list_cost_usd = (round(usage["input_tokens"] / 1e6 * price[0]
+                           + usage["output_tokens"] / 1e6 * price[1], 4)
+                     if price and usage["total_tokens"] else None)
 
     record = {
         "question_number": number,
@@ -178,6 +208,14 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
         "error": None,
         "answer": answer,
         "answer_chars": len(answer),
+        "input_tokens": usage["input_tokens"],
+        "output_tokens": usage["output_tokens"],
+        "total_tokens": usage["total_tokens"],
+        "usage_reported": bool(usage["total_tokens"]),
+        "ttft_s": ttft,
+        "llm_round_trips": llm_round_trips,
+        "tool_result_chars": tool_result_chars,
+        "list_cost_usd": list_cost_usd,
         "steps": steps,
     }
     out_dir = RUNS / _safe(model)
@@ -194,7 +232,9 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
 def _error_record(model: str, number: int, question: str, exc: Exception) -> dict:
     return {"question_number": number, "question": question, "model": model,
             "elapsed_s": 0, "tools_in_order": [], "tool_call_count": 0, "denied": False,
-            "error": f"{type(exc).__name__}: {str(exc)[:200]}", "answer": "", "answer_chars": 0}
+            "error": f"{type(exc).__name__}: {str(exc)[:200]}", "answer": "", "answer_chars": 0,
+            "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "usage_reported": False,
+            "ttft_s": None, "llm_round_trips": 0, "tool_result_chars": 0, "list_cost_usd": None}
 
 
 def write_scorecard(model: str, records: list[dict]) -> pathlib.Path:
@@ -250,23 +290,34 @@ def write_comparison(by_model: dict[str, list[dict]], questions: list[tuple[int,
                 cells.append("**error**")
             else:
                 first = r["tools_in_order"][0] if r["tools_in_order"] else "no tool"
-                cells.append(f"{r['tool_call_count']} · {r['elapsed_s']}s · `{first}`")
+                tok = f" · {r['total_tokens']:,}t" if r.get("total_tokens") else ""
+                cells.append(f"{r['tool_call_count']} · {r['elapsed_s']}s{tok} · `{first}`")
         L.append(f"| {n} | {q[:60]} | " + " | ".join(cells) + " |")
 
     L += ["", "## Per-model totals", "",
-          "| model | answered | denied | errors | mean calls | mean seconds | no-tool answers | mean answer chars |",
-          "|---|---|---|---|---|---|---|---|"]
+          "Tokens are what the provider reported on the stream (`usage_reported` says whether it did).",
+          "`list $` is what the run would cost at public list price outside Argonne -- Argo bills none of it.", "",
+          "| model | answered | denied | errors | mean calls | LLM trips | mean s | mean TTFT s | in tok | out tok | usage | no-tool | mean chars | list $ |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for m in models:
         recs = by_model[m]
         ok = [r for r in recs if not r["denied"] and not r["error"]]
         n_ok = len(ok) or 1
+        ttfts = [r["ttft_s"] for r in ok if r.get("ttft_s") is not None]
+        costs = [r["list_cost_usd"] for r in ok if r.get("list_cost_usd") is not None]
         L.append(
             f"| `{m}` | {len(ok)}/{len(recs)} | {sum(r['denied'] for r in recs)} | "
             f"{sum(bool(r['error']) for r in recs)} | "
             f"{sum(r['tool_call_count'] for r in ok) / n_ok:.1f} | "
+            f"{sum(r.get('llm_round_trips', 0) for r in ok) / n_ok:.1f} | "
             f"{sum(r['elapsed_s'] for r in ok) / n_ok:.1f} | "
+            f"{(sum(ttfts) / len(ttfts)) if ttfts else 0:.1f} | "
+            f"{sum(r.get('input_tokens', 0) for r in ok):,} | "
+            f"{sum(r.get('output_tokens', 0) for r in ok):,} | "
+            f"{sum(1 for r in ok if r.get('usage_reported'))}/{len(ok)} | "
             f"{sum(1 for r in ok if not r['tools_in_order'])} | "
-            f"{sum(r['answer_chars'] for r in ok) / n_ok:.0f} |")
+            f"{sum(r['answer_chars'] for r in ok) / n_ok:.0f} | "
+            f"{('$' + format(sum(costs), '.2f')) if costs else '--'} |")
     L += ["", "**A no-tool answer to a data question is a fabrication until proven otherwise.**",
           "That column is the first one to read.", ""]
     COMPARISON.write_text("\n".join(L), encoding="utf-8")
