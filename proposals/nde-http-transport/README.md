@@ -158,9 +158,7 @@ already carry the host inside the `api_call` URL; `nde_get_record`, `nde_lookup_
 precisely the tool the trap runs through. To serve both corpora, run the file twice on
 two ports with different `NDE_API_URL` values.
 
-One correction to what was passed to me: IEDB matched no repository on either host,
-under "IEDB", "Immune" or "Epitope". Whatever route reaches IEDB, it is not a federated
-NDE repository name, and I could not verify the claim that IEDB records are staging-only.
+One correction I got wrong and the home chat checked: IEDB is present on staging under its full catalog name, "Immune Epitope Database and Analysis Resource" -- 18,086 records on 17 Sep -- and absent on production. A name search for "IEDB" misses it because that string is not in the term, and "Immune"/"Epitope" missed too because nde_list_repositories matches on /v1/metadata source keys, not on the includedInDataCatalog.name facet terms. That is a limit of the tool worth knowing. The staging-only claim stands.
 
 ## The alternative: a stdio entry, no new file
 

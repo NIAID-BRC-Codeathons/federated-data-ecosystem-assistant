@@ -44,9 +44,7 @@ BV-BRC records therefore exist only on staging. Production still LISTS BV-BRC in
 nde_list_repositories with a record_count of 118,625, so the catalogue entry is
 no evidence that the records are searchable there -- the query returns a
 well-formed response with zero hits and no warning, indistinguishable from "this
-data does not exist". (IEDB matched no repository on either host, under "IEDB",
-"Immune" or "Epitope"; whatever route reaches IEDB, it is not a federated
-repository name.) Two consequences:
+data does not exist". (IEDB is present on staging under its full catalog name, "Immune Epitope Database and Analysis Resource" -- 18,086 records on 17 Sep -- and absent on production. A name search for "IEDB" misses it because that string is not in the term, and "Immune"/"Epitope" missed too because nde_list_repositories matches on /v1/metadata source keys, not on the includedInDataCatalog.name facet terms. That is a limit of the tool worth knowing.) Two consequences:
 
   * One host per running process. To serve both, run this file twice on two
     ports with different `NDE_API_URL` values.
