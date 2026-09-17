@@ -70,6 +70,65 @@ TAXONOMY: dict[str, int] = {
     "pig": 9823,
 }
 
+# The real field types, read from https://myvariant.info/v1/metadata/fields.
+# Only the fields the tests exercise are here, and their types are verbatim,
+# so a test that turns on a type is testing the real thing.
+MV_FIELD_INDEX: dict[str, dict] = {
+    "chrom": {"analyzer": "string_lowercase", "index": True, "type": "text"},
+    "vcf": {"index": True, "type": "object"},
+    "vcf.alt": {"analyzer": "string_lowercase", "index": True, "type": "text"},
+    "vcf.ref": {"analyzer": "string_lowercase", "index": True, "type": "text"},
+    "vcf.position": {"index": True, "type": "integer"},
+    "dbsnp": {"index": True, "type": "object"},
+    "dbsnp.rsid": {"index": True, "searched_by_default": True, "type": "keyword"},
+    "dbsnp.gene": {"index": True, "type": "object"},
+    "dbsnp.dbsnp_merges": {"index": True, "type": "object"},
+    "dbsnp.dbsnp_merges.rsid": {"index": True, "searched_by_default": True, "type": "keyword"},
+    "clinvar": {"index": True, "type": "object"},
+    "clinvar.gene": {"index": True, "type": "object"},
+    "clinvar.gene.symbol": {
+        "analyzer": "string_lowercase", "index": True,
+        "searched_by_default": True, "type": "text",
+    },
+    "clinvar.rcv": {"index": True, "type": "object"},
+    "clinvar.rcv.clinical_significance": {"index": True, "type": "text"},
+    "clinvar.rcv.accession": {
+        "analyzer": "string_lowercase", "index": True,
+        "searched_by_default": True, "type": "text",
+    },
+    "clinvar.rcv.last_evaluated": {"index": True, "type": "date"},
+    "clinvar.rcv.number_submitters": {"index": True, "type": "integer"},
+    "clinvar.hgvs": {"index": True, "type": "object"},
+    "clinvar.hgvs.coding": {
+        "analyzer": "string_lowercase", "index": True,
+        "searched_by_default": True, "type": "text",
+    },
+    "clinvar.hgvs.protein": {
+        "analyzer": "string_lowercase", "index": True,
+        "searched_by_default": True, "type": "text",
+    },
+    "clinvar.hgvs.genomic": {
+        "analyzer": "string_lowercase", "index": True,
+        "searched_by_default": True, "type": "text",
+    },
+    "clinvar.variant_id": {"index": True, "type": "integer"},
+    "clinvar.type": {"analyzer": "string_lowercase", "index": True, "type": "text"},
+    "snpeff": {"index": True, "type": "object"},
+    "snpeff.ann": {"index": True, "type": "object"},
+    "snpeff.ann.genename": {"analyzer": "string_lowercase", "index": True, "type": "text"},
+    "dbnsfp": {"index": True, "type": "object"},
+    "dbnsfp.genename": {"index": True, "type": "keyword"},
+    "dbnsfp.polyphen2": {"index": True, "type": "object"},
+    "dbnsfp.polyphen2.hdiv": {"index": True, "type": "object"},
+    "dbnsfp.polyphen2.hdiv.pred": {"index": True, "type": "keyword"},
+    "cadd": {"index": True, "type": "object"},
+    "cadd.phred": {"index": True, "type": "float"},
+    # A facetable type that is not indexed, so it still cannot be faceted.
+    "cadd.1000g.afr": {"index": False, "type": "float"},
+    "civic": {"index": True, "type": "object"},
+    "gnomad_exome": {"index": True, "type": "object"},
+}
+
 
 @dataclass
 class Call:
@@ -82,7 +141,7 @@ class Call:
 
     @property
     def path(self) -> str:
-        return self.url.replace("https://mygene.info/v3", "")
+        return self.url.replace("https://mygene.info/v3", "").replace("https://myvariant.info/v1", "")
 
     @property
     def q(self) -> str:
@@ -162,8 +221,25 @@ def schema(mygene):
     return mygene
 
 
+@pytest.fixture
+def myvariant():
+    """The server module, with its schema cache emptied between tests."""
+    import myvariant as module
+
+    module._schema_cache.clear()
+    yield module
+    module._schema_cache.clear()
+
+
+@pytest.fixture
+def mv_schema(myvariant):
+    """Prime the field index, so no test needs to serve it."""
+    myvariant._schema_cache["fields"] = (time.monotonic(), MV_FIELD_INDEX)
+    return myvariant
+
+
 @pytest.fixture(autouse=True)
-def block_network(mygene, monkeypatch):
+def block_network(mygene, myvariant, monkeypatch):
     """Fail any request a test did not arrange, so the suite stays offline."""
 
     def refuse(method: str, url: str, **kwargs: Any):
@@ -172,6 +248,7 @@ def block_network(mygene, monkeypatch):
         )
 
     monkeypatch.setattr(mygene.requests, "request", refuse)
+    monkeypatch.setattr(myvariant.requests, "request", refuse)
 
 
 @pytest.fixture
@@ -185,6 +262,18 @@ def record(mygene, block_network, monkeypatch) -> Callable[..., Recorder]:
     def install(response: Any = None, status: int = 200, *, json_fails: bool = False) -> Recorder:
         recorder = Recorder(response, status, json_fails=json_fails)
         monkeypatch.setattr(mygene.requests, "request", recorder)
+        return recorder
+
+    return install
+
+
+@pytest.fixture
+def mv_record(myvariant, block_network, monkeypatch) -> Callable[..., Recorder]:
+    """Install a Recorder in place of requests.request, for myvariant.py."""
+
+    def install(response: Any = None, status: int = 200, *, json_fails: bool = False) -> Recorder:
+        recorder = Recorder(response, status, json_fails=json_fails)
+        monkeypatch.setattr(myvariant.requests, "request", recorder)
         return recorder
 
     return install

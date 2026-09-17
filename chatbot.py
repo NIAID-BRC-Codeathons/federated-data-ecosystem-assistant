@@ -10,21 +10,45 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
+SYSTEM_PROMPT = """You are a bioinformatics assistant with access to several databases.
+Always use tools to retrieve real data, never invent accessions or sequences.
+For multi-step questions, chain tools: search -> get entry -> get interactions.
+"""
+
+# Existing MCP servers or local ones running on localhost. The local servers are started by the `mcp_servers` scripts.
+MCP_SERVERS = {
+        "string": {
+            "url": "https://mcp.string-db.org/",
+            "transport": "streamable_http",
+        },
+        "expasy": {
+            "url": "https://chat.expasy.org/mcp/",
+            "transport": "streamable_http",
+        },
+        "pdn": {
+            "url": "http://127.0.0.1:8001/mcp-pdn",
+            "transport": "streamable_http",
+        },
+        "mygene": {
+            "url": "http://127.0.0.1:8002/mcp-mygene",
+            "transport": "streamable_http",
+        },
+        "uniprot": {
+            "url": "http://127.0.0.1:8003/mcp-uniprot",
+            "transport": "streamable_http",
+        },
+        "myvariant": {
+            "url": "http://127.0.0.1:8004/mcp-myvariant",
+            "transport": "streamable_http",
+        },
+    }
+
 LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
 # LLM_MODEL="openrouter/mistralai/mistral-small-2603"
 # LLM_MODEL="cesnet/qwen3-coder"
 # LLM_MODEL="ollama/gemma4"
 # LLM_MODEL="mistralai/mistral-small-latest"
 # LLM_MODEL="anthropic/claude-opus-5"
-
-SYSTEM_PROMPT = """You are a bioinformatics assistant with access to SIB databases.
-Always use tools to retrieve real data, never invent accessions or sequences.
-For multi-step questions, chain tools: search -> get entry -> get interactions.
-"""
-
-MCP_SERVER_URL = "http://127.0.0.1:8000/mcp"
-PDN_MCP_SERVER_URL = "http://127.0.0.1:8001/mcp-pdn"
-MYGENE_MCP_SERVER_URL = "http://127.0.0.1:8002/mcp-mygene"
 
 def load_chat_model(model: str) -> BaseChatModel:
     provider, model_name = model.split("/", maxsplit=1)
@@ -49,30 +73,8 @@ def load_chat_model(model: str) -> BaseChatModel:
     raise ValueError(f"Unknown provider: {provider}")
 
 
-
 async def init_agent():
-    mcp_client = MultiServerMCPClient({
-        # "biodata": {
-        #     "url": MCP_SERVER_URL,
-        #     "transport": "streamable_http",
-        # },
-        "string": {
-            "url": "https://mcp.string-db.org/",
-            "transport": "streamable_http",
-        },
-        "expasy": {
-            "url": "https://chat.expasy.org/mcp/",
-            "transport": "streamable_http",
-        },
-        "pdn": {
-            "url": PDN_MCP_SERVER_URL,
-            "transport": "streamable_http",
-        },
-        "mygene": {
-            "url": MYGENE_MCP_SERVER_URL,
-            "transport": "streamable_http",
-        },
-    })
+    mcp_client = MultiServerMCPClient(MCP_SERVERS)
     tools = await mcp_client.get_tools()
     llm = load_chat_model(LLM_MODEL)
     return create_agent(model=llm, tools=tools, system_prompt=SYSTEM_PROMPT)

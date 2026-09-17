@@ -320,7 +320,10 @@ def _split(value: str) -> list[str]:
 def _clamp_paging(size: int, offset: int) -> tuple[int, int, str | None]:
     """Hold size and offset inside the API's limits. Return a note when clamped."""
     clamped_size = max(0, min(size, MAX_SIZE))
-    clamped_offset = max(0, offset)
+    # offset alone above the result window is rejected by the API outright
+    # (HTTP 400 on "from"), not just in combination with size, so it is
+    # capped here rather than only checked against size below.
+    clamped_offset = max(0, min(offset, MAX_RESULT_WINDOW))
     note = None
     if clamped_offset + clamped_size > MAX_RESULT_WINDOW:
         clamped_size = max(0, MAX_RESULT_WINDOW - clamped_offset)
@@ -598,17 +601,6 @@ def mygene_search_genes(
 
     notes = [n for n in (paging_note, species_note) if n]
     total = payload.get("total", 0)
-    if not hits and total and clamped_offset >= total:
-        notes.append(
-            f"offset {clamped_offset} is past the end of this result set, which "
-            f"holds {total} genes, so no hits came back. Lower offset."
-        )
-    elif total > clamped_offset + len(hits):
-        notes.append(
-            f"{total} genes match and {len(hits)} are shown. Raise size, or "
-            "page with offset, or narrow the query."
-        )
-
     result = {
         "query": query,
         "species": resolved_species or "all species",
@@ -623,7 +615,20 @@ def mygene_search_genes(
             "params": _clean_params(params),
         },
     }
+    # Budget trimming can shrink hits further, so the "N are shown" note is
+    # built from the count that actually survives, not the count fetched.
     _budget(result, "hits", "hits_returned")
+    shown = result["hits_returned"]
+    if shown == 0 and total and clamped_offset >= total:
+        notes.append(
+            f"offset {clamped_offset} is past the end of this result set, which "
+            f"holds {total} genes, so no hits came back. Lower offset."
+        )
+    elif total > clamped_offset + shown:
+        notes.append(
+            f"{total} genes match and {shown} are shown. Raise size, or "
+            "page with offset, or narrow the query."
+        )
     return result
 
 
@@ -939,11 +944,6 @@ def mygene_facet_counts(
     facet = payload.get("facets", {}).get(field, {})
     terms = [{"value": t.get("term"), "count": t.get("count")} for t in facet.get("terms", [])]
     notes = []
-    if facet.get("other"):
-        notes.append(
-            f"{facet['other']} matching genes fall outside the "
-            f"{len(terms)} values shown. Raise facet_size to see more."
-        )
     if facet.get("missing"):
         notes.append(f"{facet['missing']} matching genes carry no value for '{field}'.")
     if not terms and payload.get("total"):
@@ -975,7 +975,15 @@ def mygene_facet_counts(
             "params": _clean_params(params),
         },
     }
+    # A client-side budget trim can shrink terms further than the server's
+    # own facet_size cutoff did, so this note is built from what survives.
     _budget(result, "terms", "values_returned")
+    if facet.get("other"):
+        notes.append(
+            f"{facet['other']} matching genes fall outside the "
+            f"{result['values_returned']} values shown. Raise facet_size to "
+            "see more."
+        )
     return result
 
 

@@ -121,6 +121,20 @@ class TestSearchGenes:
         result = schema.mygene_search_genes("CDK2", species="human", size=1)
         assert any("16 genes match" in n for n in result["notes"])
 
+    def test_note_reflects_the_post_budget_count_not_the_fetched_count(self, schema, record, monkeypatch):
+        # Regression: the "N match and M are shown" note used to be built
+        # before the response-size budget could trim hits further, so a
+        # trimmed response could report a shown-count larger than what it
+        # actually carried.
+        monkeypatch.setattr(schema, "MAX_RESPONSE_CHARS", 600)
+        big = {"total": 50, "hits": [dict(HIT, _id=f"gene{i}") for i in range(50)]}
+        record(big)
+        result = schema.mygene_search_genes("CDK2", species="human", size=50)
+        shown = result["hits_returned"]
+        assert shown < 50
+        assert any(f"and {shown} are shown" in n for n in result["notes"])
+        assert not any("and 50 are shown" in n for n in result["notes"])
+
     def test_offset_past_the_end_is_explained(self, schema, record):
         # Zero hits with a non-zero total otherwise looks like a failed query.
         record({"took": 1, "total": 16, "hits": []})
@@ -341,6 +355,27 @@ class TestFacetCounts:
         result = schema.mygene_facet_counts("taxid", q="CDK2")
         assert result["genes_outside_returned_values"] == 2358
         assert any("2358" in n for n in result["notes"])
+
+    def test_outside_values_note_reflects_post_budget_count(self, schema, record, monkeypatch):
+        # Regression: this note used to cite the term count fetched before
+        # the response-size budget could trim it further.
+        monkeypatch.setattr(schema, "MAX_RESPONSE_CHARS", 700)
+        facets = {
+            "took": 1, "total": 100000, "hits": [],
+            "facets": {
+                "taxid": {
+                    "terms": [{"count": 1, "term": 100000 + i} for i in range(60)],
+                    "other": 999,
+                    "missing": 0,
+                },
+            },
+        }
+        record(facets)
+        result = schema.mygene_facet_counts("taxid", facet_size=60)
+        shown = result["values_returned"]
+        assert shown < 60
+        assert any(f"outside the {shown} values shown" in n for n in result["notes"])
+        assert not any("outside the 60 values shown" in n for n in result["notes"])
 
     def test_genes_missing_the_field_are_reported(self, schema, record):
         facets = json.loads(json.dumps(FACETS))
