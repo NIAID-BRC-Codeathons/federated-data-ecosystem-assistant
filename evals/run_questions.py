@@ -38,9 +38,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
+import os
 import pathlib
 import re
+import subprocess
 import sys
 import time
 
@@ -61,21 +64,40 @@ load_dotenv(REPO / ".env")
 import chatbot  # noqa: E402
 from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage  # noqa: E402
 
-QUESTIONS_MD = REPO / "evals" / "QUESTIONS.md"
+QUESTIONS_MD = REPO / "evals" / "QUESTIONS.md"   # overridden by --questions
 RUNS = REPO / "evals" / "runs"
 RUN_TAG = ""   # "-minimal", "-r2", set per run by run_model
 COMPARISON = REPO / "evals" / "model-comparison.md"
+REGISTRY = REPO / "evals" / "RUNS.md"
+# Filled once conditions are computed, then stamped onto every question record.
+# A run id on the run only says what the run was; on each question it also says
+# whether the tree changed underneath one -- which is a fault we have hit twice.
+_RUN_ID = ["unregistered"]
+_CODE_SHA = ["unknown"]
 
 # `## Q7. "Which E. coli ..." — NCBI ↔ BRC`  ->  (7, 'Which E. coli ...')
-_Q = re.compile(r'^## Q(\d+)\.\s+"(.+?)"')
+# `## Q7. "Which E. coli ..." -- NCBI <-> BRC`  ->  ('Q7', 'Which E. coli ...')
+# The letter is part of the id, not stripped: the base matrix numbers questions Q1..,
+# adversary's routing set R1.., the stress set S1.., the expert-judge set E1... They
+# share a driver and must never share an output filename.
+_Q = re.compile(r'^## ([A-Z]{1,2}\d+)\.\s+"(.+?)"')
 
 DENIAL = "ACCESS DENIED"
 
 # Reference list prices, USD per 1M tokens (input, output), for the "what would this
 # cost outside Argonne" column. Argo bills NONE of this -- it draws on Argonne's
 # allocation -- so the column is a comparison aid, not a bill. Approximate, from
-# public price pages as remembered on 17 Sep 2026; verify before quoting, and a
-# model absent here simply gets no cost column. Keys are the Argo aliases.
+# public price pages as REMEMBERED on 17 Sep 2026, not read off them on the day.
+#
+# READ THIS BEFORE QUOTING ANY DOLLAR FIGURE. Tokens are MEASURED; dollars are a
+# CONVERSION nobody has audited. PRICES_VERIFIED is what the comparison table
+# prints its caveat from, so the caveat cannot be forgotten: check the prices,
+# flip the flag, and it goes away on its own.
+#
+# 36 aliases are reachable on Argo and only these carry a price, so most models get
+# no cost column. A missing price is recorded in words rather than left as a bare
+# null, because a null meaning "we never looked" is otherwise indistinguishable
+# from a null meaning "this was free".
 LIST_PRICE_PER_M = {
     "gpt4o": (2.50, 10.00),
     "gpt41": (2.00, 8.00), "gpt41mini": (0.40, 1.60), "gpt41nano": (0.10, 0.40),
@@ -83,6 +105,128 @@ LIST_PRICE_PER_M = {
     "claudesonnet45": (3.00, 15.00), "claudehaiku45": (1.00, 5.00),
     "claudeopus45": (15.00, 75.00), "claudeopus41": (15.00, 75.00),
 }
+PRICES_VERIFIED = False
+PRICE_AS_OF = "17 Sep 2026, from memory -- NOT read off a price page"
+
+# Two faults that look like model behaviour in a transcript but are not.
+#
+# A SILENT EMPTY is zero output tokens with no error and no denial. Measured 17 Sep:
+# argo/claudesonnet45 q01 billed 33,028 input tokens and returned nothing in 2.7s
+# while q02-q04 of the same run were normal.
+#
+# A DENIAL is Argo answering HTTP 200 with "ACCESS DENIED" as the assistant's
+# content. It reads like an entitlement problem and is not: Argo billed ac.ni 44,015
+# input tokens on claudeopus5 turn 1 and denied turn 2 of the SAME question, and an
+# unauthorised user cannot be billed. Nor is it context size -- claudesonnet45
+# succeeded at 69,461 input tokens and was denied at 42,091.
+#
+# So both get retried, and every discarded attempt is KEPT. A retry that hides what
+# it retried would erase the transport-fault rate, and that rate is a finding in its
+# own right: as of the 14:05 run, Argo denied 2 of 3 Claude models and silently
+# emptied 1 of 15 questions. Those numbers must survive the fix for them.
+MAX_EMPTY_RETRIES = 2
+MAX_DENIAL_RETRIES = 1
+DENIAL_STREAK_TO_ABANDON = 3
+
+
+def is_silent_empty(rec: dict) -> bool:
+    """The model returned nothing and gave no reason for it."""
+    return (not rec.get("error") and not rec.get("denied")
+            and rec.get("output_tokens", 0) == 0
+            and rec.get("tool_call_count", 0) == 0
+            and not (rec.get("answer") or "").strip())
+
+
+def fault_kind(rec: dict) -> str | None:
+    """Name the transport fault in a record, or None if it is a real result."""
+    if is_silent_empty(rec):
+        return "silent_empty"
+    if rec.get("denied"):
+        return "denied"
+    return None
+
+
+def _git(*args: str) -> str:
+    try:
+        return subprocess.run(["git", *args], cwd=REPO, capture_output=True,
+                              text=True, timeout=15).stdout.strip()
+    except Exception:
+        return "unknown"
+
+
+def run_conditions(args, models: list[str], questions: list[tuple[str, str]]) -> dict:
+    """Everything needed to say what this run was and tell it from the next one.
+
+    The git SHA plus a dirty flag is the part that matters. An uncommitted change is
+    the commonest reason two runs that look identical disagree, and without the flag
+    there is no way to see it afterwards. Credential NAMES are recorded so a run made
+    without NCBI_API_KEY is explicable later; values never are.
+    """
+    sha = _git("rev-parse", "--short", "HEAD")
+    dirty = bool(_git("status", "--porcelain"))
+    return {
+        "run_id": f"{time.strftime('%Y%m%d-%H%M%S')}-{sha}{'-dirty' if dirty else ''}",
+        "started": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "git_sha": sha,
+        "git_dirty": dirty,
+        "git_branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
+        "driver_sha256_8": hashlib.sha256(
+            pathlib.Path(__file__).read_bytes()).hexdigest()[:8],
+        "models": models,
+        "questions_file": str(QUESTIONS_MD.relative_to(REPO)),
+        "question_ids": [n for n, _ in questions],
+        "prompt_variants": list(args.prompt),
+        "repeats": args.repeat,
+        "env_names_present": sorted(
+            k for k in os.environ
+            if k in {"LLM_MODEL", "ARGO_USER", "ARGO_BASE_URL", "ANTHROPIC_API_KEY",
+                     "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY", "NCBI_API_KEY"}),
+        "servers": {n: c.get("url", "") for n, c in chatbot.MCP_SERVERS.items()},
+        "prices_verified": PRICES_VERIFIED,
+        "note": args.note or "",
+    }
+
+
+def append_registry(cond: dict, by_model: dict) -> None:
+    """One row per run in evals/RUNS.md, appended, newest at the bottom.
+
+    Status is deliberately NOT computed. Every run lands as `exploratory` and a human
+    marks the one being quoted `final`, because which run is final is a decision, not
+    a measurement.
+    """
+    if not REGISTRY.exists():
+        REGISTRY.write_text(
+            "# Run registry\n\n"
+            "Every run of `evals/run_questions.py`, appended automatically.\n\n"
+            "A run is identified by its start time and the git SHA of the code that\n"
+            "produced it. `-dirty` in a run id means the tree had uncommitted changes,\n"
+            "which is the usual reason two otherwise identical runs disagree.\n\n"
+            "**Status is set by hand.** A run lands as `exploratory`. Mark one `final`\n"
+            "only when its numbers are the ones being quoted, and mark a superseded run\n"
+            "`void` with a reason rather than deleting it -- a void run is still the\n"
+            "evidence for why it was voided.\n\n"
+            "`empty` and `denied` count TRANSPORT FAULTS including attempts that were\n"
+            "retried away. They are not model results, and a run with a high count in\n"
+            "either column must not be compared against one without.\n\n"
+            "| run id | started | branch | questions file | models | qs | prompts | reps "
+            "| rows | denied | empty | errors | status | note |\n"
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+            encoding="utf-8")
+    every = [r for v in by_model.values() for r in v]
+    # Count the faults that happened, not the ones that survived retry.
+    denied = sum(1 for r in every if r.get("denied")) + sum(
+        1 for r in every for a in r.get("attempts_discarded", [])
+        if a.get("fault") == "denied")
+    empty = sum(1 for r in every if "silent empty after" in str(r.get("error") or "")) + sum(
+        1 for r in every for a in r.get("attempts_discarded", [])
+        if a.get("fault") == "silent_empty")
+    with REGISTRY.open("a", encoding="utf-8") as f:
+        f.write(f"| `{cond['run_id']}` | {cond['started']} | {cond['git_branch']} | "
+                f"`{cond['questions_file']}` | {len(cond['models'])} | "
+                f"{len(cond['question_ids'])} | {','.join(cond['prompt_variants'])} | "
+                f"{cond['repeats']} | {len(every)} | {denied} | {empty} | "
+                f"{sum(1 for r in every if r.get('error'))} | exploratory | "
+                f"{cond['note'] or '--'} |\n")
 
 # Prompt ablation. "paper" is whatever chatbot.py ships (the 57-line research-paper
 # prompt on main); "minimal" is the three-line prompt the repo started with; "none"
@@ -97,18 +241,27 @@ PROMPTS = {"paper": None, "minimal": MINIMAL_PROMPT, "none": ""}
 RESULT_EXCERPT = 600
 
 
-def load_questions() -> list[tuple[int, str]]:
+def load_questions() -> list[tuple[str, str]]:
     out = []
     for line in QUESTIONS_MD.read_text(encoding="utf-8").splitlines():
         m = _Q.match(line)
         if m:
             text = m.group(2).replace("*", "")   # markdown italics on species names
-            out.append((int(m.group(1)), text))
+            out.append((m.group(1), text))
+    if not out:
+        print(f"WARNING: no questions parsed from {QUESTIONS_MD}. The heading must read "
+              f'\'## Q1. "the question"\' with straight double quotes.', file=sys.stderr)
     return out
 
 
 def _safe(model: str) -> str:
-    """argo/claudesonnet45 -> argo_claudesonnet45, usable as a directory name."""
+    """argo/claudesonnet45 -> argo_claudesonnet45, usable as a directory name.
+
+    RUN_TAG carries the questions-file stem as well as the prompt and repeat, so a
+    routing run cannot land in the same directory as the base matrix. Before this,
+    running ROUTING.md against a model already in the matrix overwrote q01-q15.jsonl
+    in place, silently -- found by adversary, 17 Sep, before it destroyed anything.
+    """
     return re.sub(r"[^A-Za-z0-9._-]+", "_", model) + RUN_TAG
 
 
@@ -129,7 +282,7 @@ def _text(msg) -> str:
     )
 
 
-async def run_one(agent, model: str, number: int, question: str) -> dict:
+async def run_one(agent, model: str, number: str, question: str) -> dict:
     """Stream the agent exactly the way chatbot.py does, and rebuild the transcript.
 
     Argo's Claude models answer HTTP 500 "Streaming is required for operations
@@ -210,9 +363,16 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
     list_cost_usd = (round(usage["input_tokens"] / 1e6 * price[0]
                            + usage["output_tokens"] / 1e6 * price[1], 4)
                      if price and usage["total_tokens"] else None)
+    if price is None:
+        list_cost_note = f"no list price on file for alias {alias!r} -- not computed"
+    elif not usage["total_tokens"]:
+        list_cost_note = "provider reported no usage -- cost not computed"
+    else:
+        list_cost_note = f"list-price estimate, UNVERIFIED ({PRICE_AS_OF}); Argo billed $0"
 
     record = {
         "question_number": number,
+        "question_id": number,
         "question": question,
         "model": model,
         "elapsed_s": elapsed,
@@ -233,11 +393,20 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
         "model_seconds": round(max(elapsed - tool_seconds, 0.0), 2),
         "tool_timings": tool_timings,
         "list_cost_usd": list_cost_usd,
+        "list_cost_note": list_cost_note,
+        # Stamped per QUESTION, not only per run: the fault we have hit twice is a
+        # tree that changed mid-run, and only a per-question stamp shows q04
+        # carrying a different SHA from q01.
+        "run_id": _RUN_ID[0],
+        "code_sha": _CODE_SHA[0],
+        "questions_file": str(QUESTIONS_MD.relative_to(REPO)),
+        "retries": 0,
+        "attempts_discarded": [],
         "steps": steps,
     }
     out_dir = RUNS / _safe(model)
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"q{number:02d}.jsonl"
+    path = out_dir / f"{str(number).lower()}.jsonl"
     with path.open("w", encoding="utf-8") as f:
         for step in steps:
             f.write(json.dumps(step, ensure_ascii=False) + "\n")
@@ -246,13 +415,17 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
     return record
 
 
-def _error_record(model: str, number: int, question: str, exc: Exception) -> dict:
-    return {"question_number": number, "question": question, "model": model,
+def _error_record(model: str, number: str, question: str, exc: Exception) -> dict:
+    return {"question_number": number, "question_id": number, "question": question, "model": model,
             "elapsed_s": 0, "tools_in_order": [], "tool_call_count": 0, "denied": False,
             "error": f"{type(exc).__name__}: {str(exc)[:200]}", "answer": "", "answer_chars": 0,
             "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "usage_reported": False,
             "ttft_s": None, "llm_round_trips": 0, "tool_result_chars": 0, "list_cost_usd": None,
-            "tool_seconds": 0.0, "model_seconds": 0.0, "tool_timings": []}
+            "tool_seconds": 0.0, "model_seconds": 0.0, "tool_timings": [],
+            "list_cost_note": "run failed before any usage was reported",
+            "run_id": _RUN_ID[0], "code_sha": _CODE_SHA[0],
+            "questions_file": str(QUESTIONS_MD.relative_to(REPO)),
+            "retries": 0, "attempts_discarded": []}
 
 
 def write_scorecard(model: str, records: list[dict]) -> pathlib.Path:
@@ -349,7 +522,12 @@ async def run_model(model: str, questions: list[tuple[int, str]],
     if PROMPTS.get(prompt) is not None:  # "paper" leaves chatbot.SYSTEM_PROMPT alone
         chatbot.SYSTEM_PROMPT = PROMPTS[prompt]
     global RUN_TAG
-    RUN_TAG = (f"-{prompt}" if prompt != "paper" else "") + (f"-r{rep}" if rep else "")
+    # The questions-file stem is part of the tag. Without it a routing run and the
+    # base matrix share a directory and the second silently overwrites the first.
+    stem = QUESTIONS_MD.stem.lower()
+    RUN_TAG = ((f"-{stem}" if stem != "questions" else "")
+               + (f"-{prompt}" if prompt != "paper" else "")
+               + (f"-r{rep}" if rep else ""))
     print(f"\n===== {model} =====\nconnecting to MCP servers ...")
     try:
         agent = await chatbot.init_agent()
@@ -358,10 +536,46 @@ async def run_model(model: str, questions: list[tuple[int, str]],
         return [_error_record(model, n, q, exc) for n, q in questions]
 
     records: list[dict] = []
+    denial_streak = 0
     for n, q in questions:
-        print(f"--- Q{n:02d}: {q[:80]}")
+        print(f"--- {n}: {q[:80]}")
         try:
             rec = await run_one(agent, model, n, q)
+            discarded: list[dict] = []
+            attempts = 0
+            # Retry ONLY the two transport faults. A real error, or a genuine
+            # no-tool answer, stands as measured -- those are results.
+            while True:
+                fault = fault_kind(rec)
+                cap = MAX_EMPTY_RETRIES if fault == "silent_empty" else MAX_DENIAL_RETRIES
+                if fault is None or attempts >= cap:
+                    break
+                attempts += 1
+                # Keep what we are throwing away, or the fault rate disappears
+                # along with the fault.
+                discarded.append({
+                    "attempt": attempts, "fault": fault,
+                    "input_tokens": rec.get("input_tokens", 0),
+                    "output_tokens": rec.get("output_tokens", 0),
+                    "elapsed_s": rec.get("elapsed_s", 0),
+                    "answer_chars": rec.get("answer_chars", 0),
+                })
+                detail = (f"0 output tokens, no error, {rec.get('input_tokens', 0):,} "
+                          f"input tokens billed" if fault == "silent_empty"
+                          else "Argo returned ACCESS DENIED as content (intermittent)")
+                print(f"    {fault.upper()} ({detail}) -- retry {attempts}/{cap}")
+                await asyncio.sleep(2.0 * attempts)
+                rec = await run_one(agent, model, n, q)
+            rec["retries"] = attempts
+            rec["attempts_discarded"] = discarded
+            if attempts and is_silent_empty(rec):
+                # Still empty after retries, so now it IS a finding. Say so in the
+                # record; a blank answer must never be left to speak for itself.
+                rec["error"] = (f"silent empty after {attempts} retries: provider "
+                                f"returned 0 output tokens, no error, no denial")
+                print(f"    still empty after {attempts} retries -- recorded as an error")
+            elif attempts and not fault_kind(rec):
+                print(f"    recovered on retry {attempts}")
         except Exception as exc:  # one bad question must not lose the run
             print(f"    FAILED: {type(exc).__name__}: {str(exc)[:160]}")
             records.append(_error_record(model, n, q, exc))
@@ -369,12 +583,16 @@ async def run_model(model: str, questions: list[tuple[int, str]],
         records.append(rec)
         print(f"    {rec['tool_call_count']} tool call(s) in {rec['elapsed_s']}s: "
               + (" -> ".join(rec["tools_in_order"]) or "none"))
-        if rec["denied"]:
-            print("    Argo answered ACCESS DENIED with no error -- this username is not "
-                  "authorised or the machine is off the Argonne network. Skipping the "
-                  "rest of this model.")
+
+        # One denial costs one question. Only a streak means the model is really
+        # shut, and only then is it right to stop spending on it.
+        denial_streak = denial_streak + 1 if rec.get("denied") else 0
+        if denial_streak >= DENIAL_STREAK_TO_ABANDON:
+            print(f"    {denial_streak} denials in a row after retry -- treating this "
+                  f"model as unavailable and skipping its remaining questions.")
             for n2, q2 in questions[len(records):]:
-                records.append({**_error_record(model, n2, q2, RuntimeError("skipped after denial")),
+                records.append({**_error_record(model, n2, q2,
+                                                RuntimeError("skipped after denial streak")),
                                 "denied": True, "error": None})
             break
     path = write_scorecard(model, records)
@@ -384,7 +602,8 @@ async def run_model(model: str, questions: list[tuple[int, str]],
 
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--only", type=int, nargs="*", help="question numbers to run")
+    ap.add_argument("--only", nargs="*",
+                    help="question ids to run, e.g. --only 3 7 or --only R1 R2")
     ap.add_argument("--model", nargs="*",
                     help="one or more LLM_MODEL values, e.g. argo/gpt4o argo/claudesonnet45; "
                          "default is LLM_MODEL from .env")
@@ -392,21 +611,46 @@ async def main() -> int:
                     help="system-prompt variants to run: paper (as shipped), minimal, none")
     ap.add_argument("--repeat", type=int, default=1,
                     help="run each model/prompt N times to measure tool-selection variance")
+    ap.add_argument("--questions", default=None,
+                    help="question file to run, relative to evals/ or an absolute path "
+                         "(default QUESTIONS.md). Its stem is added to the output "
+                         "directory name, so sets cannot overwrite each other.")
+    ap.add_argument("--note", default="",
+                    help="what this run is testing; recorded in evals/RUNS.md")
     ap.add_argument("--dry-run", action="store_true", help="list questions and exit")
     args = ap.parse_args()
 
+    if args.questions:
+        global QUESTIONS_MD
+        cand = pathlib.Path(args.questions)
+        QUESTIONS_MD = cand if cand.is_absolute() else (REPO / "evals" / cand)
+        if not QUESTIONS_MD.exists():
+            print(f"no such questions file: {QUESTIONS_MD}", file=sys.stderr)
+            return 2
     questions = load_questions()
     if args.only:
-        questions = [q for q in questions if q[0] in set(args.only)]
+        want = {str(o).upper() for o in args.only}
+        questions = [q for q in questions
+                     if q[0].upper() in want or q[0].lstrip("A-Z").lstrip("QRSE") in want
+                     or re.sub(r"^[A-Z]+", "", q[0]) in want]
     if not questions:
         print("no questions matched", file=sys.stderr)
         return 2
     models = args.model or [chatbot.LLM_MODEL]
-    print(f"{len(questions)} question(s) x {len(models)} model(s): {', '.join(models)}")
+    print(f"{len(questions)} question(s) from {QUESTIONS_MD.name} x "
+          f"{len(models)} model(s): {', '.join(models)}")
     for n, q in questions:
-        print(f"  Q{n:02d}  {q[:88]}")
+        print(f"  {n:<4} {q[:88]}")
     if args.dry_run:
         return 0
+
+    cond = run_conditions(args, models, questions)
+    _RUN_ID[0] = cond["run_id"]
+    _CODE_SHA[0] = cond["git_sha"] + ("-dirty" if cond["git_dirty"] else "")
+    print(f"run id {cond['run_id']}"
+          + ("   [TREE DIRTY -- uncommitted changes]" if cond["git_dirty"] else ""))
+    if not PRICES_VERIFIED:
+        print("   list prices are UNVERIFIED; tokens are measured, dollars are not")
 
     by_model: dict[str, list[dict]] = {}
     for model in models:
@@ -416,9 +660,16 @@ async def main() -> int:
                         ("" if args.repeat == 1 else f" #{rep + 1}")
                 by_model[label] = await run_model(model, questions, prompt=prompt, rep=rep)
 
+    for label in by_model:
+        d = RUNS / _safe(label.split(" ")[0])
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "run-manifest.json").write_text(
+            json.dumps({**cond, "label": label}, indent=2), encoding="utf-8")
+    append_registry(cond, by_model)
     if args.model:
         write_comparison(by_model, questions)
         print(f"\nwrote {COMPARISON.relative_to(REPO)}")
+    print(f"registered in {REGISTRY.relative_to(REPO)} as {cond['run_id']}")
     return 0
 
 

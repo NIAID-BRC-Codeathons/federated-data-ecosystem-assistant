@@ -363,6 +363,8 @@ async def init_agent():
             "No MCP server answered. Start them with run_mcp_servers.py, or trim "
             "MCP_SERVERS to the ones you are running."
         )
+    llm = load_chat_model(LLM_MODEL)
+    return create_agent(model=llm, tools=tools, system_prompt=SYSTEM_PROMPT)
 
 
 @cl.on_chat_start
