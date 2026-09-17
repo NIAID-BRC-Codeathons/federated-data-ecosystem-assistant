@@ -3,8 +3,7 @@
 A remote MCP server exposing two NCBI services as 17 tools: E-utilities (SRA
 sequencing runs, BioSample, BioProject, Taxonomy, Gene, Assembly and sequence
 databases) and the Pathogen Detection Isolates Browser, a curated index of
-bacterial isolates with computed antimicrobial-resistance genotypes. PubMed is
-not among them: the standalone pubmed server covers it.
+bacterial isolates with computed antimicrobial-resistance genotypes.
 
 Run over HTTP:  python mcp_servers/ncbi.py
 Run over stdio: python mcp_servers/ncbi.py --stdio
