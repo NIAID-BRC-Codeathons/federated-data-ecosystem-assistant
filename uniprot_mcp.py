@@ -4,8 +4,12 @@ A remote MCP server exposing tools over UniProt:
 protein sequences, function, disease annotation
 """
 
+import json
+import re
+
 import requests
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 
 mcp = FastMCP(
     name="Uniprot MCP",
@@ -19,6 +23,28 @@ mcp = FastMCP(
 
 UNIPROT_API  = "https://rest.uniprot.org"
 HEADERS = {"Accept": "application/json"}
+
+MAX_ACCESSIONS = 25
+MAX_RESPONSE_CHARS = 60000
+
+# The official UniProt accession pattern, plus an optional isoform suffix.
+# uniprot_get_protein_info builds one query from every accession it receives,
+# and UniProt rejects the whole query when one accession is malformed. So check
+# each accession here and report it, rather than lose the call to a single typo.
+ACCESSION_RE = re.compile(
+    r"^(?:[OPQ][0-9][A-Z0-9]{3}[0-9]"
+    r"|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})"
+    r"(?:-[0-9]+)?$"
+)
+
+# Every tool below names the fields it needs. UniProt returns the whole entry
+# otherwise: 875 KB for TP53, against 4.6 KB for the summary fields.
+SUMMARY_FIELDS = (
+    "accession,protein_name,gene_names,organism_name,length,reviewed,cc_function"
+)
+ENTRY_FIELDS = (
+    SUMMARY_FIELDS + ",cc_disease,cc_subcellular_location,cc_ptm,go"
+)
 
 # UNIPROT TOOLS
 
@@ -108,7 +134,7 @@ def uniprot_get_entry(accession: str) -> dict:
     """
     resp = requests.get(
         f"{UNIPROT_API}/uniprotkb/{accession}",
-        params={"format": "json"},
+        params={"format": "json", "fields": ENTRY_FIELDS},
         headers=HEADERS,
         timeout=20,
     )
@@ -173,6 +199,184 @@ def uniprot_get_entry(accession: str) -> dict:
         "ptm_processing": get_comment("PTM"),
         "go_terms": go_terms[:10],
     }
+
+
+def _clean_accession(value: str) -> str:
+    """Normalize an accession. The caller matches it against ACCESSION_RE."""
+    return value.strip().upper()
+
+
+def _summarize(entry: dict, include_sequence: bool) -> dict:
+    """Reduce a UniProt entry to the summary fields."""
+    genes = entry.get("genes") or [{}]
+    # An entry can carry several FUNCTION comments. A viral polyprotein such as
+    # the SARS-CoV-2 spike (P0DTC2) carries three, one per chain. Keep them all.
+    functions = [
+        text.get("value", "")
+        for comment in entry.get("comments", [])
+        if comment.get("commentType") == "FUNCTION"
+        for text in comment.get("texts", [])
+    ]
+    sequence = entry.get("sequence", {})
+    summary = {
+        "accession": entry.get("primaryAccession"),
+        "gene": genes[0].get("geneName", {}).get("value", "N/A"),
+        "protein_name": (
+            entry.get("proteinDescription", {})
+                 .get("recommendedName", {})
+                 .get("fullName", {})
+                 .get("value", "N/A")
+        ),
+        "organism": entry.get("organism", {}).get("scientificName", "N/A"),
+        "length_aa": sequence.get("length"),
+        "reviewed": entry.get("entryType") == "UniProtKB reviewed (Swiss-Prot)",
+        "function": functions,
+    }
+    if include_sequence:
+        summary["sequence"] = sequence.get("value", "")
+    return summary
+
+
+def _fetch_one(accession: str, fields: str) -> dict | None:
+    """Fetch one entry by accession. Returns None when UniProt holds no entry."""
+    resp = requests.get(
+        f"{UNIPROT_API}/uniprotkb/{accession}",
+        params={"format": "json", "fields": fields},
+        headers=HEADERS,
+        timeout=20,
+    )
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _fetch_many(accessions: list[str], fields: str) -> dict[str, dict]:
+    """Fetch canonical entries with one search request, indexed by accession."""
+    resp = requests.get(
+        f"{UNIPROT_API}/uniprotkb/search",
+        params={
+            "query": " OR ".join(f"accession:{a}" for a in accessions),
+            "format": "json",
+            "fields": fields,
+            "size": str(len(accessions)),
+        },
+        headers=HEADERS,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return {e.get("primaryAccession"): e for e in resp.json().get("results", [])}
+
+
+@mcp.tool()
+def uniprot_get_protein_info(
+    accessions: list[str],
+    include_sequence: bool = False,
+) -> dict:
+    """Fetch the name, the organism, and the function of up to 25 proteins.
+
+    This tool returns a summary, and it takes one accession or many. It sends
+    one request to UniProt for the whole list, so prefer one call with many
+    accessions over many calls with one. The response is about half the size of
+    the uniprot_get_entry response.
+
+    Use this tool when you need the identity and the function of a protein. Use
+    uniprot_get_entry when you need diseases, subcellular locations, PTMs, or
+    GO terms, and accept that it covers one protein per call.
+
+    Args:
+        accessions: UniProt accessions, at most 25. Pass a list even for one
+            protein. The tool drops a duplicate and keeps the first copy.
+            An isoform accession such as "P04637-2" works, and costs one extra
+            request, because UniProt indexes no isoform in its search.
+        include_sequence: Add the amino acid sequence to every result.
+            The default is False. Sequences dominate the response size, so
+            leave this off unless you need the residues. Titin (Q8WZ42) alone
+            adds 34,350 characters.
+
+    Returns:
+        Dict with "results" in the order you asked for. Each result holds the
+        accession, the gene, the protein name, the organism, the length, the
+        review status, and the function texts. Reports "invalid" for an
+        accession with the wrong shape, and "not_found" for one that UniProt
+        does not hold. Reports "truncated" when the response hits the size
+        budget, and "note" when the list was cut to 25.
+
+    Example questions:
+        "What does P04637 do?"
+        "Summarize P04637, P38398, and P01308"
+    """
+    if not accessions:
+        raise ToolError(
+            "Pass at least one accession. To find one from a gene name, call "
+            "uniprot_search first."
+        )
+
+    # Keep the caller's order, drop duplicates, then split off the malformed.
+    # UniProt rejects a whole search query when one accession is malformed, so
+    # a typo must never reach the request.
+    seen: dict[str, None] = {}
+    invalid: list[str] = []
+    for raw in accessions:
+        cleaned = _clean_accession(raw)
+        if not ACCESSION_RE.match(cleaned):
+            if cleaned not in invalid:
+                invalid.append(cleaned)
+            continue
+        seen.setdefault(cleaned, None)
+
+    wanted = list(seen)
+    note = None
+    if len(wanted) > MAX_ACCESSIONS:
+        note = (
+            f"The list held {len(wanted)} accessions, so it was cut to the first "
+            f"{MAX_ACCESSIONS}. Call the tool again for the rest."
+        )
+        wanted = wanted[:MAX_ACCESSIONS]
+
+    payload: dict = {"requested": len(wanted), "results": []}
+    if wanted:
+        fields = SUMMARY_FIELDS + (",sequence" if include_sequence else "")
+        # The search endpoint carries the canonical accessions in one request.
+        # It indexes no isoform, so each isoform needs the entry endpoint.
+        canonical = [a for a in wanted if "-" not in a]
+        isoforms = [a for a in wanted if "-" in a]
+        found: dict[str, dict] = {}
+        if canonical:
+            found.update(_fetch_many(canonical, fields))
+        for isoform in isoforms:
+            entry = _fetch_one(isoform, fields)
+            if entry is not None:
+                found[isoform] = entry
+        # UniProt returns the matches in its own order, so rebuild the order
+        # the caller asked for.
+        payload["results"] = [
+            _summarize(found[a], include_sequence) for a in wanted if a in found
+        ]
+        not_found = [a for a in wanted if a not in found]
+        if not_found:
+            payload["not_found"] = not_found
+
+    if invalid:
+        payload["invalid"] = invalid
+    if note:
+        payload["note"] = note
+
+    # Drop results off the end until the whole payload fits the budget, so the
+    # caller never receives more characters than the budget allows.
+    total = len(payload["results"])
+    kept = total
+    while kept > 1 and len(json.dumps(payload, default=str)) > MAX_RESPONSE_CHARS:
+        kept -= max(1, kept // 10)
+        payload["results"] = payload["results"][:kept]
+    if kept < total:
+        payload["truncated"] = (
+            f"The response passed {MAX_RESPONSE_CHARS} characters, so it carries "
+            f"{kept} of {total} results. Ask for fewer accessions, or set "
+            f"include_sequence to False."
+        )
+    payload["returned"] = len(payload["results"])
+    return payload
 
 
 @mcp.tool()
