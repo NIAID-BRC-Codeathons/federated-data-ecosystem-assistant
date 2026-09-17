@@ -22,7 +22,7 @@ That is a falsifiable claim, so `run_eval.py` tries to falsify it.
 uv run evals/run_eval.py --markdown evals/REPORT.md
 ```
 
-Eight cases, each run twice against the live services:
+Ten cases, each run twice against the live services:
 
 - **baseline** — the obvious call, written from the API docs, with no guards
 - **tool** — our MCP tool
@@ -35,13 +35,15 @@ are reported too, and honestly: those are convenience, not correctness.
 
 | | correct |
 |---|---|
-| baseline (raw API, written from the docs) | **0/8** |
-| our MCP tools | **8/8** |
+| baseline (raw API, written from the docs) | **0/10** |
+| our MCP tools | **10/10** |
 
 Full detail, with the real output of every call, is in [`REPORT.md`](REPORT.md).
 
-None of those eight baseline failures is an outage or a malformed request. Every one
-returns HTTP 200:
+Seven of the ten baseline failures return **HTTP 200 with a plausible wrong answer**,
+which is the case worth wrapping. The other three fail differently and are listed as such:
+one is an HTTP 500 upstream, one returns a page size that reads as a total, and one has no
+baseline call at all because without the counts the only option is to decline.
 
 | the obvious call | what it returns | what is true |
 |---|---|---|
@@ -53,6 +55,8 @@ returns HTTP 200:
 | BRC `search_ena_keywords` | an ENA 400, returned as tool *text* | quoting the value returns 200 |
 | BRC `search_ena` | `50`, `has_more: true` | 551,679 runs exist |
 | BRC `/api/v1/ena/study/{acc}` | HTTP 500 | 369 runs across 13 organisms |
+| Pathogen Detection `taxgroup_name=="Escherichia coli"` | `0` | the curated group is `"E.coli and Shigella"`, and it holds 581,464 |
+| "how many methicillin-resistant E. coli" | nothing to say but "I don't know" | `mecA` = **2** of 581,464, vs 93,260 of 171,412 in *S. aureus* |
 
 A model given only the API documentation writes the left column. That is the baseline
 this project is worth measuring against.
@@ -85,6 +89,6 @@ answered. Six need more than one server; three cannot be answered at all, and sa
 - **These numbers move.** They are live counts from live services; BRC's workflow
   catalogue changed between 16 and 17 Sep while this was being built. Re-run the harness
   before quoting any figure.
-- **Eight cases is not coverage.** It is the eight traps that were measured. Offline
+- **Ten cases is not coverage.** It is the ten traps that were measured. Offline
   regression tests live in `tests/test_geo_tools.py` (52) and
   `tests/test_brc_analytics_tools.py` (26).

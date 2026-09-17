@@ -12,8 +12,11 @@ Both are scored against a verified ground truth.
 | our MCP tools | **10/10** |
 | cases where the tool fixes a wrong answer | **10/10** |
 
-The failures below are not API outages. Every one returns HTTP 200 with a
-plausible-looking answer, which is what makes them worth wrapping.
+Most of the failures below are not API outages: they return HTTP 200 with a
+plausible-looking answer, which is what makes them worth wrapping. A few fail
+in other ways -- an upstream 500, a page size that reads as a total, and one
+case with no baseline call at all, because without the counts the only option
+is to decline. Each row says which.
 
 ## Fetch the curated DataSet GDS5163
 

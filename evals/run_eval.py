@@ -453,8 +453,11 @@ def write_markdown(path: pathlib.Path, rows, bp, tp, va) -> None:
          f"| baseline (raw API, written from the docs) | **{bp}/{n}** |",
          f"| our MCP tools | **{tp}/{n}** |",
          f"| cases where the tool fixes a wrong answer | **{va}/{n}** |", "",
-         "The failures below are not API outages. Every one returns HTTP 200 with a",
-         "plausible-looking answer, which is what makes them worth wrapping.", ""]
+         "Most of the failures below are not API outages: they return HTTP 200 with a",
+         "plausible-looking answer, which is what makes them worth wrapping. A few fail",
+         "in other ways -- an upstream 500, a page size that reads as a total, and one",
+         "case with no baseline call at all, because without the counts the only option",
+         "is to decline. Each row says which.", ""]
     for r in rows:
         mark = "fixes a silent wrong answer" if r["value_added"] else "both correct"
         L += [f"## {r['question']}", "",

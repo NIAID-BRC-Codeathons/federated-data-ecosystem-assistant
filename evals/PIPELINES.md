@@ -138,7 +138,7 @@ and what inputs does it need?"*
 
 ## P6 · Literature — "what is the latest in AMR for X?"
 
-**Chain:** `pubmed_search_articles` → `pubmed_fetch_abstracts` → link out to the data.
+**Chain:** `pubmed_search_articles` → `pubmed_get_article` → link out to the data.
 
 **Verification question:** *"What is the latest on ciprofloxacin resistance in E. coli?"*
 
@@ -156,7 +156,7 @@ observation, not a suite. Its owner should set the rest.
 
 ## P7 · Protein & structure — "what does this protein do?"
 
-**Chain:** `mygene_query` → `uniprot_get_entry` → STRING interactions.
+**Chain:** `mygene_search_genes` → `uniprot_search` → `uniprot_get_entry`.
 
 **Verification question:** *"What does E. coli GyrA do, and where are the
 fluoroquinolone-resistance mutations?"*
