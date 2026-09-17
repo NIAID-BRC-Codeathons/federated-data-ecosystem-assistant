@@ -602,7 +602,38 @@ Four checks beyond the demo set:
 4. **`control_refusal`** — a refusal on S18, S19 or S20 is a scored failure. Without this, refusal
    rate has no denominator.
 
-`judge.py` is Judge's file. I am sending these rows over rather than editing it.
+5. **The rule behind all four: score the label, not the number.** Every check above fails the same
+   way if it is built on presence. I tested this rather than asserting it — I ran a naive
+   presence scan over the two complete models and then checked each flag it raised against the
+   transcript and against `judge.py`'s actual logic. Three of the four candidates were my scan
+   being naive, and one was real.
+
+   | candidate | verdict |
+   |---|---|
+   | Q4's pinned 17 workflows absent from both models | **my error.** The catalogue moved to 14 and `judge.py` already has a `moved` state for it, gated on `spec["value"] not in t.evidence` so a model that was *shown* the figure and dropped it is still marked. Better than what I would have specified. |
+   | Q2, Q6, Q9 emit the decoy beside the correct value | **my error.** `argo/claudeopus5` Q6 writes "the service's own `totalCount` double-indexes each isolate and was not used ... 150,926 index rows against 75,487 isolates" 🗂 — that is the *model answer* to a unit trap. `judge.py:683` already checks the pinned value first for exactly this reason, with the negative control written into the comment. |
+   | Q13's decoy 94,336 | **real, and the ordering fix does not reach it.** |
+
+   The Q13 case is the one worth building the rule on. `argo/claudeopus5` defined methicillin
+   resistance as the *mec* family, reported the two E. coli mec calls, got the pinned proof number
+   **2** and the pinned denominator **581,464**, and then gave a comparator: "94,336 of 171,412
+   *Staphylococcus aureus* isolates (55.03%) carry *mecA* **or** *mecC*" 🗂 — labelled precisely,
+   and consistent with the definition it had just stated. `judge.py` pins 93,260 (*mecA* alone)
+   with 94,336 as a decoy, so the row scores `wrong` and, because one `wrong` row sets the
+   question, **the whole question scores `wrong`.** I confirmed this by running `judge.py`'s own
+   hit-before-decoy ordering over the transcript 🗂; the ordering rule cannot help here, because
+   it only fires when the pinned figure is *also* present, and this answer had no reason to state
+   93,260 at all.
+
+   Neither comparator is more correct than the other. What separates a right answer from a wrong
+   one is that the model said which one it was using, and why. So the check must read the words
+   next to the figure: **a number carrying its own correct unit is a hit even when it is not the
+   pinned number, and the pinned number without a unit is not.** That is the same sentence S14
+   ends on, applied one layer up — the scoring layer can launder a unit error exactly the way a
+   ground-truth file can.
+
+`judge.py` is Judge's file. I am sending these rows over rather than editing it, and the Q13 case
+went over as a defect report with the simulation, not as a patch.
 
 ## Running these
 
