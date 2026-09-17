@@ -17,8 +17,16 @@ import xml.etree.ElementTree as ET
 from typing import Any, Literal
 
 import requests
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
+
+# Unlike chatbot.py, this server is launched standalone (uv run
+# mcp_servers/pubmed.py), which does not read a .env file on its own --
+# that auto-load is chainlit's behavior, specific to `chainlit run`, not
+# uv run's. This makes NCBI_API_KEY and NCBI_EMAIL work the same way here
+# regardless of how the server is started.
+load_dotenv()
 
 mcp = FastMCP(
     name="PubMed MCP",
