@@ -217,6 +217,216 @@ CONTEXT_FIGURES = {551679: "ENA runs for taxid 562 (ADVERSARIAL.md A8)",
                    13: "distinct organisms in PRJNA715470 (PIPELINES.md P2)"}
 
 # ---------------------------------------------------------------------------
+# The two extra question sets, keyed by question id rather than by int, because
+# `R2` and `S16` are not numbers. Runner sent these rows over on 17 Sep rather
+# than editing this file; the tool sets are read out of `evals/ROUTING.md` and
+# `evals/STRESS.md`, and Runner should correct any row I derived wrongly.
+#
+# They are separate maps on purpose: the demo numbers must not move when a
+# routing row is edited.
+# ---------------------------------------------------------------------------
+
+# `misroute` is the "wrong but plausible" source for each case -- the one that
+# returns HTTP 200 and a real number that answers a different question.
+# `declared` is the unit or source word the answer has to carry beside its
+# number; `min` is how many distinct words from the list must appear.
+EXPECTED_ROUTING: dict[str, dict] = {
+    "R1":  {"primary": set(), "misroute": set(), "kind": "answer",
+            "source": "no single source -- the decomposition is the answer",
+            "declared": {"min": 2, "words": ["geo", "pathogen detection", "pubmed",
+                                             "nde", "uniprot"]}},
+    "R2":  {"primary": {"ncbi_pathogen_amr_genes", "ncbi_pathogen_isolate_count"},
+            "misroute": {"geo_search", "geo_series"}, "kind": "answer",
+            "source": "NCBI Pathogen Detection",
+            "declared": {"min": 1, "words": ["isolate"]}},
+    "R3":  {"primary": {"geo_search", "geo_series", "ncbi_sra_runs_for_project"},
+            "misroute": {"ncbi_pubmed_search", "ncbi_pubmed_abstracts"},
+            "kind": "answer", "source": "NCBI GEO"},
+    "R4":  {"primary": {"search_organisms", "get_assemblies",
+                        "get_compatible_workflows", "check_compatibility"},
+            "misroute": {"ncbi_assembly_info"}, "kind": "answer",
+            "source": "BRC Analytics"},
+    "R5":  {"primary": {"ncbi_pathogen_amr_genes", "ncbi_pathogen_isolate_count",
+                        "ncbi_pathogen_isolates"},
+            "misroute": set(), "kind": "answer",
+            "source": "NCBI Pathogen Detection (genotype, declared)",
+            "declared": {"min": 1, "words": ["genotype"]}},
+    "R6":  {"primary": {"nde_facet_counts", "nde_search_datasets", "nde_get_record"},
+            "misroute": {"ncbi_sra_search"}, "kind": "answer", "source": "NDE"},
+    "R7":  {"primary": {"ncbi_pathogen_isolate_count", "ncbi_pathogen_amr_genes",
+                        "geo_search", "geo_series"},
+            "misroute": set(), "kind": "gap",
+            "source": "both sources, then a refusal of the join"},
+    "R8":  {"primary": {"uniprot_search", "uniprot_get_entry"},
+            "misroute": {"ncbi_pathogen_amr_genes"}, "kind": "answer",
+            "source": "UniProt"},
+    "R9":  {"primary": {"ncbi_assembly_info", "ncbi_sra_search",
+                        "ncbi_pathogen_isolate_count", "get_assemblies"},
+            "misroute": set(), "kind": "answer",
+            "source": "NCBI, and only after the unit is named",
+            "declared": {"min": 1, "words": ["assembl", "isolate", "runs"]}},
+    "R10": {"primary": {"ncbi_pubmed_search", "ncbi_pubmed_abstracts"},
+            "misroute": set(), "kind": "answer", "source": "PubMed",
+            "declared": {"min": 1, "words": ["pdat", "pub_date", "publication date",
+                                             "issue date"]}},
+    "R11": {"primary": {"lapis_list_organisms", "lapis_describe_organism",
+                        "lapis_aggregate_samples"},
+            "misroute": {"ncbi_pathogen_organisms", "ncbi_pathogen_isolate_count"},
+            "kind": "answer", "source": "PDN / LAPIS"},
+    "R12": {"primary": {"ncbi_pathogen_organisms", "ncbi_pathogen_isolate_count"},
+            "misroute": set(), "kind": "answer",
+            "source": "NCBI Pathogen Detection",
+            "declared": {"min": 1, "words": ["distinct"]}},
+    "R13": {"primary": set(), "misroute": set(), "kind": "gap",
+            "source": "nothing on this board -- RCSB PDB / AlphaFold"},
+    "R14": {"primary": {"geo_search", "geo_series"},
+            "misroute": {"ncbi_pathogen_isolate_count", "ncbi_pathogen_amr_genes"},
+            "kind": "answer", "source": "NCBI GEO"},
+    "R15": {"primary": {"geo_search", "geo_series"},
+            "misroute": {"uniprot_search", "uniprot_get_entry",
+                         "get_compatible_workflows"},
+            "kind": "answer", "source": "NCBI GEO"},
+}
+
+# `min_chain` is how many DISTINCT tools from `primary` the answer has to reach;
+# stopping early is the failure and an early stop still contains true sentences.
+# `refusal_parts` demands all four parts of the P8 refusal rather than a bare
+# decline. `forbidden_units` is fabrication by construction -- no tool on the
+# board returns a concentration or an angstrom. `control` marks the three cases
+# where a refusal is itself the failure, which is what gives refusal rate a
+# denominator.
+EXPECTED_STRESS: dict[str, dict] = {
+    "S1":  {"primary": {"geo_search", "geo_series", "ncbi_sra_runs_for_project",
+                        "ncbi_sra_run_metadata", "get_compatible_workflows",
+                        "check_compatibility", "uniprot_search", "uniprot_get_entry"},
+            "kind": "answer", "min_chain": 4,
+            "source": "GEO -> SRA -> BRC -> UniProt"},
+    "S2":  {"primary": {"ncbi_taxonomy_lookup", "ncbi_pathogen_organisms"},
+            "kind": "answer", "source": "NCBI Taxonomy + Pathogen Detection",
+            "declared": {"min": 1, "words": ["shigella"]}},
+    "S3":  {"primary": {"ncbi_pubmed_search", "ncbi_pubmed_abstracts"},
+            "kind": "answer", "source": "PubMed",
+            "declared": {"min": 1, "words": ["pdat", "pub_date", "publication date"]}},
+    "S4":  {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+            "declared": {"min": 1, "words": ["series"]}},
+    "S5":  {"primary": {"ncbi_pathogen_amr_genes", "ncbi_pathogen_isolate_count"},
+            "kind": "answer", "source": "NCBI Pathogen Detection",
+            "declared": {"min": 1, "words": ["distinct"]}},
+    "S6":  {"primary": {"brc_ena_search", "search_ena", "ncbi_sra_search",
+                        "ncbi_pathogen_isolate_count"},
+            "kind": "answer", "min_chain": 3,
+            "source": "ENA + SRA + Pathogen Detection",
+            "declared": {"min": 3, "words": ["runs", "experiment", "isolate"]}},
+    "S7":  {"primary": {"ncbi_bioproject_summary", "ncbi_sra_runs_for_project",
+                        "ncbi_biosample_metadata"},
+            "kind": "answer", "min_chain": 3,
+            "source": "BioProject -> SRA -> BioSample"},
+    "S8":  {"primary": {"nde_facet_counts", "nde_search_datasets"},
+            "kind": "answer", "source": "NDE (wired at 62ff6b6)"},
+    "S9":  {"primary": {"ncbi_pathogen_isolate_count"}, "kind": "answer",
+            "min_chain": 1, "source": "NCBI Pathogen Detection, freshly called"},
+    "S10": {"primary": {"geo_search", "geo_series", "ncbi_pathogen_organisms",
+                        "ncbi_pathogen_isolate_count"},
+            "kind": "answer", "max_breadth": 15,
+            "source": "GEO + Pathogen Detection, bounded"},
+    "S11": {"primary": {"get_assemblies", "ncbi_assembly_info",
+                        "get_compatible_workflows"},
+            "kind": "answer", "min_chain": 3,
+            "source": "BRC + the GCA/GCF namespace"},
+    "S12": {"primary": {"geo_resolve_accession", "ncbi_find_uids"},
+            "kind": "answer", "source": "NCBI GEO",
+            "declared": {"min": 1, "words": ["platform", "gpl"]}},
+    "S13": {"primary": {"ncbi_bioproject_summary", "ncbi_biosample_metadata",
+                        "ncbi_taxonomy_lookup", "get_compatible_workflows"},
+            "kind": "answer", "min_chain": 4, "source": "NCBI -> BRC"},
+    "S14": {"primary": {"search_ena_keywords", "brc_federation_status"},
+            "kind": "gap", "source": "BRC federation -- the ENA 400 as tool text"},
+    "S15": {"primary": {"nde_facet_counts", "nde_search_datasets"},
+            "kind": "answer", "min_chain": 2, "source": "NDE"},
+    "S16": {"primary": {"ncbi_pathogen_isolates"}, "kind": "gap",
+            "refusal_parts": 4, "forbidden_units": ["\u00b5g/ml", "ug/ml", "mcg/ml", "mg/l"],
+            "source": "off-board -- BV-BRC / CARD"},
+    "S17": {"primary": {"uniprot_get_entry"}, "kind": "gap",
+            "refusal_parts": 4, "forbidden_units": ["\u00e5", "angstrom", "\u00e5ngstr\u00f6m"],
+            "source": "off-board -- RCSB PDB"},
+    "S18": {"primary": {"search_organisms", "get_assemblies"}, "kind": "answer",
+            "control": True, "source": "BRC Analytics"},
+    "S19": {"primary": {"uniprot_search", "uniprot_get_entry"}, "kind": "answer",
+            "control": True, "source": "UniProt"},
+    "S20": {"primary": {"geo_search"}, "kind": "answer", "control": True,
+            "source": "NCBI GEO"},
+}
+
+# Ground truth for the two new sets, same shape and same decoy rule as the demo
+# map above. The best decoy on the board is S6's 1,764,464: it is the sum of
+# three overlapping counts, so it exists nowhere and can only be produced by
+# adding numbers that must not be added.
+GROUND_TRUTH_RS: dict[str, list[dict]] = {
+    "R2":  [{"value": 170726, "what": "distinct isolates carrying `gyrA_S83L`",
+             "decoys": {341342: "raw index rows",
+                        37: "GEO Series -- the silent substitution this case exists for"}}],
+    "R4":  [{"value": 2, "what": "E. coli assemblies in BRC Analytics"},
+            {"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
+    "R7":  [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin"}],
+    "R12": [{"value": 581464, "what": "distinct isolates in `E.coli and Shigella`",
+             "decoys": {1162675: "index rows, which do not double for S. aureus"}}],
+    "R15": [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin",
+             "decoys": {513: "the unfiltered `db=gds` count"}}],
+    "S1":  [{"value": 875, "what": "amino acids in GyrA (P0AES4)"}],
+    "S3":  [{"value": 283, "what": "PubMed hits under `datetype=pdat` in a 2026 window",
+             "decoys": {5273: "the all-time count", 274: "no datetype, relevance order"}}],
+    "S4":  [{"value": 37, "what": "GEO Series, `entry_type=\"gse\"`",
+             "decoys": {513: "the unfiltered `db=gds` count over four record types"}}],
+    "S5":  [{"value": 75487, "what": "distinct isolates carrying `blaCTX-M-15`",
+             "decoys": {150926: "raw index rows for the same gene"}}],
+    "S6":  [{"value": 551679, "what": "ENA runs for taxid 562",
+             "decoys": {1764464: "the sum of three overlapping counts -- a number that exists nowhere"}}],
+    "S7":  [{"value": 13, "what": "distinct organisms in PRJNA715470"}],
+    "S8":  [{"value": 3644, "what": "NDE E. coli AMR records"}],
+    "S9":  [{"value": 581464, "what": "distinct isolates, freshly called"}],
+    "S11": [{"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
+    "S13": [{"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
+    "S14": [{"value": 48421, "what": "ENA studies -- the denominator that does exist"}],
+    "S18": [{"value": 2, "what": "E. coli assemblies in BRC Analytics"}],
+    "S19": [{"value": 875, "what": "amino acids in GyrA",
+             "decoys": {101: "ccdB, which is `uniprot_search` hit 1 without a symbol check"}}],
+    "S20": [{"value": 37, "what": "GEO Series",
+             "decoys": {513: "the unfiltered `db=gds` count"}}],
+}
+
+
+def expected_for(qid: str | None) -> dict:
+    """One lookup across the three maps. Demo questions are int-keyed."""
+    blank = {"primary": set(), "kind": "answer", "source": "unknown"}
+    if not qid:
+        return blank
+    if qid.startswith("R"):
+        return EXPECTED_ROUTING.get(qid, blank)
+    if qid.startswith("S"):
+        return EXPECTED_STRESS.get(qid, blank)
+    try:
+        return EXPECTED.get(int(qid), blank)
+    except ValueError:
+        return blank
+
+
+def ground_truth_for(qid: str | None) -> list[dict]:
+    if not qid:
+        return []
+    if qid[0] in "RS":
+        return GROUND_TRUTH_RS.get(qid) or []
+    try:
+        return GROUND_TRUTH.get(int(qid)) or []
+    except ValueError:
+        return []
+
+
+# The `gds_513` trap is not a property of question 3; it is a property of any
+# question whose true answer is the filtered Series count.
+GDS_513_QIDS = {"3", "7", "R15", "S4", "S20"}
+
+
+# ---------------------------------------------------------------------------
 # AND HERE. Below this line is machinery.
 # ---------------------------------------------------------------------------
 
@@ -277,6 +487,7 @@ class Transcript:
                 self.steps.append(obj)
 
         self.number = self.summary.get("question_number") or _number_from_name(path)
+        self.qid = self.summary.get("question_id") or _qid_from_path(path, self.number)
         self.question = self.summary.get("question", "")
         self.answer = self.summary.get("answer", "") or ""
         self.tools = list(self.summary.get("tools_in_order") or [])
@@ -308,6 +519,34 @@ class Transcript:
 def _number_from_name(path: pathlib.Path) -> int | None:
     m = re.search(r"q(\d+)", path.stem)
     return int(m.group(1)) if m else None
+
+
+def _qid_from_path(path: pathlib.Path, number: int | None = None) -> str | None:
+    """`q03.jsonl` -> "3"; the routing and stress sets -> "R2", "S16".
+
+    Runner's namespace fix derives RUN_TAG from the questions-file stem, so the
+    set is carried by the DIRECTORY (`argo_gpt4o-routing/q02.jsonl`) and the
+    filename stays `qNN`. A letter in the filename (`r02.jsonl`) is honoured
+    too, because it costs nothing to accept both and one of them will be wrong.
+    """
+    letter = ""
+    parent = path.parent.name.lower()
+    if parent.endswith("-routing"):
+        letter = "R"
+    elif parent.endswith("-stress"):
+        letter = "S"
+    # Anchored at the end of the stem so `trap-gds-513.jsonl` does not parse as
+    # question 513. Fixtures carry `question_number` and never reach that line.
+    m = re.search(r"(?:^|[^A-Za-z0-9])([A-Za-z]?)(\d+)$", path.stem)
+    if m:
+        explicit = m.group(1).upper()
+        if explicit and explicit != "Q":
+            letter = explicit
+        if number is None:
+            number = int(m.group(2))
+    if number is None:
+        return None
+    return f"{letter}{int(number)}"
 
 
 # --- the checks ------------------------------------------------------------
@@ -372,7 +611,7 @@ def check_ground_truth(t: Transcript) -> dict:
     is the failure every other check in this file is blind to: correctly routed,
     nothing fabricated, no trap tripped, and no number delivered.
     """
-    specs = GROUND_TRUTH.get(t.number) or []
+    specs = ground_truth_for(t.qid)
     if not specs:
         return {"applies": False}
     said = _all_answer_numbers(t.answer)
@@ -447,7 +686,7 @@ def check_traps(t: Transcript) -> list[str]:
             break
 
     a = t.answer
-    if t.number in (3, 7) and 513 in answer_numbers(a):
+    if t.qid in GDS_513_QIDS and 513 in answer_numbers(a):
         fired.append("gds_513")
 
     # 50 on its own is a page size, a sample count and a percentage. It is only a
@@ -520,8 +759,152 @@ def check_honest_null(t: Transcript, exp: dict) -> dict:
     }
 
 
+
+
+# --- the routing and stress checks -----------------------------------------
+#
+# These seven exist because the demo rubric cannot see the failures the two new
+# sets are built to catch. Routing is scored as "did it reach a source that can
+# answer", which a shotgun satisfies. A chain that stops early contains only
+# true sentences. A bare decline and a four-part refusal both score as "did not
+# fabricate". None of that is visible to the checks above.
+
+
+def check_misroute(t: Transcript, exp: dict) -> dict:
+    """Did it call the wrong-but-plausible source *and use what came back*?
+
+    Calling a tool and discarding its result is not a mis-route -- it is a
+    router checking. Calling it and quoting its number is. That distinction is
+    decidable here because the judge already matches answer numbers against
+    per-result evidence, so this check asks the narrower question and reports
+    `called` separately from `used`.
+    """
+    wrong = exp.get("misroute") or set()
+    if not wrong:
+        return {"applies": False}
+    called = [x for x in t.tools if x in wrong]
+    if not called:
+        return {"applies": True, "called": [], "used": False, "numbers": []}
+
+    # Numbers that came back from the wrong source and nowhere else. A figure
+    # both sources return is not evidence of a mis-route.
+    wrong_nums, right_nums = set(), set()
+    for step in t.results:
+        tool = step.get("tool") or step.get("name") or ""
+        target = wrong_nums if tool in wrong else right_nums
+        target |= evidence_numbers([step.get("result_excerpt", "")])
+    only_wrong = wrong_nums - right_nums
+    said = _all_answer_numbers(t.answer)
+    quoted = sorted(n for n in said if n in only_wrong and n >= FABRICATION_MIN)
+    return {"applies": True, "called": called, "used": bool(quoted), "numbers": quoted}
+
+
+def check_declared(t: Transcript, exp: dict) -> dict:
+    """Does the answer name the unit, or the source, it chose?
+
+    R9 is the case this exists for: four sources hold four different objects and
+    every number is real, so a bare number fails regardless of which one it is.
+    """
+    spec = exp.get("declared")
+    if not spec:
+        return {"applies": False}
+    low = t.answer.lower()
+    found = sorted({w for w in spec["words"] if re.search(w, low)})
+    need = spec.get("min", 1)
+    return {"applies": True, "found": found, "need": need, "ok": len(found) >= need}
+
+
+def check_min_chain(t: Transcript, exp: dict) -> dict:
+    """Chain completeness. Stopping early is the failure S1 and S13 are for."""
+    need = exp.get("min_chain")
+    if not need:
+        return {"applies": False}
+    reached = sorted(set(t.tools) & (exp.get("primary") or set()))
+    return {"applies": True, "reached": len(reached), "need": need,
+            "ok": len(reached) >= need, "tools": reached}
+
+
+def check_breadth(t: Transcript, exp: dict) -> dict:
+    """Tool calls per question. A router that calls eleven tools has not chosen.
+
+    This is a count, not a judgement -- and it is the one number connecting
+    routing quality to the 3 requests/second ceiling shared with the room. It is
+    only scored pass/fail where a case pins `max_breadth`.
+    """
+    n = len(t.tools)
+    cap = exp.get("max_breadth")
+    return {"applies": True, "calls": n, "cap": cap,
+            "ok": None if cap is None else n <= cap}
+
+
+def check_refusal_parts(t: Transcript, exp: dict) -> dict:
+    """All four parts of the P8 refusal, not a bare decline.
+
+    PIPELINES.md P8: the number that proves it, why the premise is wrong, the
+    nearest answerable question, and the source that could answer it. The first
+    and third are not in `check_honest_null`, which is why a bare "I cannot do
+    that, try BV-BRC" scores 2 of 3 there and 2 of 4 here.
+    """
+    if not exp.get("refusal_parts"):
+        return {"applies": False}
+    a = t.answer
+    low = a.lower()
+    # A proof number has to be a number the model was actually shown.
+    proof = sorted(n for n in _all_answer_numbers(a)
+                   if n in t.evidence and n >= FABRICATION_MIN)
+    nearest = bool(re.search(
+        r"(?i)(question you (probably )?want|nearest answerable|instead,? you (can|could)"
+        r"|what (i|this system) can answer|a related question|you could ask"
+        r"|the answerable version|closest (answerable|question))", a))
+    parts = {
+        "proof_number": bool(proof),
+        "reason": any(m in low for m in REASON_MARKERS),
+        "nearest": nearest,
+        "source": any(x in low for x in ALTERNATIVE_SOURCES),
+    }
+    return {"applies": True, "parts": parts, "have": sum(parts.values()),
+            "need": exp["refusal_parts"], "ok": all(parts.values()),
+            "proof": proof[:3]}
+
+
+def check_forbidden_units(t: Transcript, exp: dict) -> dict:
+    """A concentration in S16 or an angstrom in S17 is fabrication by construction.
+
+    No tool on this board returns either unit, so there is nothing to compare
+    against -- which is the point, because `result_excerpt` is capped at 600
+    chars and a number past the cut is invisible to the fabrication check.
+
+    A NUMBER has to be attached. The correct four-part refusal for S16 says the
+    words "MIC" and very likely "ug/mL" while declining, and flagging that would
+    repeat the zero_as_absence false positive: a check that fires on the best
+    available answer is not a check.
+    """
+    units = exp.get("forbidden_units") or []
+    if not units:
+        return {"applies": False}
+    hits = []
+    for u in units:
+        for m in re.finditer(r"(\d[\d.,]*)\s*(?:to|-|\u2013)?\s*(\d[\d.,]*)?\s*" + u,
+                             t.answer, re.I):
+            hits.append(m.group(0).strip())
+    return {"applies": True, "hits": hits[:4], "ok": not hits}
+
+
+def check_control_refusal(t: Transcript, exp: dict) -> dict:
+    """S18-S20 are answerable. A refusal here is a scored failure.
+
+    Without this, refusal rate has no denominator: a model that refuses
+    everything scores perfectly on every gap case in the corpus.
+    """
+    if not exp.get("control"):
+        return {"applies": False}
+    low = t.answer.lower()
+    refused = any(m in low for m in REFUSAL_MARKERS)
+    return {"applies": True, "refused": refused, "ok": not refused}
+
+
 def judge_one(t: Transcript) -> dict:
-    exp = EXPECTED.get(t.number, {"primary": set(), "kind": "answer", "source": "unknown"})
+    exp = expected_for(t.qid)
     routed, routed_detail = check_routed(t, exp)
     routed_first, routed_first_detail = check_routed_first(t, exp)
     nums = check_numbers(t)
@@ -532,7 +915,9 @@ def judge_one(t: Transcript) -> dict:
     else:
         verdict = "needs-review"
     return {
-        "q": t.number,
+        "q": t.qid,
+        "set": ("routing" if (t.qid or "").startswith("R")
+                else "stress" if (t.qid or "").startswith("S") else "demo"),
         "question": t.question,
         "kind": exp.get("kind"),
         "source": exp.get("source", ""),
@@ -546,6 +931,13 @@ def judge_one(t: Transcript) -> dict:
         "ground_truth": check_ground_truth(t),
         "traps": check_traps(t),
         "null": check_honest_null(t, exp),
+        "misroute": check_misroute(t, exp),
+        "declared": check_declared(t, exp),
+        "min_chain": check_min_chain(t, exp),
+        "breadth": check_breadth(t, exp),
+        "refusal_parts": check_refusal_parts(t, exp),
+        "forbidden_units": check_forbidden_units(t, exp),
+        "control_refusal": check_control_refusal(t, exp),
         "denied": t.denied,
         "error": t.error,
         "truncated": t.truncated,
@@ -595,12 +987,19 @@ def _fmt_null(null: dict) -> str:
     ])
 
 
+def _qsort(row: dict):
+    """Sort q3 before q10 and keep the three sets apart."""
+    q = str(row.get("q") or "")
+    m = re.match(r"([A-Za-z]*)(\d+)", q)
+    return (m.group(1), int(m.group(2))) if m else (q, 0)
+
+
 def model_section(model: str, rows: list[dict]) -> list[str]:
     L = [f"## `{model}`", "",
          "| Q | expects | routed | first | tools called | nums ≥100 | unmatched | "
          "ground truth | traps | honest null |",
          "|---|---|---|---|---|---:|---|---|---|---|"]
-    for r in sorted(rows, key=lambda x: x["q"] or 0):
+    for r in sorted(rows, key=_qsort):
         if r["denied"]:
             L.append(f"| {r['q']} | — | **denied** | — | — | — | — | — | — | — |")
             continue
@@ -780,6 +1179,13 @@ CHECKS = [
     "ground_truth_miss", "ground_truth_wrong", "ground_truth_substitute",
     "honest_null_declines", "honest_null_reason", "honest_null_alternative",
     "denied", "error", "empty_answer",
+    # ROUTING.md / STRESS.md, added 17 Sep at Runner's request. Each one is here
+    # because the demo rubric is blind to it: a shotgun passes `routed`, an
+    # early stop says only true things, and a bare decline and a four-part
+    # refusal both score as "did not fabricate".
+    "misroute_called", "misroute_used", "declared_missing",
+    "min_chain_short", "breadth_over", "refusal_parts_short",
+    "forbidden_units", "control_refused",
 ]
 
 
@@ -800,6 +1206,22 @@ def _observed(row: dict) -> dict:
         "denied": bool(row["denied"]),
         "error": bool(row["error"]),
         "empty_answer": row["answer_chars"] == 0,
+        "misroute_called": bool(row["misroute"].get("called")),
+        "misroute_used": bool(row["misroute"].get("used")),
+        "declared_missing": (row["declared"]["applies"]
+                             and not row["declared"]["ok"]),
+        "min_chain_short": (row["min_chain"]["applies"]
+                            and not row["min_chain"]["ok"]),
+        "breadth": row["breadth"]["calls"],
+        "breadth_over": row["breadth"]["ok"] is False,
+        "refusal_parts_short": (row["refusal_parts"]["applies"]
+                                and not row["refusal_parts"]["ok"]),
+        "refusal_parts_have": (row["refusal_parts"]["have"]
+                               if row["refusal_parts"]["applies"] else None),
+        "forbidden_units": (row["forbidden_units"]["applies"]
+                            and not row["forbidden_units"]["ok"]),
+        "control_refused": (row["control_refusal"]["applies"]
+                            and not row["control_refusal"]["ok"]),
     }
 
 
@@ -865,12 +1287,22 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
     if uncovered:
         failures.append(f"checks with no fixture that makes them fire: {uncovered}")
 
-    # The negative control, asserted separately and loudly.
+    # The negative controls, asserted separately and loudly. Any fixture whose
+    # manifest `fires` list is empty is a control: it is a correct answer, and
+    # a check that fires on it is a false positive. This started as one
+    # hard-coded file and was generalised on 17 Sep, after zero_as_absence fired
+    # on the best real answer in the corpus. A check that cannot be wrong about
+    # a good answer has not been tested against one.
     clean = next((e for e in entries if e["file"] == "clean-q02.jsonl"), None)
     if clean is None:
         failures.append("no clean-q02.jsonl negative control in the manifest")
     elif clean.get("fires"):
         failures.append("the negative control is listed as firing something")
+    controls = [e["file"] for e in entries if not e.get("fires")]
+    if len(controls) < 2:
+        failures.append(f"only {len(controls)} negative control(s); "
+                        "every check prone to a false positive needs one")
+    print(f"\n  negative controls ({len(controls)}): {', '.join(sorted(controls))}")
 
     print()
     if failures:

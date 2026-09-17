@@ -36,8 +36,20 @@ load_dotenv()
 # the cure is the same: make the absence say its own name at startup.
 #
 # Never print the key, only whether there is one.
+#
+# flush=True is load-bearing here, not tidiness. This process prints and then
+# blocks forever on proc.wait(), and it has to run with stdout redirected to a
+# file because no window may be opened on this machine. Python buffers a
+# redirected stdout, so without an explicit flush the line sits in the buffer
+# until the process exits -- which is never. Measured 17 Sep by the runner chat:
+# 0 bytes in the log at 3s with the process alive, 26 bytes once it exited.
+#
+# Which made the warning about an invisible key itself invisible -- the third
+# layer of one fault in an afternoon. A missing load_dotenv hid a missing key,
+# and a buffer hid the warning about the missing key.
 if os.environ.get("NCBI_API_KEY", "").strip():
-    print("NCBI_API_KEY loaded -- NCBI servers may pace at 10 req/sec on this key.")
+    print("NCBI_API_KEY loaded -- NCBI servers may pace at 10 req/sec on this key.",
+          flush=True)
 else:
     print(
         "WARNING: no NCBI_API_KEY. Every NCBI server falls back to 3 req/sec, and\n"
@@ -45,7 +57,8 @@ else:
         "         not per process and not per laptop. A long eval matrix will see\n"
         "         429s that look like tool failures. A key is free from an NCBI\n"
         "         account (Account settings -> API Key Management); put it in .env\n"
-        "         as NCBI_API_KEY=<key> and restart these servers."
+        "         as NCBI_API_KEY=<key> and restart these servers.",
+        flush=True,
     )
 
 SERVERS = [
@@ -59,6 +72,7 @@ SERVERS = [
     "brc_analytics.py",  # 8008
 ]
 
+print(f"starting {len(SERVERS)} servers ...", flush=True)
 procs = [subprocess.Popen(["uv", "run", f"mcp_servers/{name}"]) for name in SERVERS]
 
 # The NDE server lives in its own subdirectory with a separate pyproject.toml.

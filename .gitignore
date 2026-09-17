@@ -13,3 +13,18 @@ docs/
 CLAUDE.md
 scratch/
 .bvbrc_oauth_tokens.json
+
+# Build artifacts that `git add -A` will otherwise sweep into a commit. This has
+# happened twice on this branch, once pulling in an agent's in-progress files and
+# once a directory of build output. Stage by explicit path; these are the backstop.
+*.egg-info/
+.pytest_cache/
+
+# Eval transcripts are evidence and they are large: one run of the full matrix is
+# 36 models x 15 questions. What is committed is the SUMMARY of every run -- the
+# routing scorecards, the per-run manifests and RUNS.md -- plus the full
+# transcripts of the run marked `final` in RUNS.md. Exploratory runs stay local;
+# RUNS.md still records that they happened, and why they were superseded.
+# See evals/README.md, "What is committed and what is not".
+evals/runs/**/q*.jsonl
+!evals/runs/final/**

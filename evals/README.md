@@ -102,3 +102,50 @@ answered. Six need more than one server; three cannot be answered at all, and sa
 - **Fourteen cases is not coverage.** It is the fourteen traps that were measured. Offline
   regression tests live in `tests/test_geo_tools.py` (52) and
   `tests/test_brc_analytics_tools.py` (26).
+
+---
+
+## What is committed and what is not
+
+An eval run produces three kinds of file and they do not belong in the same place.
+
+**Committed — the summary of every run, always.**
+
+| file | why it is shareable |
+|---|---|
+| `RUNS.md` | the registry: one row per run, with the git SHA that produced it, the questions file, fault counts and a hand-set status. Someone reading a number in a paper can find the run it came from. |
+| `runs/<model>/routing-scorecard.md` | one row per question, tools in call order. Small, readable, and the thing most arguments are actually about. |
+| `runs/<model>/run-manifest.json` | the exact conditions: SHA, dirty flag, server URLs, prompt variant, credential *names*. |
+| `model-comparison.md` | the side-by-side table. |
+| `FINDINGS.md`, `judge-report.md` | the analysis and the scoring. |
+| `judge.py`, `analyze.py`, `judge-fixtures/` | the code that produced the scores, and the fixtures proving it can fail. |
+
+**Committed only for the run marked `final`** — the full `q*.jsonl` transcripts.
+
+One full matrix is 36 models × 15 questions, and with prompt ablation and repeats
+that reaches tens of megabytes of transcript. Exploratory runs stay local;
+`RUNS.md` still records that they happened and why they were superseded, which is
+the part anyone needs later. To publish a run, move or copy it under
+`runs/final/` — `.gitignore` re-includes that path.
+
+**Never committed.**
+
+- Anything under a `.venv/`, `.pytest_cache/` or `*.egg-info/`. One stray local
+  package directory here is 181 MB across 12,713 files.
+- Scratch patch scripts (`_patch*.py`). They are how a change was made, not what
+  the change is; the commit message is the durable record.
+- Credentials, in any form. `run_conditions()` records credential *names* and
+  never values, and it lists a name under `env_names_present` only when the value
+  is non-empty — `.env` has carried `NCBI_API_KEY=` with nothing after it.
+
+**Stage by explicit path. Never `git add -A`.** It has twice swept files into a
+commit on this branch: once an agent's in-progress work, once a directory of
+build output. The `.gitignore` entries are a backstop, not the rule.
+
+### Where the rest of the work lives
+
+The repo carries what another team could run: servers, tests, question sets,
+scoring code, and the evidence for the numbers we quote. The reasoning — why a
+question is worth asking, what a database actually holds, what went wrong and
+what it taught — lives in the knowledge base under `codeathon-2026/`, because it
+is about how we worked rather than about what we shipped.

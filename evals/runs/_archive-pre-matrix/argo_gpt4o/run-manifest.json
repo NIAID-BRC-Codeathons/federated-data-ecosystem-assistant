@@ -1,0 +1,46 @@
+{
+  "run_id": "20260917-143722-fa084aa-dirty",
+  "started": "2026-09-17 14:37:22",
+  "git_sha": "fa084aa",
+  "git_dirty": true,
+  "git_branch": "bobby/ncbi-and-brc-analytics",
+  "driver_sha256_8": "ec8c23ac",
+  "models": [
+    "argo/gpt4o"
+  ],
+  "questions_file": "evals\\QUESTIONS.md",
+  "question_ids": [
+    "Q2",
+    "Q3"
+  ],
+  "prompt_variants": [
+    "paper"
+  ],
+  "repeats": 1,
+  "env_names_present": [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "ARGO_USER",
+    "LLM_MODEL",
+    "NCBI_API_KEY",
+    "OPENROUTER_API_KEY"
+  ],
+  "servers": {
+    "string": "https://mcp.string-db.org/",
+    "expasy": "https://chat.expasy.org/mcp/",
+    "brc-analytics": "https://brc-analytics.org/api/v1/mcp/",
+    "pdn": "http://127.0.0.1:8001/mcp-pdn",
+    "mygene": "http://127.0.0.1:8002/mcp-mygene",
+    "uniprot": "http://127.0.0.1:8003/mcp-uniprot",
+    "myvariant": "http://127.0.0.1:8004/mcp-myvariant",
+    "ncbi": "http://127.0.0.1:8005/mcp-ncbi",
+    "pubmed": "http://127.0.0.1:8006/mcp-pubmed",
+    "nde": "http://127.0.0.1:8007/mcp-nde",
+    "bv-brc": "https://dev-9.bv-brc.org",
+    "geo": "http://127.0.0.1:8009/mcp-geo",
+    "brc_analytics_local": "http://127.0.0.1:8008/mcp-brc-analytics"
+  },
+  "prices_verified": false,
+  "note": "smoke: verify run_id, code_sha, attempts_discarded and RUNS.md on patched driver 39bb6ad",
+  "label": "argo/gpt4o"
+}
