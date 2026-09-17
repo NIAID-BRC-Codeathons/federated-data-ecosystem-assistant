@@ -35,11 +35,15 @@ TBD
 3. Install dependencies:
 `uv sync`
 
-4. To add a resource, create an MCP server for it and name the file `resourcename_mcp.py` (following the pattern in `uniprot_mcp.py`).
+4. Create an MCP server in the folder `mcp_servers` and name it `<resource>.py` (following the pattern in `uniprot.py`).
 
-5. Run each MCP server (every `*_mcp.py` file) on its own port:
-`uv run resourcename_mcp.py --port 8001`
+5. Add an existing MCP server or a local one in `chatbot.py`.
 
-6. Run chatbot:
+6. Run all MCP servers, each on its own port:
+`uv run mcp_servers/pdn.py --port 8001`
+`uv run mcp_servers/mygene.py --port 8002`
+`uv run mcp_servers/uniprot.py --port 8003`
+
+7. Run chatbot:
 `uv run chainlit run chatbot.py`
 

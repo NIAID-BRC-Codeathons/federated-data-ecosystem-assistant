@@ -13,7 +13,7 @@ mcp = FastMCP(
     instructions=(
         "Query the UniProt database for protein information"
     ),
-    streamable_http_path="/",
+    streamable_http_path="/mcp-uniprot",
     # stateless_http=True,
 )
 
@@ -208,12 +208,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--stdio", action="store_true")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8003)
     args = parser.parse_args()
 
     if args.stdio:
         mcp.run(transport="stdio")
     else:
         mcp.settings.port = args.port
-        print(f"Uniprot MCP Server starting on http://localhost:{args.port}/mcp ...")
+        print(f"Uniprot MCP Server starting on http://localhost:{args.port}/mcp-uniprot ...")
         mcp.run(transport="streamable-http")
