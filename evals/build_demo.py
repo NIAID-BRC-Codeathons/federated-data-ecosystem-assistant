@@ -37,6 +37,26 @@ and a clean record is checked to trip none of them.
       run is one sequencing run. `refuse_cross_lane_total` raises.
   G6  A question whose source was not wired for the run is marked source-absent,
       not scored as a model failure. The matrix ran without BV-BRC's 18 tools.
+  G7  A failed attempt parked beside a good transcript never replaces it, and
+      never disappears either. After 17 Sep the runner writes a failure to
+      `q02.error-160722.jsonl` instead of over `q02.jsonl`. Both names match this
+      file's `q*.jsonl` glob, so one question arrived as two records carrying one
+      `question_id`, and the matrix cell went to whichever sorted last. Measured:
+      `q07.error-...` sorts before `q07.jsonl` and the answer survived;
+      `q07.retry-...` sorts after it and the answer became "held out". The page
+      was correct only by an alphabetical accident in a filename another agent
+      chooses. Now the primary file wins the cell by rule, parked attempts are
+      counted and named, and a question with ONLY parked attempts still gets a
+      row, held out -- a retried failure that vanishes is this project's defect
+      wearing a different hat.
+  G8  "Never asked" and "answered, nobody scored it" are never added together.
+      They are opposite facts. A transport fault means the model was never
+      reached; an unscored record means it answered and the scorer could not read
+      the file. Measured 17 Sep: this page printed `unscorable + unseen` under one
+      column called "held out", so 146 answered BOBBY-LANES records -- every one of
+      them a real answer from Bobby's two servers -- read as failures. The page now
+      carries two columns, "not asked" and "not scored", and this guard fails if
+      anything merges them again.
 """
 
 from __future__ import annotations
@@ -49,6 +69,7 @@ import html
 import io
 import json
 import pathlib
+import re
 import sys
 import tempfile
 
@@ -211,23 +232,33 @@ class Record:
         return "off-branch"
 
 
+# `q02.jsonl` is an answer. `q02.error-160722.jsonl` is a failed attempt parked
+# beside it. Both match `q*.jsonl`, so the shape has to be told apart by name.
+PRIMARY_NAME = re.compile(r"^[qrsb]\d+\.jsonl$", re.IGNORECASE)
+
+
 def load_records(runs):
     """Every transcript under `runs`, grouped by run directory.
 
     Globs `b*` as well as `q*`, `r*` and `s*`. Judge does not (G3), and the
     difference between the two lists is reported on the page rather than
     silently absorbed.
+
+    G7. One question must produce one row. The runner parks a failed attempt in
+    a sidecar named after the question it failed, so a naive glob counts that
+    question twice and inflates every denominator on the page.
     """
     groups = {}
     unreadable = []
+    retried = {}
     if not runs.is_dir():
-        return groups, ["%s is not a directory" % runs]
+        return groups, ["%s is not a directory" % runs], retried
     for d in sorted(p for p in runs.iterdir() if p.is_dir()):
         if d.name.startswith("_"):      # _archive-pre-matrix, _premerge-*
             continue
         paths = sorted(p for pat in ("q*.jsonl", "r*.jsonl", "s*.jsonl",
                                      "b*.jsonl") for p in d.glob(pat))
-        rows = []
+        primary, sidecar = {}, collections.defaultdict(list)
         for p in paths:
             try:
                 rec = Record(p)
@@ -238,10 +269,35 @@ def load_records(runs):
             if not rec.summary:
                 unreadable.append("%s/%s: no summary record" % (d.name, p.name))
                 continue
-            rows.append(rec)
+            # Key on the FILE stem, not the question id. A sidecar carries the
+            # same `question_id` as the answer it failed at, which is exactly
+            # why keying on the id is what lost the count in the first place.
+            stem = p.name.split(".", 1)[0].lower()
+            if PRIMARY_NAME.match(p.name):
+                primary[stem] = rec
+            else:
+                sidecar[stem].append(rec)
+        rows = []
+        parked = []
+        for stem in sorted(set(primary) | set(sidecar)):
+            if stem in primary:
+                rows.append(primary[stem])
+                for r in sidecar.get(stem, []):
+                    parked.append("%s (answered on retry)" % r.path.name)
+            else:
+                # No answer ever landed for this question. Keep the newest
+                # attempt so the question holds its row and reads as held out,
+                # rather than silently leaving the matrix.
+                last = sorted(sidecar[stem], key=lambda r: r.path.name)[-1]
+                rows.append(last)
+                for r in sidecar[stem]:
+                    if r is not last:
+                        parked.append("%s (superseded attempt)" % r.path.name)
+        if parked:
+            retried[d.name] = parked
         if rows:
             groups[d.name] = rows
-    return groups, unreadable
+    return groups, unreadable, retried
 
 
 # --- consuming judge --------------------------------------------------------
@@ -490,7 +546,7 @@ def build_model(name, recs, jrows):
 
 def build(runs):
     """Everything the page needs, with every guard already evaluated."""
-    groups, unreadable = load_records(runs)
+    groups, unreadable, retried = load_records(runs)
     jrows, skipped, judge_error = judge_rows(runs)
     models = {n: build_model(n, recs, jrows) for n, recs in groups.items()}
 
@@ -518,6 +574,7 @@ def build(runs):
             "judge_error": judge_error,                    # G3
             "judge_skipped": skipped,
             "unreadable": unreadable,
+            "retried": retried,            # G7
         },
     }
 
@@ -1156,17 +1213,19 @@ def render_html(data):
                  'The total above covers only the models that do have a price.</p>'
                  % esc(", ".join(m["model"] for m in noprice)))
     P.append('<table><thead><tr><th>model</th><th>set</th><th class="n">records</th>'
-             '<th class="n">held out</th><th class="n">in tokens</th>'
+             '<th class="n">not asked</th><th class="n">not scored</th>'
+             '<th class="n">in tokens</th>'
              '<th class="n">out tokens</th><th class="n">seconds</th>'
              '<th class="n">his 7 tools: calls</th><th class="n">on questions</th>'
              '<th class="n">list $ (unverified)</th></tr></thead><tbody>')
     for m in models:
         P.append('<tr><td><code>%s</code></td><td>%s</td><td class="n">%d</td>'
-                 '<td class="n">%d</td><td class="n">%s</td><td class="n">%s</td>'
+                 '<td class="n">%d</td><td class="n">%d</td>'
+                 '<td class="n">%s</td><td class="n">%s</td>'
                  '<td class="n">%.0f</td><td class="n">%d</td>'
                  '<td class="n">%d</td><td class="n">%s</td></tr>'
                  % (esc(m["model"]), esc(m["set"]), m["n"],
-                    m["unscorable"] + m["unseen"], format(m["in_tok"], ","),
+                    m["unscorable"], m["unseen"], format(m["in_tok"], ","),
                     format(m["out_tok"], ","), m["seconds"],
                     m["bobby"]["calls"], m["bobby"]["questions"],
                     esc(usd_str(m["usd"], m["priced"], m["unpriced"]))))
@@ -1211,6 +1270,11 @@ def render_html(data):
     if g["unreadable"]:
         P.append('<p class="note">%d record(s) could not be read: %s</p>'
                  % (len(g["unreadable"]), esc("; ".join(g["unreadable"])[:400])))
+    if g["retried"]:
+        for d, parked in sorted(g["retried"].items()):
+            P.append('<p class="note"><b>%s</b>: %d failed attempt(s) parked '
+                     'beside an answer, not counted as answers: %s</p>'
+                     % (esc(d), len(parked), esc(", ".join(parked)[:300])))
     P.append("</div></details>")
 
     # Names
@@ -1286,12 +1350,12 @@ def render_md(data):
         L.append("")
 
     L += ["## Per model", "",
-          "| model | set | records | held out | in tok | out tok | s "
-          "| his 7 tools: calls | on questions | list $ |",
-          "|---|---|---|---|---|---|---|---|---|---|"]
+          "| model | set | records | not asked | not scored | in tok | out tok "
+          "| s | his 7 tools: calls | on questions | list $ |",
+          "|---|---|---|---|---|---|---|---|---|---|---|"]
     for m in models:
-        L.append("| `%s` | %s | %d | %d | %s | %s | %.0f | %d | %d | %s |"
-                 % (m["model"], m["set"], m["n"], m["unscorable"] + m["unseen"],
+        L.append("| `%s` | %s | %d | %d | %d | %s | %s | %.0f | %d | %d | %s |"
+                 % (m["model"], m["set"], m["n"], m["unscorable"], m["unseen"],
                     format(m["in_tok"], ","), format(m["out_tok"], ","),
                     m["seconds"], m["bobby"]["calls"], m["bobby"]["questions"],
                     usd_str(m["usd"], m["priced"], m["unpriced"])))
@@ -1355,6 +1419,27 @@ def self_test():
         _write(runs / "m_noprice", "q02.jsonl",
                _rec(model="test/unpriced", list_cost_usd=None,
                     list_cost_note="no list price on file for alias 'x' -- not computed"))
+        # G7: a failed attempt parked beside the answer it failed at. Both
+        # files match `q*.jsonl`, so a naive glob sees one question as two.
+        _write(runs / "m_sidecar", "q02.jsonl", _rec())
+        _write(runs / "m_sidecar", "q02.error-160722.jsonl",
+               _rec(error="RecursionError: maximum recursion depth exceeded",
+                    answer="", answer_chars=0, output_tokens=0))
+        # G7: the sidecar name that sorts AFTER the answer. Under the old
+        # keying this failure replaced a correct answer in the matrix cell.
+        _write(runs / "m_late", "q07.jsonl",
+               _rec(question_number="Q7", question_id="Q7",
+                    answer="551,679 runs", answer_chars=13))
+        _write(runs / "m_late", "q07.retry-160722.jsonl",
+               _rec(question_number="Q7", question_id="Q7",
+                    error="RecursionError: maximum recursion depth exceeded",
+                    answer="", answer_chars=0, output_tokens=0))
+        # G7: a question where only the failed attempt exists. It must keep its
+        # row and read as held out, never vanish from the matrix.
+        _write(runs / "m_onlyside", "q05.error-160722.jsonl",
+               _rec(question_number="Q5", question_id="Q5",
+                    error="RecursionError: maximum recursion depth exceeded",
+                    answer="", answer_chars=0, output_tokens=0))
         # The negative control: one ordinary record that must trip nothing.
         _write(runs / "m_clean", "q02.jsonl", _rec())
 
@@ -1453,10 +1538,74 @@ def self_test():
                for m, r in rates):
             fails.append("G6 blamed a model that had no transport fault")
 
+        # -- G7
+        side = data["models"]["m_sidecar"]
+        named = g["retried"].get("m_sidecar") or []
+        if (side["n"] == 1 and side["unscorable"] == 0
+                and len(named) == 1 and "q02.error-160722.jsonl" in named[0]):
+            fired.append("G7 parked attempt: m_sidecar kept 1 record, named %s"
+                         % named[0])
+        else:
+            fails.append("G7 did not park the failed attempt: cells=%d, "
+                         "unscorable=%d, parked=%s"
+                         % (side["n"], side["unscorable"], named))
+        late = data["models"]["m_late"]
+        if late["unscorable"] == 0 and late["n"] == 1:
+            fired.append("G7 a late-sorting parked attempt did not replace the "
+                         "answer it failed at")
+        else:
+            fails.append("G7 let a parked attempt overwrite a real answer: "
+                         "cells=%d, unscorable=%d"
+                         % (late["n"], late["unscorable"]))
+        only = data["models"]["m_onlyside"]
+        if only["n"] == 1 and only["unscorable"] == 1:
+            fired.append("G7 attempt-only question kept its row, held out")
+        else:
+            fails.append("G7 lost a question that only ever failed: records=%d, "
+                         "unscorable=%d" % (only["n"], only["unscorable"]))
+
+        # -- G8
+        lanes = data["models"]["m_lanes"]
+        # Assert on the RENDERED numbers, not on the dict. The first version of
+        # this guard checked the dict and did not notice the two counts being
+        # added back together at the render site, which is where the bug lived.
+        md = render_md(data)
+        htm = render_html(data)
+        md_row = [ln for ln in md.splitlines()
+                  if "BOBBY-LANES" in ln and ln.startswith("| `")]
+        # m_lanes: 1 record, 0 never asked, 1 answered-but-unscored.
+        md_ok = any("| BOBBY-LANES | 1 | 0 | 1 |" in ln for ln in md_row)
+        # The headers must be two, AND the row must carry the two numbers the
+        # right way round. Checking only the headers let a merge at the render
+        # site pass: the columns were still named, and both held the wrong value.
+        # The per-model table row, not the matrix header, which also carries
+        # the model name and the set name.
+        htm_row = [r for r in htm.split("<tr>")
+                   if "<td><code>test/model</code></td>" in r
+                   and "<td>BOBBY-LANES</td>" in r]
+        htm_nums = (re.findall(r'<td class="n">(-?\d+)</td>', htm_row[0])
+                    if htm_row else [])
+        html_ok = ('<th class="n">not asked</th>' in htm
+                   and '<th class="n">not scored</th>' in htm
+                   # "held out" may still appear in prose about transport
+                   # faults, which is correct. It must not be a column header.
+                   and '<th class="n">held out</th>' not in htm
+                   # records, never asked, answered-but-unscored
+                   and htm_nums[:3] == ["1", "0", "1"])
+        if lanes["unscorable"] == 0 and lanes["unseen"] == 1 and md_ok and html_ok:
+            fired.append("G8 an unscored record renders as not-scored, never as "
+                         "not-asked, in both the page and the markdown")
+        else:
+            fails.append("G8 merged 'never asked' with 'answered but unscored': "
+                         "not_asked=%d, not_scored=%d, md_row=%s, html_ok=%s"
+                         % (lanes["unscorable"], lanes["unseen"],
+                            md_row[:1], htm_nums[:3]))
+
         # -- the negative control
         clean = data["models"]["m_clean"]
         quiet = ("m_clean" not in g["sha_conflicts"]
                  and "m_clean" not in g["unseen_by_judge"]
+                 and "m_clean" not in g["retried"]
                  and clean["unscorable"] == 0)
         if quiet:
             fired.append("negative control: the ordinary record tripped nothing")
@@ -1515,9 +1664,10 @@ def main():
     print("%d run folder(s), %d record(s)"
           % (len(models), sum(m["n"] for m in models.values())))
     for name, m in sorted(models.items()):
-        print("  %-34s %-13s %2d records · %d held out · %d critical · %d serious "
-              "· %d clean" % (name, m["set"], m["n"], m["unscorable"] + m["unseen"],
-                              m["critical"], m["serious"], m["good"]))
+        print("  %-34s %-13s %2d records · %d not asked · %d not scored "
+              "· %d critical · %d serious · %d clean"
+              % (name, m["set"], m["n"], m["unscorable"], m["unseen"],
+                 m["critical"], m["serious"], m["good"]))
     print()
     if g["judge_error"]:
         print("GUARD  scorer unavailable: %s" % g["judge_error"])
@@ -1528,8 +1678,11 @@ def main():
               % (d, len(q), ", ".join(q)[:70]))
     for s in g["unreadable"]:
         print("GUARD  unreadable: %s" % s)
+    for d, parked in sorted(g["retried"].items()):
+        print("GUARD  %s: %d failed attempt(s) parked, not counted: %s"
+              % (d, len(parked), ", ".join(parked)[:70]))
     if not any([g["judge_error"], g["sha_conflicts"], g["unseen_by_judge"],
-                g["unreadable"]]):
+                g["unreadable"], g["retried"]]):
         print("no guard fired")
     return 0
 
