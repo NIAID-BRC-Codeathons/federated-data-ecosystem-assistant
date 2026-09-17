@@ -152,11 +152,15 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
     llm_round_trips = 0
     tool_result_chars = 0
     ttft: float | None = None          # time to the first token from the model
+    tool_timings: list[dict] = []      # per tool call: name, seconds
+    last_request_done: float | None = None   # when the assistant finished asking for tools
+    tool_seconds = 0.0
 
     def flush_ai():
-        nonlocal ai_acc, answer, denied, llm_round_trips
+        nonlocal ai_acc, answer, denied, llm_round_trips, last_request_done
         if ai_acc is None:
             return
+        last_request_done = time.monotonic()
         llm_round_trips += 1
         um = getattr(ai_acc, "usage_metadata", None) or {}
         for k in usage:
@@ -177,10 +181,19 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
         chunk = item[0] if isinstance(item, tuple) else item
         if isinstance(chunk, ToolMessage):
             flush_ai()
+            now = time.monotonic()
+            # Tools in one assistant turn run back to back; the gap from the request
+            # being complete (or the previous result) to this result is this tool.
+            secs = round(now - (last_request_done or t0), 2)
+            last_request_done = now
+            tool_seconds += secs
             raw = _text(chunk)
+            name = getattr(chunk, "name", None)
+            tool_timings.append({"tool": name, "seconds": secs, "result_chars": len(raw)})
             steps.append({
                 "role": "tool",
-                "tool": getattr(chunk, "name", None),
+                "tool": name,
+                "seconds": secs,
                 "result_excerpt": raw[:RESULT_EXCERPT],
                 "result_chars": len(raw),
             })
@@ -215,6 +228,9 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
         "ttft_s": ttft,
         "llm_round_trips": llm_round_trips,
         "tool_result_chars": tool_result_chars,
+        "tool_seconds": round(tool_seconds, 2),
+        "model_seconds": round(max(elapsed - tool_seconds, 0.0), 2),
+        "tool_timings": tool_timings,
         "list_cost_usd": list_cost_usd,
         "steps": steps,
     }
@@ -234,7 +250,8 @@ def _error_record(model: str, number: int, question: str, exc: Exception) -> dic
             "elapsed_s": 0, "tools_in_order": [], "tool_call_count": 0, "denied": False,
             "error": f"{type(exc).__name__}: {str(exc)[:200]}", "answer": "", "answer_chars": 0,
             "input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "usage_reported": False,
-            "ttft_s": None, "llm_round_trips": 0, "tool_result_chars": 0, "list_cost_usd": None}
+            "ttft_s": None, "llm_round_trips": 0, "tool_result_chars": 0, "list_cost_usd": None,
+            "tool_seconds": 0.0, "model_seconds": 0.0, "tool_timings": []}
 
 
 def write_scorecard(model: str, records: list[dict]) -> pathlib.Path:
@@ -297,8 +314,8 @@ def write_comparison(by_model: dict[str, list[dict]], questions: list[tuple[int,
     L += ["", "## Per-model totals", "",
           "Tokens are what the provider reported on the stream (`usage_reported` says whether it did).",
           "`list $` is what the run would cost at public list price outside Argonne -- Argo bills none of it.", "",
-          "| model | answered | denied | errors | mean calls | LLM trips | mean s | mean TTFT s | in tok | out tok | usage | no-tool | mean chars | list $ |",
-          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+          "| model | answered | denied | errors | mean calls | LLM trips | mean s | model s | tool s | mean TTFT s | in tok | out tok | usage | no-tool | mean chars | list $ |",
+          "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for m in models:
         recs = by_model[m]
         ok = [r for r in recs if not r["denied"] and not r["error"]]
@@ -311,6 +328,8 @@ def write_comparison(by_model: dict[str, list[dict]], questions: list[tuple[int,
             f"{sum(r['tool_call_count'] for r in ok) / n_ok:.1f} | "
             f"{sum(r.get('llm_round_trips', 0) for r in ok) / n_ok:.1f} | "
             f"{sum(r['elapsed_s'] for r in ok) / n_ok:.1f} | "
+            f"{sum(r.get('model_seconds', 0) for r in ok) / n_ok:.1f} | "
+            f"{sum(r.get('tool_seconds', 0) for r in ok) / n_ok:.1f} | "
             f"{(sum(ttfts) / len(ttfts)) if ttfts else 0:.1f} | "
             f"{sum(r.get('input_tokens', 0) for r in ok):,} | "
             f"{sum(r.get('output_tokens', 0) for r in ok):,} | "
