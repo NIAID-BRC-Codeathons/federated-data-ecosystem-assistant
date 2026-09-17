@@ -35,6 +35,7 @@ Run over HTTP:  uv run mcp_servers/geo.py --port 8007
 Run over stdio: uv run mcp_servers/geo.py --stdio
 """
 
+import os
 import re
 import threading
 import time
@@ -65,6 +66,16 @@ GEO_DB = "gds"
 # NCBI asks that every program identify itself. A blocked IP is only unblocked
 # for software that registered a tool name, so this is not decoration.
 TOOL_NAME = "niaid-bionexus-p7"
+
+# Optional, and worth setting on a shared network. NCBI's anonymous ceiling is
+# 3 requests/second PER IP, counted across every NCBI host -- so at a codeathon
+# where thirty people share one egress address, the budget is gone before this
+# server sends anything. Measured on the venue network: HTTP 429 reading
+# {"count": "4", "limit": "3"} while this process was pacing itself at 2/s.
+# An API key raises the ceiling to 10/s AND meters per key rather than per IP,
+# which is the part that actually solves it. Read from the environment only --
+# no key is ever written to a file or a command line here.
+NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "").strip()
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": (
@@ -73,13 +84,16 @@ HEADERS = {
     ),
 }
 
-# 3 requests/second without an API key, NCBI-wide. 0.4s leaves headroom.
-MIN_REQUEST_GAP = 0.4
+# 3 requests/second without an API key, NCBI-wide -- and the ceiling is per IP,
+# shared with everything else on this machine and network. 0.4s gives 2.5/s,
+# which leaves nothing spare once anything else is talking to NCBI; measured a
+# 429 reading 'count: 4, limit: 3' at that rate. 0.5s gives 2/s and a margin.
+MIN_REQUEST_GAP = 0.5   # overridden below when an API key raises the ceiling
 
 # NCBI answers 429 when the shared per-IP ceiling is crossed, and 5xx under load.
 # Both are transient and both deserve a retry rather than a failed tool call.
-MAX_ATTEMPTS = 4
-BACKOFF_SECONDS = 1.0
+MAX_ATTEMPTS = 5
+BACKOFF_SECONDS = 2.0
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 # Measured 2026-09-17: 20 GSE records returned 67,426 bytes, about 3.3 KB each,
@@ -134,6 +148,11 @@ _AUTOINDEX_ROW = re.compile(
     r"(?:\s*(?P<modified>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}))?"
     r"(?:\s+(?P<size>[\d.]+[KMGT]?|-))?"
 )
+
+# 10/s with a key, 3/s without. Stay under either with room to spare, because
+# the anonymous budget is shared with every other process on this IP.
+if NCBI_API_KEY:
+    MIN_REQUEST_GAP = 0.15
 
 _session = requests.Session()
 _session.headers.update(HEADERS)
@@ -206,6 +225,8 @@ def _eutils(endpoint: str, params: dict) -> dict:
     raises on that, rather than returning a success-shaped empty result.
     """
     query = {"db": GEO_DB, "retmode": "json", "tool": TOOL_NAME, **params}
+    if NCBI_API_KEY:
+        query["api_key"] = NCBI_API_KEY
     resp = _get(f"{EUTILS_API}/{endpoint}.fcgi", query)
     try:
         data = resp.json()

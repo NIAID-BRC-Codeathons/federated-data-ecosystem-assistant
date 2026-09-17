@@ -240,8 +240,15 @@ def mv_schema(myvariant):
 
 
 @pytest.fixture(autouse=True)
-def block_network(mygene, myvariant, pubmed, geo, brc, monkeypatch):
-    """Fail any request a test did not arrange, so the suite stays offline."""
+def block_network(mygene, myvariant, pubmed, geo, brc, monkeypatch, request):
+    """Fail any request a test did not arrange, so the suite stays offline.
+
+    Tests marked `live` are exempt: they exist precisely to reach the real
+    services, and are deselected by default (pyproject's addopts) so a plain
+    `pytest` still never touches the network.
+    """
+    if request.node.get_closest_marker("live"):
+        return
 
     def refuse(method: str, url: str, **kwargs: Any):
         raise AssertionError(
@@ -463,13 +470,23 @@ class GeoRecorder:
 
 
 @pytest.fixture
-def geo():
-    """The GEO server module, with its request pacer reset so tests do not sleep."""
+def geo(request):
+    """The GEO server module.
+
+    Offline tests get the pacer reset so the suite does not sleep. Live tests
+    must NOT get that: resetting it between tests lets the first call of each
+    test fire immediately after the last call of the previous one, which defeats
+    the server's own rate limiter and earns an HTTP 429 from NCBI. Measured --
+    that is exactly how the first live run failed.
+    """
     import geo as module
 
-    module._last_request_at = 0.0
+    live = request.node.get_closest_marker("live") is not None
+    if not live:
+        module._last_request_at = 0.0
     yield module
-    module._last_request_at = 0.0
+    if not live:
+        module._last_request_at = 0.0
 
 
 @pytest.fixture
@@ -537,3 +554,41 @@ def ena_row(run: str = "ERR1", **fields: Any) -> dict:
     }
     row.update(fields)
     return row
+
+
+# ---------------------------------------------------------------------------
+# A neighbour spending the shared NCBI budget is not a test failure.
+# ---------------------------------------------------------------------------
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item):
+    """For `live` tests only, turn an NCBI 429 into a skip.
+
+    NCBI meters 3 requests/second PER IP across all of its hosts, so on a shared
+    network that budget goes to whoever asks first. Measured at the venue:
+    {"count": "4", "limit": "3"} while the server was pacing itself at 2/s from
+    this process alone.
+
+    A red suite that means "someone else was busy" gets ignored within a day,
+    and then it is not a suite. Setting NCBI_API_KEY meters per key instead of
+    per IP and these stop firing.
+
+    A fixture cannot do this: pytest does not raise the test body's exception at
+    the fixture's yield, so the exception has to be caught around the call hook.
+    """
+    outcome = yield
+    if item.get_closest_marker("live") is None:
+        return
+    excinfo = outcome.excinfo
+    if excinfo is None:
+        return
+    text = str(excinfo[1])
+    if "429" in text or "rate limit" in text.lower():
+        outcome.force_exception(
+            pytest.skip.Exception(
+                "NCBI returned 429. The 3/sec ceiling is per IP and is shared on "
+                "this network, so this says a neighbour spent the budget, not "
+                "that the code is wrong. Set NCBI_API_KEY to meter per key."
+            )
+        )
