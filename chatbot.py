@@ -326,7 +326,7 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/google/gemma-4-26b-a4b-it")
 # LLM_MODEL="ollama/gemma4"
 # LLM_MODEL="mistralai/mistral-small-latest"
 # LLM_MODEL="anthropic/claude-opus-5"
-LLM_MODEL="argo/claudesonnet5"   # Argonne Argo gateway; see load_chat_model
+# LLM_MODEL="argo/claudesonnet5"   # Argonne Argo gateway; see load_chat_model
 
 # Argo exposes an OpenAI-compatible surface, so it needs no new SDK -- only a
 # base_url override. Two things differ from a normal OpenAI-compatible host:
