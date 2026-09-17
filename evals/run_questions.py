@@ -513,6 +513,17 @@ async def run_one(agent, model: str, number: str, question: str,
         # "content_filter" is a refusal. Without this they are indistinguishable.
         "finish_reasons": finish_reasons,
         "last_finish_reason": finish_reasons[-1] if finish_reasons else None,
+        # A truncated answer is NOT a short answer, and every content check reads
+        # it as one. The provider stops at the output cap and the text ends
+        # mid-word, so "did the answer mention PDB" comes back no for an answer
+        # that was still being written. Worse, the system prompt puts Discussion,
+        # Limitations and References LAST, so the cut lands exactly on the
+        # caveats and provenance a scorer looks for.
+        #
+        # Measured 17 Sep: all 15 argo/claudeopus5 answers ended mid-sentence
+        # against a 4096-per-turn cap, and one headline refusal case was nearly
+        # filed as a flat failure when the refusal had simply been cut off.
+        "answer_truncated": (finish_reasons[-1] == "length") if finish_reasons else None,
         "list_cost_usd": list_cost_usd,
         "list_cost_note": list_cost_note,
         # Stamped per QUESTION, not only per run: the fault we have hit twice is a
@@ -617,6 +628,7 @@ def _error_record(model: str, number: str, question: str, exc: Exception) -> dic
             "ttft_s": None, "llm_round_trips": 0, "tool_result_chars": 0, "list_cost_usd": None,
             "tool_seconds": 0.0, "model_seconds": 0.0, "tool_timings": [],
             "finish_reasons": [], "last_finish_reason": None,
+            "answer_truncated": None,
             "list_cost_note": "run failed before any usage was reported",
             "run_id": _RUN_ID[0], "code_sha": _CODE_SHA[0],
             "questions_file": QUESTIONS_MD.relative_to(REPO).as_posix(),

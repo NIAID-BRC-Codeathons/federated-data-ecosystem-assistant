@@ -369,10 +369,26 @@ def load_chat_model(model: str) -> BaseChatModel:
             # model runs to its maximum output length, and on the Claude models a
             # non-streaming call then trips the upstream ten-minute guard with
             # HTTP 500 "Streaming is required". extra_body bypasses the rename.
-            # Measured by laptop_system_improvement, 17 Sep 2026. 4096 rather than
-            # 2048 because the reasoning tiers spend part of the cap on reasoning
-            # tokens and return empty at 2048.
-            extra_body={"max_tokens": 4096},
+            # Measured by laptop_system_improvement, 17 Sep 2026.
+            #
+            # 4096 was too small and it was TRUNCATING EVERY LONG ANSWER. The cap
+            # is per round trip, so a summary figure above it hides the problem --
+            # argo/claudeopus5 recorded 10,184 output tokens on one question and
+            # still ended mid-word, because that total was several capped turns.
+            # Measured 17 Sep by the adversary chat: ALL 15 opus5 answers in the
+            # base matrix end mid-sentence, one stopping after emitting a results
+            # table header with zero rows.
+            #
+            # It is not a cosmetic truncation. The system prompt asks for a paper
+            # with Discussion, Limitations and References LAST, so the cut falls
+            # exactly on the caveats, the named alternatives and the provenance
+            # URLs -- the content every scorer looks for. Q15, the headline
+            # refusal case, was nearly filed as a flat failure when the refusal
+            # had simply been cut off.
+            #
+            # 16000 matches what the direct Anthropic branch already allows.
+            # Overridable so a cheap model does not have to carry the same cap.
+            extra_body={"max_tokens": int(os.environ.get("ARGO_MAX_TOKENS", "16000"))},
             # Ask for usage on the final streamed chunk, so token counts are
             # recorded even on the streaming path chatbot.py and the evals use.
             stream_usage=True,
