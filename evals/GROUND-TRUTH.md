@@ -113,9 +113,14 @@ identical to the earlier reading, so Pathogen Detection did not move today. The 
 | 868,024 | index rows, `mdtM` | AMR gene facet | 17 Sep | same-day | lead |
 | 396,464 | index rows, `sul2` | AMR gene facet | 17 Sep | same-day | lead |
 | 20,608 | index rows, `mcr-1.1` | AMR gene facet | 17 Sep | same-day | lead |
-| 378 | distinct **phenotype values** in the E. coli group | phenotype facet | 17 Sep | same-day | lead |
-| 1,548 | ciprofloxacin-**resistant** E. coli isolates | phenotype filter, distinct isolates | 17 Sep | same-day | lead |
-| 9,036 | E. coli isolates with **any** AST result — 1.6% of 581,464 | phenotype facet, non-empty | 17 Sep | same-day | lead |
+| 378 | distinct **phenotype values** in the E. coli group | `?limit=0&facets=AST_phenotypes[\|\|1\|500]&fq=taxgroup_name==["E.coli and Shigella"]`, `numBuckets` | 17 Sep 16:23 | live | verifier |
+| 1,548 | **distinct isolates**, ciprofloxacin-**resistant** E. coli | `fq=... and AST_phenotypes==["ciprofloxacin=R"]`, `target_acc` facet | 17 Sep 16:23 | live | verifier |
+| 3,096 | **index rows** for the same filter — ratio 2.000 | same call, `totalCount` | 17 Sep 16:23 | live | verifier |
+| 6,563 | **distinct isolates**, ciprofloxacin-**susceptible** E. coli | `fq=... and AST_phenotypes==["ciprofloxacin=S"]`, `target_acc` facet | 17 Sep 16:23 | live | verifier |
+| 13,126 | **index rows** for the same filter. `QUESTIONS.md` lists this beside distinct-isolate figures | same call, `totalCount` | 17 Sep 16:23 | live | verifier |
+| 9,036 | **distinct isolates** with **any** ciprofloxacin AST result — 1.55% of 581,464 | `fq=... and AST_phenotypes==[all six cipro values]`, `target_acc` facet | 17 Sep 16:23 | live | verifier |
+| 18,072 | **index rows** for the same filter | same call, `totalCount` | 17 Sep 16:23 | live | verifier |
+| 6 | ciprofloxacin phenotype **values** in the vocabulary: bare `ciprofloxacin`, `=S`, `=R`, `=I`, `=ND`, `=NS` | the `AST_phenotypes` facet buckets | 17 Sep 16:23 | live | verifier |
 | 883,560 | **distinct isolates**, *Salmonella enterica* — the largest group | `ncbi_pathogen_isolate_count(organism="Salmonella enterica")` | 17 Sep 16:16 | live | verifier |
 | 175,207 | **distinct isolates**, *K. pneumoniae* | `ncbi_pathogen_isolate_count(organism="Klebsiella pneumoniae")` | 17 Sep 16:16 | live | verifier |
 | 174,162 | **distinct isolates**, *C. jejuni* | `ncbi_pathogen_isolate_count(organism="Campylobacter jejuni")` | 17 Sep 16:16 | live | verifier |
@@ -434,12 +439,14 @@ launching from `evals/`, but it is not what happened here.
   170,726. **Zero drift.** What I still have not done is measure the other **100 of 106**
   organism groups, so I cannot say how far the `approx_isolates` defect in FINDING V10
   spreads beyond the two groups where I caught it.
-- **I did not verify the Q14 AST figures** — 1,548 (ciprofloxacin-resistant), 6,563
-  (susceptible), 9,036 (any AST result) and 378 (distinct phenotype values). `QUESTIONS.md`
-  states these are unreachable through the board's tools, because `_pathogen_filter` has no
-  `AST_phenotypes` argument. Checking them means calling the service directly, outside the
-  wrapper, and I did not do that. Three of the four are in `PROOF_NUMBERS[14]` and are
-  scored against, so they are asserted figures I have left `same-day`.
+- ~~I did not verify the Q14 AST figures~~ — **done at 16:23. All four match.** 378
+  distinct phenotype values, 1,548 resistant, 6,563 susceptible, 9,036 with any
+  ciprofloxacin AST. `QUESTIONS.md` is right that these are unreachable through the board's
+  *tools* — `_pathogen_filter` has no `AST_phenotypes` argument — so I called
+  `pathogen_client.retrieve()` with a hand-built `fq`. That is the library's own client and
+  its shared rate limiter, so the calls were paced; I changed no code. The `QUESTIONS.md`
+  row counts confirm too: 18,072 and 13,126 index rows, both exactly 2x their isolate counts.
+  **Every figure in `PROOF_NUMBERS[13]` and `PROOF_NUMBERS[14]` is now live-verified.**
 - I did not download `GSE309890_FPKMs_allSamples.csv.gz`. Its size and date are GEO's own
   directory listing, not my observation of the file.
 - I did not re-run the four GEO rows still marked `stale-risk`.
