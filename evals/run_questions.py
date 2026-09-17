@@ -40,7 +40,6 @@ import argparse
 import asyncio
 import hashlib
 import json
-import os
 import pathlib
 import re
 import subprocess
@@ -55,11 +54,24 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, str(REPO))
 
+import os  # noqa: E402
 from dotenv import load_dotenv  # a Chainlit dependency, already installed
 
 # chatbot.py never calls load_dotenv itself; Chainlit does it on import from the
 # working directory. This driver is not Chainlit, so it has to do the same.
 load_dotenv(REPO / ".env")
+
+# An eval run is unattended by definition, so it must never open a window. On
+# 17 Sep the matrix launched, printed "Opening browser for BV-BRC login...",
+# raised a tab on the operator's laptop and then stopped forever on model 1 of
+# 36 -- the OAuth callback had no timeout, so it waited for a human who was not
+# there. chatbot.py now honours MCP_NO_BROWSER by raising instead of opening,
+# which load_tools() reports as an unavailable server while the other twelve
+# load normally. Losing 18 BV-BRC tools is a degradation; a silent overnight
+# hang is an outage, and it looks identical to a long-running job in the log.
+#
+# Set before `import chatbot`, because chatbot reads it at import time.
+os.environ.setdefault("MCP_NO_BROWSER", "1")
 
 import chatbot  # noqa: E402
 from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage  # noqa: E402
@@ -263,6 +275,22 @@ def load_questions() -> list[tuple[str, str]]:
     return out
 
 
+def _filename_id(qid: str) -> str:
+    """Q1 -> q01, R12 -> r12, so a directory sorts and globs cleanly.
+
+    The padding is not cosmetic. judge.py and analyze.py both find records with
+    `glob("q*.jsonl")`, so an unpadded q2.jsonl and a padded q02.jsonl from an
+    earlier run coexist in one directory and a single glob returns both --
+    sorted() puts q02 first, so the STALE record wins. Found on 17 Sep by the
+    runner chat after a filename change here did exactly that.
+    """
+    m = re.match(r"^([A-Za-z]*)(\d+)$", str(qid))
+    if not m:
+        return re.sub(r"[^A-Za-z0-9._-]+", "_", str(qid)).lower()
+    letters, digits = m.group(1).lower() or "q", int(m.group(2))
+    return f"{letters}{digits:02d}"
+
+
 def _safe(model: str) -> str:
     """argo/claudesonnet45 -> argo_claudesonnet45, usable as a directory name.
 
@@ -415,7 +443,7 @@ async def run_one(agent, model: str, number: str, question: str) -> dict:
     }
     out_dir = RUNS / _safe(model)
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"{str(number).lower()}.jsonl"
+    path = out_dir / f"{_filename_id(number)}.jsonl"
     with path.open("w", encoding="utf-8") as f:
         for step in steps:
             f.write(json.dumps(step, ensure_ascii=False) + "\n")

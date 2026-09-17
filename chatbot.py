@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import time
 import threading
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -104,12 +105,40 @@ class _FileTokenStorage:
         self._path.write_text(json.dumps(data, indent=2))
 
     async def get_tokens(self) -> OAuthToken | None:
-        raw = self._read().get("tokens")
-        return OAuthToken.model_validate(raw) if raw else None
+        data = self._read()
+        raw = data.get("tokens")
+        if not raw:
+            return None
+        # `obtained_at` is ours, not the token's. An OAuthToken carries
+        # `expires_in` -- a DURATION -- and nothing recording when it was issued,
+        # so a cached token on disk cannot say how much life it has left. Whether
+        # it is treated as live then depends on what the client library assumes
+        # about an unanchored duration, which is the kind of thing that works
+        # three times and re-authenticates on the fourth. Measured 17 Sep: a
+        # token written at 14:20 with expires_in=7200 triggered a fresh
+        # interactive login at 14:41, two hours early.
+        obtained_at = data.get("obtained_at")
+        expires_in = raw.get("expires_in")
+        if obtained_at and expires_in:
+            age = time.time() - float(obtained_at)
+            # 60s of slack so a token about to lapse is not handed to a request
+            # that will outlive it.
+            if age >= float(expires_in) - 60:
+                print(
+                    f"[oauth] cached BV-BRC token is {age / 60:.0f} min old and "
+                    f"expires_in is {float(expires_in) / 60:.0f} min -- discarding "
+                    f"it rather than sending a stale token.",
+                    flush=True,
+                )
+                return None
+        return OAuthToken.model_validate(raw)
 
     async def set_tokens(self, tokens: OAuthToken) -> None:
         data = self._read()
         data["tokens"] = tokens.model_dump(mode="json")
+        # Anchor the duration to a moment. Without this the file records how long
+        # the token lasts but never when it started.
+        data["obtained_at"] = time.time()
         self._write(data)
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
@@ -122,9 +151,33 @@ class _FileTokenStorage:
         self._write(data)
 
 
+# Seconds to wait for a human to finish the BV-BRC login before giving up.
+#
+# There was no timeout at all until 17 Sep, and the eval matrix found out the
+# expensive way: it launched, printed "Opening browser for BV-BRC login...",
+# opened a tab on the operator's laptop, and stopped forever on model 1 of 36,
+# question 0 of 15. Nothing errored. The log simply stopped growing, which reads
+# exactly like a long-running job, so an overnight run would have sat there until
+# morning and produced nothing.
+OAUTH_LOGIN_TIMEOUT = 120
+
+# Set MCP_NO_BROWSER=1 for anything unattended -- eval runs, CI, scheduled jobs.
+# A browser tab appearing in front of someone who did not ask for it is a real
+# cost, not an inconvenience, and a script that cannot be completed by a human
+# should fail by name rather than wait for one who is not there.
+NO_BROWSER = bool(os.environ.get("MCP_NO_BROWSER", "").strip())
+
+
 async def _oauth_redirect_handler(url: str) -> None:
     """Open the OAuth authorization URL in the user's default browser."""
-    print(f"[oauth] Opening browser for BV-BRC login...")
+    if NO_BROWSER:
+        raise RuntimeError(
+            "BV-BRC needs an interactive login and MCP_NO_BROWSER is set, so no "
+            "browser was opened. load_tools() will report bv-brc as unavailable "
+            "and the other servers will load normally. To authenticate, run the "
+            "chatbot once without MCP_NO_BROWSER and complete the login."
+        )
+    print("[oauth] Opening browser for BV-BRC login...", flush=True)
     webbrowser.open(url)
 
 
@@ -160,7 +213,29 @@ async def _oauth_callback_handler() -> tuple[str, str | None]:
 
     thread = threading.Thread(target=_serve, daemon=True)
     thread.start()
-    await ready.wait()
+    try:
+        # `ready` is set only by an inbound GET on the callback port carrying an
+        # OAuth code. With no human there is no code, no event, and a bare
+        # `await ready.wait()` never returns. Bounding it converts a silent
+        # overnight hang into a named failure that load_tools() already knows how
+        # to survive: it reports the server as unavailable and loads the rest.
+        # Losing 18 BV-BRC tools is a degradation; stopping dead is an outage.
+        await asyncio.wait_for(ready.wait(), timeout=OAUTH_LOGIN_TIMEOUT)
+    except asyncio.TimeoutError as exc:
+        raise RuntimeError(
+            f"BV-BRC login was not completed within {OAUTH_LOGIN_TIMEOUT}s. No "
+            f"callback arrived on 127.0.0.1:{OAUTH_CALLBACK_PORT}. Treating "
+            f"bv-brc as unavailable so the remaining servers can load."
+        ) from exc
+    finally:
+        # The one-shot server is waiting on handle_request() in a daemon thread.
+        # On timeout nobody will ever call it, so close the socket rather than
+        # leaving the callback port bound for the life of the process -- the next
+        # attempt would then fail to bind for a reason unrelated to the real one.
+        try:
+            server.server_close()
+        except Exception:
+            pass
     return result.get("code", ""), result.get("state")
 
 

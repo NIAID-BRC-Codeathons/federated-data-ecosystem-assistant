@@ -199,3 +199,84 @@ def test_launcher_loads_dotenv_so_children_inherit_the_api_key():
     )
     assert launcher.index("load_dotenv()") < launcher.index("subprocess.Popen"), \
         "load_dotenv() must run before the first Popen, or children miss the key"
+
+
+# --------------------------------------------------------------------------
+# nothing unattended may open a window, or wait forever for a human
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_no_browser_env_makes_the_oauth_redirect_refuse(monkeypatch):
+    """MCP_NO_BROWSER must raise instead of opening a tab.
+
+    On 17 Sep the eval matrix launched, called webbrowser.open() against an
+    already-running Chrome -- which raises a tab in the existing window -- and
+    then hung. An unattended job opening a window on someone's screen is a real
+    cost, and one that cannot be undone by noticing afterwards.
+    """
+    import chatbot
+
+    opened = []
+    monkeypatch.setattr(chatbot.webbrowser, "open", lambda u: opened.append(u))
+    monkeypatch.setattr(chatbot, "NO_BROWSER", True)
+
+    with pytest.raises(RuntimeError, match="MCP_NO_BROWSER"):
+        await chatbot._oauth_redirect_handler("https://example.invalid/auth")
+    assert not opened, f"a browser was opened anyway: {opened}"
+
+
+def test_the_eval_driver_sets_no_browser_before_importing_chatbot():
+    """The driver must set MCP_NO_BROWSER, and set it EARLY.
+
+    chatbot reads the variable at import time, so setting it after the import
+    would leave the flag on while the module had already decided it was off --
+    a fix that reads correctly and does nothing.
+    """
+    src = (REPO / "evals" / "run_questions.py").read_text(encoding="utf-8")
+    assert "MCP_NO_BROWSER" in src, \
+        "evals/run_questions.py no longer suppresses the browser"
+    assert src.index("MCP_NO_BROWSER") < src.index("import chatbot"), \
+        "MCP_NO_BROWSER is set after `import chatbot`, so it has no effect"
+
+
+def test_the_oauth_callback_cannot_wait_forever():
+    """A bare `await ready.wait()` is an overnight hang with no error.
+
+    load_tools() already survives a server that will not connect: it reports it
+    and loads the rest. The bug was that this never returned to be reported.
+    """
+    src = (REPO / "chatbot.py").read_text(encoding="utf-8")
+    assert "asyncio.wait_for" in src and "OAUTH_LOGIN_TIMEOUT" in src, \
+        "the OAuth callback wait is unbounded again"
+    assert "await ready.wait()\n    return result" not in src, \
+        "the unbounded `await ready.wait()` has come back"
+
+
+def test_tokens_are_stored_with_a_time_anchor():
+    """expires_in is a duration; on its own it cannot say how much life is left."""
+    src = (REPO / "chatbot.py").read_text(encoding="utf-8")
+    assert "obtained_at" in src, (
+        "token storage no longer records when a token was issued, so a cached "
+        "token's remaining life cannot be computed and re-auth fires at random."
+    )
+
+
+def test_question_filenames_are_zero_padded():
+    """q2.jsonl and q02.jsonl in one directory make a glob return both.
+
+    judge.py and analyze.py both use glob("q*.jsonl"), and sorted() puts q02
+    before q2 -- so an unpadded new record loses to a padded stale one.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "rq_pad", REPO / "evals" / "run_questions.py")
+    rq = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rq)
+
+    assert rq._filename_id("Q2") == "q02"
+    assert rq._filename_id("Q13") == "q13"
+    assert rq._filename_id("R1") == "r01"
+    assert rq._filename_id("S20") == "s20"
+    # different sets must not collide
+    assert len({rq._filename_id(q) for q in ("Q1", "R1", "S1", "E1")}) == 4
