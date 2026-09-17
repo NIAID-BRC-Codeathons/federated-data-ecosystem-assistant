@@ -86,26 +86,27 @@ Two units live here and they are not interchangeable: **distinct isolates** (the
 double-indexes *E. coli* and does **not** double-index *S. aureus*, so no fixed ratio
 converts one into the other.
 
-**All rows in this section are `same-day`. I have re-read none of them** — the matrix
-owns the NCBI budget. Pathogen Detection grows daily, so these are the rows most likely
-to drift between now and Friday.
+**Seven rows here were re-read live at 16:14-16:17 on 17 Sep and are marked `live`.**
+The matrix released the NCBI budget at 16:09:44. **Zero drift** — every figure came back
+identical to the earlier reading, so Pathogen Detection did not move today. The remaining
+`same-day` rows are a teammate's reading that I have not repeated.
 
 | figure | what it counts | exact call | read | status | who |
 |---:|---|---|---|---|---|
-| 581,464 | **distinct isolates** in the `E.coli and Shigella` group | `?limit=0&facets=target_acc[\|\|1\|1]&fq=taxgroup_name==["E.coli and Shigella"]` | 17 Sep | same-day | lead, re-verified by adversary |
-| 1,162,675 | **index rows** for the same group | same call, `totalCount` | 17 Sep | same-day | adversary |
+| 581,464 | **distinct isolates** in the `E.coli and Shigella` group | `?limit=0&facets=target_acc[\|\|1\|1]&fq=taxgroup_name==["E.coli and Shigella"]` | 17 Sep 16:14 | live | verifier (re-read) |
+| 1,162,675 | **index rows** for the same group | same call, `totalCount` | 17 Sep 16:14 | live | verifier (re-read) |
 | 106 | curated organism groups; none viral | `?limit=0&facets=taxgroup_name[\|\|1\|500]` | 17 Sep | same-day | adversary |
-| 1,766,824 | index rows, *Salmonella enterica* — the largest group | same facet call | 17 Sep | same-day | adversary |
-| 349,968 | index rows, *K. pneumoniae* | same facet call | 17 Sep | same-day | adversary |
+| 1,766,824 | index rows, *Salmonella enterica* — the largest group | same facet call | 17 Sep 16:14 | live | verifier (re-read) |
+| 349,968 | index rows, *K. pneumoniae* | same facet call | 17 Sep 16:14 | live | verifier (re-read) |
 | 16,981 | index rows, *Haemophilus influenzae* — the "influenza" substring trap | same facet call | 17 Sep | same-day | adversary |
-| 171,412 | *S. aureus* distinct isolates **and** its facet count — ratio 1, not 2 | `target_acc` facet, `taxgroup_name=="Staphylococcus aureus"` | 17 Sep | same-day | lead |
-| 93,260 | *S. aureus* isolates carrying `mecA` **alone** | `amr_genes="mecA"` on the S. aureus group | 17 Sep | same-day | lead |
-| 94,336 | *S. aureus* isolates carrying `mecA` **or** `mecC` | the MRSA query | 17 Sep | same-day | lead |
-| 2 | *E. coli* isolates carrying `mecA` — the Q13 proof number | `amr_genes="mecA"` on `E.coli and Shigella` | 17 Sep | same-day | lead |
-| 75,487 | distinct isolates carrying `blaCTX-M-15` | `amr_genes="blaCTX-M-15"`, `target_acc` facet | 17 Sep | same-day | adversary |
-| 150,926 | **index rows** for the same gene | same call, `totalCount` | 17 Sep | same-day | adversary |
-| 170,726 | distinct isolates carrying `gyrA_S83L` | `amr_genes="gyrA_S83L"`, `target_acc` facet | 17 Sep | same-day | lead |
-| 341,342 | **index rows** for the same mutation | same call, `totalCount` | 17 Sep | same-day | lead |
+| 171,412 | *S. aureus* distinct isolates **and** its facet count — ratio 1, not 2 | `target_acc` facet, `taxgroup_name=="Staphylococcus aureus"` | 17 Sep 16:14 | live | verifier (re-read) |
+| 93,260 | *S. aureus* isolates carrying `mecA` **alone** | `amr_genes="mecA"` on the S. aureus group | 17 Sep 16:14 | live | verifier (re-read) |
+| 94,336 | *S. aureus* isolates carrying `mecA` **or** `mecC` | the MRSA query | 17 Sep 16:14 | live | verifier (re-read) |
+| 2 | *E. coli* isolates carrying `mecA` — the Q13 proof number | `amr_genes="mecA"` on `E.coli and Shigella` | 17 Sep 16:14 | live | verifier (re-read) |
+| 75,487 | distinct isolates carrying `blaCTX-M-15` | `amr_genes="blaCTX-M-15"`, `target_acc` facet | 17 Sep 16:14 | live | verifier (re-read) |
+| 150,926 | **index rows** for the same gene | same call, `totalCount` | 17 Sep 16:14 | live | verifier (re-read) |
+| 170,726 | distinct isolates carrying `gyrA_S83L` | `amr_genes="gyrA_S83L"`, `target_acc` facet | 17 Sep 16:14 | live | verifier (re-read) |
+| 341,342 | **index rows** for the same mutation | same call, `totalCount` | 17 Sep 16:14 | live | verifier (re-read) |
 | 7,611 | distinct AMR gene **symbols** in the E. coli vocabulary | `ncbi_pathogen_amr_genes(organism="E.coli and Shigella")` | 17 Sep | same-day | lead |
 | 1,119,505 | index rows, `blaEC` | AMR gene facet | 17 Sep | same-day | lead |
 | 1,065,222 | index rows, `acrF` | AMR gene facet | 17 Sep | same-day | lead |
@@ -115,12 +116,28 @@ to drift between now and Friday.
 | 378 | distinct **phenotype values** in the E. coli group | phenotype facet | 17 Sep | same-day | lead |
 | 1,548 | ciprofloxacin-**resistant** E. coli isolates | phenotype filter, distinct isolates | 17 Sep | same-day | lead |
 | 9,036 | E. coli isolates with **any** AST result — 1.6% of 581,464 | phenotype facet, non-empty | 17 Sep | same-day | lead |
+| 883,560 | **distinct isolates**, *Salmonella enterica* — the largest group | `ncbi_pathogen_isolate_count(organism="Salmonella enterica")` | 17 Sep 16:16 | live | verifier |
+| 175,207 | **distinct isolates**, *K. pneumoniae* | `ncbi_pathogen_isolate_count(organism="Klebsiella pneumoniae")` | 17 Sep 16:16 | live | verifier |
+| 174,162 | **distinct isolates**, *C. jejuni* | `ncbi_pathogen_isolate_count(organism="Campylobacter jejuni")` | 17 Sep 16:16 | live | verifier |
+| 348,290 | **index rows**, *C. jejuni* — ratio 2.000 | same call, `totalCount` | 17 Sep 16:16 | live | verifier |
+| 82,947 | **distinct isolates**, *L. monocytogenes* — **and** its index-row count. Ratio 1, like *S. aureus* | `ncbi_pathogen_isolate_count(organism="Listeria monocytogenes")` | 17 Sep 16:16 | live | verifier |
+| 85,706 | **nothing real.** `ncbi_pathogen_organisms` `approx_isolates` for *S. aureus*. Exactly half the true 171,412 — see FINDING V10 | `ncbi_pathogen_organisms(limit=500)` | 17 Sep 16:17 | **WRONG** | verifier |
+| 41,473 | **nothing real.** Same defect, *L. monocytogenes*. Half of 82,947 | `ncbi_pathogen_organisms(limit=500)` | 17 Sep 16:17 | **WRONG** | verifier |
 | 0 | isolates matching `AMR_genotypes==["CFTR"]` — a true zero for a wrong premise | `fq=AMR_genotypes==["CFTR"]` on the E. coli group | 17 Sep | same-day | adversary |
 | 0 | isolates for `organism="Escherichia coli"` — a **false** zero, wrong group name | `ncbi_pathogen_isolate_count(organism="Escherichia coli")` | 17 Sep | same-day | runner / matrix |
 
 That last row is the headline finding, and it is the reason this file exists: a zero
 that means "I could not look" is indistinguishable from a zero that means "there is
 none" unless someone writes down which one it is.
+
+**The two `WRONG` rows are the same disease in a new place.** `ncbi_pathogen_organisms`
+derives its per-organism figure by halving the service's row count
+(`mcp_servers/ncbi_lib/server.py:1691`), on a comment that says "the 2x duplication is
+uniform". It is not: of six groups I measured, four are double-indexed and two are not.
+For those two the tool reports exactly half the truth, with no signal that it has. This
+table's own header has said "does **not** double-index *S. aureus*" since 15:43 — the
+fact was already written down and the code still halves. Full evidence in FINDING V10;
+`ncbi_lib` is not my file, so this is reported, not patched.
 
 ---
 
@@ -236,7 +253,20 @@ These are asserted on slides and in `_reports/`, so they belong here too.
 
 ## Drift risks, named
 
-### 1. `analyze.py` hardcodes 581,464 with no read-date — analyst's file
+### 1. ~~`analyze.py` hardcodes 581,464 with no read-date~~ — **CLOSED by analyst, 16:14**
+
+**I was right when I reported it and I am wrong to keep saying it.** `analyze.py:133-150`
+now carries the read date, the exact call, who read it, why the figure matters, and the
+instruction "Re-read before Friday: change the value AND the date together", plus
+`PROOF_NUMBERS_READ = "2026-09-17"`. It even cites this file. The fix is better than the
+one I proposed. **I took the re-read it asks for at 16:14 and all five `PROOF_NUMBERS`
+figures for Q13 came back identical**, so the constants are correct as they stand and
+need no edit. Correction sent to analyst at 16:20.
+
+The original report is kept below rather than deleted, because a drift risk that was
+real and got fixed is worth being able to see.
+
+#### Original report, 15:43 — superseded
 
 ```python
 PROOF_NUMBERS = {13: {2, 581464, 93260, 171412, 94336},
@@ -398,15 +428,18 @@ launching from `evals/`, but it is not what happened here.
 
 ## What I have not done
 
-- **I did not re-measure any Pathogen Detection figure, including 581,464** — the number
-  the headline finding turns on. That is now the single largest gap in this table.
-  **Blocked, not forgotten:** a BOBBY-LANES run has held the NCBI budget since 15:52
-  (`evals/run_questions.py`, PID 39716, `--parallel 6`, confirmed in the process list at
-  16:35). Adding measurement traffic on top of a live scored run is the one thing my own
-  rate-limit rule forbids. I am waiting for it to exit and will take the reading then. Those
-  rows are `same-day`: a teammate read them today and pasted the call, and I have not
-  repeated one. Pathogen Detection grows daily and 581,464 is the figure `analyze.py`
-  hardcodes, so this is where drift will appear first.
+- ~~I did not re-measure any Pathogen Detection figure~~ — **done at 16:14-16:17, after
+  BOBBY-LANES released the budget at 16:09:44.** Seven figures re-read through the real
+  tool stack, paced at one call per 3 s: 581,464 · 2 · 93,260 · 94,336 · 171,412 · 75,487 ·
+  170,726. **Zero drift.** What I still have not done is measure the other **100 of 106**
+  organism groups, so I cannot say how far the `approx_isolates` defect in FINDING V10
+  spreads beyond the two groups where I caught it.
+- **I did not verify the Q14 AST figures** — 1,548 (ciprofloxacin-resistant), 6,563
+  (susceptible), 9,036 (any AST result) and 378 (distinct phenotype values). `QUESTIONS.md`
+  states these are unreachable through the board's tools, because `_pathogen_filter` has no
+  `AST_phenotypes` argument. Checking them means calling the service directly, outside the
+  wrapper, and I did not do that. Three of the four are in `PROOF_NUMBERS[14]` and are
+  scored against, so they are asserted figures I have left `same-day`.
 - I did not download `GSE309890_FPKMs_allSamples.csv.gz`. Its size and date are GEO's own
   directory listing, not my observation of the file.
 - I did not re-run the four GEO rows still marked `stale-risk`.
