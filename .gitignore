@@ -34,3 +34,13 @@ evals/runs/**/q*.jsonl
 # in the very commit whose README says they are never committed.
 evals/_patch*.py
 _patch*.py
+
+# Anything that looks like an env file, in any spelling. `*.env` does NOT match
+# `.env.bak`, `.env.env.bak-153724` or `.env.local` -- a backup of a credentials
+# file written during an edit on 17 Sep was committable for about a minute
+# because of exactly that gap.
+.env
+.env.*
+*.env
+*.env.*
+!.env.example
