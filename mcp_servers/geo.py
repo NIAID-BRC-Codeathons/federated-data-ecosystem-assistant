@@ -38,6 +38,7 @@ Run over stdio: uv run mcp_servers/geo.py --stdio
 import json
 import os
 import re
+import sys
 import threading
 import time
 from urllib.parse import urlencode, urljoin
@@ -203,6 +204,35 @@ if _max_rps:
     except (ValueError, ZeroDivisionError):
         pass
 
+# Throttles absorbed since this server started, by status code. A 429 that is
+# retried successfully used to be COMPLETELY invisible -- no print, no logger, no
+# stderr anywhere in this file -- so "zero 429s in the log" was a check that could
+# not come back dirty. MAX_ATTEMPTS is 5, so four throttles could be absorbed on a
+# single call and the run would look perfectly clean.
+#
+# The body is still never logged: it echoes the caller's public IP in a field
+# named api-key. Only the count and the status go anywhere.
+_throttles: dict[int, int] = {}
+_throttle_lock = threading.Lock()
+
+
+def throttle_counts() -> dict:
+    """Retryable statuses absorbed since startup. Empty dict means none."""
+    with _throttle_lock:
+        return dict(_throttles)
+
+
+def _note_throttle(status: int) -> int:
+    with _throttle_lock:
+        _throttles[status] = _throttles.get(status, 0) + 1
+        n = _throttles[status]
+    # stderr, not stdout: stdout is the MCP transport on a stdio server.
+    print(f"[geo] HTTP {status} absorbed and retried "
+          f"({n} so far this process). Body not logged -- it echoes the caller's IP.",
+          file=sys.stderr, flush=True)
+    return n
+
+
 _session = requests.Session()
 _session.headers.update(HEADERS)
 _rate_lock = threading.Lock()
@@ -244,6 +274,7 @@ def _get(url: str, params: dict | None = None, timeout: int = 60):
             continue
 
         if resp.status_code in RETRYABLE_STATUS and attempt < MAX_ATTEMPTS - 1:
+            _note_throttle(resp.status_code)
             # Respect Retry-After when NCBI sends one; otherwise widen the gap.
             delay = resp.headers.get("Retry-After")
             try:
@@ -572,6 +603,26 @@ def _normalise(record: dict) -> dict:
 MAX_RESULT_CHARS = 40_000
 
 
+def _with_throttles(result: dict) -> dict:
+    """Attach the throttle count when there is one. Absent means none happened.
+
+    This is what makes "no throttling" a claim rather than an assumption: if the
+    key is missing the server genuinely absorbed nothing, and if it is present the
+    transcript records how much was hidden behind a clean-looking answer.
+    """
+    counts = throttle_counts()
+    if counts:
+        result["rate_limit_note"] = {
+            "absorbed_and_retried": counts,
+            "meaning": (
+                "This server hit NCBI's per-IP rate ceiling and retried "
+                "successfully. The answer is correct; it was slower than it looks, "
+                "and the ceiling is shared with every other process on this IP."
+            ),
+        }
+    return result
+
+
 def _cap_result(result: dict, list_key: str, total_key: str | None = None,
                 how_to_get_more: str = "") -> dict:
     """Trim the bulky list in a result until the whole thing fits, and SAY SO.
@@ -705,13 +756,13 @@ def geo_search(
         )
     if count > len(records):
         result["truncated"] = True
-    return _cap_result(
+    return _with_throttles(_cap_result(
         result, "results", "total_count",
         how_to_get_more=(
             "Narrow the query with a more specific term, or call geo_series on a "
             "single accession for its detail."
         ),
-    )
+    ))
 
 
 @mcp.tool()
