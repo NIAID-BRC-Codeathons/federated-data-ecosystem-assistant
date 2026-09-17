@@ -298,7 +298,23 @@ Always use tools to retrieve real data, never invent accessions or sequences.
 For multi-step questions, chain tools: search -> get entry -> get interactions.
 """
 PROMPTS = {"paper": None, "minimal": MINIMAL_PROMPT, "none": ""}
-RESULT_EXCERPT = 600
+# How much of each tool result to keep in the transcript.
+#
+# 600 was too small by a wide margin and it was blinding the scorer. Measured
+# over 366 real tool results: the MEDIAN is 1,621 characters, so 600 cut more
+# than half of a typical result, and only 15% of results survived whole. The
+# judge's retrieved_not_reported check needs to see a total and a returned count
+# in the same result to decide anything, and 146 of 344 results were cut before
+# that pair became legible -- so the check could only ever report "0 among the 5%
+# of evidence I could see", which is not a finding.
+#
+# 4000 keeps 68% of results whole (8000 would keep 81%, at roughly double the
+# transcript size). Raise it with --excerpt when a question set needs more; the
+# cost is disk, and disk is cheaper than a blind scorer.
+#
+# Found by the judge chat, which reported it rather than patching -- this file is
+# not theirs.
+RESULT_EXCERPT = 4000
 
 
 def load_questions() -> list[tuple[str, str]]:
@@ -799,6 +815,7 @@ async def run_model(model: str, questions: list[tuple[str, str]],
 
 
 async def main() -> int:
+    global RESULT_EXCERPT, QUESTIONS_MD
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--only", nargs="*",
                     help="question ids to run, e.g. --only 3 7 or --only R1 R2")
@@ -813,6 +830,11 @@ async def main() -> int:
                     help="question file to run, relative to evals/ or an absolute path "
                          "(default QUESTIONS.md). Its stem is added to the output "
                          "directory name, so sets cannot overwrite each other.")
+    ap.add_argument("--excerpt", type=int, default=RESULT_EXCERPT, metavar="CHARS",
+                    help=f"characters of each tool result to keep in the transcript "
+                         f"(default {RESULT_EXCERPT}). The scorer reads this field, so "
+                         f"too small a value makes checks unable to see their own "
+                         f"evidence rather than able to report nothing found.")
     ap.add_argument("--parallel", type=int, default=1, metavar="N",
                     help="run N models concurrently (default 1). Wall time is ~94%% "
                          "model latency, and NCBI's 3 req/sec ceiling is enforced "
@@ -827,7 +849,6 @@ async def main() -> int:
     args = ap.parse_args()
 
     if args.questions:
-        global QUESTIONS_MD
         cand = pathlib.Path(args.questions)
         # Resolve against several roots rather than one. `--questions ROUTING.md`
         # and `--questions evals/ROUTING.md` are both natural to type, and joining
@@ -846,6 +867,8 @@ async def main() -> int:
         if not QUESTIONS_MD.exists():
             print(f"no such questions file: {QUESTIONS_MD}", file=sys.stderr)
             return 2
+    RESULT_EXCERPT = args.excerpt
+
     questions = load_questions()
     if args.only:
         want = {str(o).upper() for o in args.only}
