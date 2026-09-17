@@ -111,6 +111,7 @@ MCP_SERVERS = {
 LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
 # LLM_MODEL="openrouter/mistralai/mistral-small-2603"
 # LLM_MODEL="cesnet/qwen3-coder"
+# LLM_MODEL="ollama/qwen3.5:9b"
 # LLM_MODEL="ollama/gemma4"
 # LLM_MODEL="mistralai/mistral-small-latest"
 # LLM_MODEL="anthropic/claude-opus-5"
