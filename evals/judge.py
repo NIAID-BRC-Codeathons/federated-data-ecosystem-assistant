@@ -113,6 +113,20 @@ EXPECTED: dict[int, dict] = {
 
 # A number this large in an answer is a claim about the data, not a sample count
 # or a step number, so it has to trace to something the model was shown.
+# The real number of E. coli runs in ENA, against the 50 the federated page
+# returns. Named here because both the `ena_50` trap and its note use it.
+ENA_TRUE_RUNS = 551679
+
+# Why a row can read clean on disk and be a known failure in the scorecard
+# beside it. Appended to the held-out line so the count is never quoted without
+# it.
+DRIVER_BLIND_SPOT = (
+    " Note that `retries: 0` and `error: null` in these records are not"
+    " measurements: `run_one` writes the file before the retry loop runs and"
+    " nothing rewrites it, so the driver's own `routing-scorecard.md` calls the"
+    " same rows `**ERROR** silent empty after 2 retries`. Verified 17 Sep on"
+    " argo/claudesonnet45 Q1, Q5, Q14, Q15.")
+
 FABRICATION_MIN = 100
 
 # A bare four-digit number in this range is read as a year and skipped. A real
@@ -486,11 +500,23 @@ class Transcript:
             else:
                 self.steps.append(obj)
 
-        self.number = self.summary.get("question_number") or _number_from_name(path)
-        self.qid = self.summary.get("question_id") or _qid_from_path(path, self.number)
+        self.number = _digits(self.summary.get("question_number")) or _number_from_name(path)
+        # Two independent sources for the same fact. `qid_by_path` is kept so
+        # `qid_conflict` can ask whether they agree; see the note there.
+        self.qid_by_path = _qid_from_path(path, self.number)
+        self.qid = _normalise_qid(self.summary.get("question_id")) or self.qid_by_path
         self.question = self.summary.get("question", "")
         self.answer = self.summary.get("answer", "") or ""
         self.tools = list(self.summary.get("tools_in_order") or [])
+        self.elapsed = self.summary.get("elapsed_s")
+        # Whether the provider was asked, and what it charged for the asking.
+        # `usage_reported` is carried too, because 0 output tokens from a
+        # gateway that reports no usage is not a measurement -- it is the
+        # default value of a field nobody filled in.
+        self.usage_reported = bool(self.summary.get("usage_reported"))
+        self.in_tok = self.summary.get("input_tokens")
+        self.out_tok = self.summary.get("output_tokens")
+        self.rounds = self.summary.get("llm_round_trips")
         self.denied = bool(self.summary.get("denied"))
         self.error = self.summary.get("error")
 
@@ -517,8 +543,33 @@ class Transcript:
 
 
 def _number_from_name(path: pathlib.Path) -> int | None:
-    m = re.search(r"q(\d+)", path.stem)
+    m = re.search(r"[qrs](\d+)", path.stem.lower())
     return int(m.group(1)) if m else None
+
+
+def _digits(raw: object) -> int | None:
+    """The first run of digits in whatever the driver wrote. `"Q2"` -> 2."""
+    m = re.search(r"(\d+)", "" if raw is None else str(raw))
+    return int(m.group(1)) if m else None
+
+
+def _normalise_qid(raw: object) -> str | None:
+    """`"Q2"` -> `"2"`, `"R12"` -> `"R12"`, `2` -> `"2"`. Unparseable -> None.
+
+    Measured on `runs/argo_claudesonnet45/q02.jsonl` at 14:59 on 17 Sep: the
+    driver writes `question_id` AND `question_number` as the string form of the
+    label (`"Q2"`), not as an int. `expected_for` keys the demo set by int, so
+    `int("Q2")` raised, the except returned the blank expectation, and the row
+    scored with no primary tools, no ground truth and no qid-keyed trap. Every
+    demo record from this driver would have come out `source: unknown` and the
+    table would have looked clean -- the same "absent, not wrong" shape as the
+    missing-provenance bug, and just as invisible.
+    """
+    m = re.fullmatch(r"\s*([A-Za-z]?)0*(\d+)\s*", "" if raw is None else str(raw))
+    if not m:
+        return None
+    letter = m.group(1).upper()
+    return f"{'' if letter == 'Q' else letter}{int(m.group(2))}"
 
 
 def _qid_from_path(path: pathlib.Path, number: int | None = None) -> str | None:
@@ -689,10 +740,57 @@ def check_traps(t: Transcript) -> list[str]:
     if t.qid in GDS_513_QIDS and 513 in answer_numbers(a):
         fired.append("gds_513")
 
-    # 50 on its own is a page size, a sample count and a percentage. It is only a
-    # trap when the answer ties it to ENA or to a run count.
-    if re.search(r"\b50\b[^.\n]{0,70}(ena|runs?\b)|(ena|runs?)[^.\n]{0,70}\b50\b", a, re.I):
+    # 50 on its own is a page size, a sample count and a percentage. It is a
+    # trap only when the answer offers it AS THE TOTAL.
+    #
+    # Rewritten 17 Sep, after the first time this check ever fired on real data
+    # produced two false positives, both on argo/claudesonnet45 of the 14:58
+    # matrix. The old pattern was
+    # `\b50\b[^.\n]{0,70}(ena|runs?\b)|(ena|runs?)[^.\n]{0,70}\b50\b`
+    # and it has two faults.
+    #
+    #   `\b50\b` matches inside a decimal -- `50.5` is a word boundary on both
+    #   sides -- so q11's GC-content cell `5,594,605 | 50.5` tripped an ENA
+    #   trap on a genome size.
+    #
+    #   Worse, it fired on the right answer. q10 says "SRA reported 39,786
+    #   total runs with 50 retrieved" and "capped at 50 returned records from
+    #   total counts of 39,786 and 5,424". q11 says "The ENA holds 551,679
+    #   sequencing runs for taxonomy ID 562" and then "A sample of 50 runs
+    #   revealed...". Both name the true total and label the 50 as a cap, which
+    #   is the behaviour this whole project argues for. Flagging it is the same
+    #   false positive as zero_as_absence firing on an answer that resolved its
+    #   own zero, which the clause below it already had to fix once.
+    #
+    # So: the 50 must be bare, near ENA or a run count, NOT framed as a subset,
+    # and the answer must not carry the true total anywhere. What is left is an
+    # answer that says "ENA holds 50 runs" with nothing larger beside it.
+    for m in re.finditer(r"(?<![\d.,])50(?![\d.,])", a):
+        window = a[max(0, m.start() - 70):m.end() + 70]
+        if not re.search(r"(?i)\bena\b|\bruns?\b", window):
+            continue
+        if re.search(r"(?i)sampl|retriev|\bcap(?:ped)?\b|limit|page|\bsize\b"
+                     r"|max_result|first 50|up to 50|50 of\b|returned", window):
+            continue
+        if str(ENA_TRUE_RUNS) in a or f"{ENA_TRUE_RUNS:,}" in a:
+            continue
+        # The general form of the two clauses above, and the one that catches a
+        # table. q10 renders its caps as `| SRA | 39,786 | 50 | Runs |`, where
+        # the "Retrieved" column header is well outside the window but the true
+        # total is one cell away. A number larger than 50 beside the 50 means
+        # the 50 is not being offered as the total, whatever words surround it.
+        bigger = False
+        for tok in re.findall(r"\d[\d,]*", window):
+            v = int(tok.replace(",", ""))
+            if "," not in tok and YEAR_RANGE[0] <= v <= YEAR_RANGE[1]:
+                continue      # a year, not a count -- same rule as YEAR_RANGE
+            if v > 50:
+                bigger = True
+                break
+        if bigger:
+            continue
         fired.append("ena_50")
+        break
 
     # The headline. A zero in a tool result plus an absence stated in the answer.
     # Whether that zero was real is a human's call; whether the model repeated it
@@ -903,6 +1001,57 @@ def check_control_refusal(t: Transcript, exp: dict) -> dict:
     return {"applies": True, "refused": refused, "ok": not refused}
 
 
+def check_no_turn(t: Transcript) -> dict:
+    """Nothing came back at all: no answer, no tool call, no error, no denial.
+
+    Measured on `runs/argo_claudesonnet45/` at 14:59 on 17 Sep. Q1 and Q5
+    returned an empty assistant message with `tool_calls: []` in 1.3s and 3.3s,
+    against 40-86s for the questions that ran. `denied` is False and `error` is
+    None, so neither of the two existing escape hatches catches it, and the row
+    scored as `routed: no` -- a transport failure counted as the model choosing
+    the wrong source. Across 36 models that is a systematic bias against every
+    model the gateway happens to drop.
+
+    The rule deliberately does NOT use elapsed time. A threshold would be a
+    number invented here; "empty AND no tool call" is observable. Elapsed is
+    reported next to the flag as the evidence that this was not a model turn.
+    An empty answer AFTER tool calls is a different animal and stays in the
+    denominator: the model did work and then said nothing, which is its failure.
+
+    Corrected 17 Sep, same run, after two sibling chats reported the token
+    counts independently. The per-assistant-message `usage` is None, which is
+    what the earlier note here was based on, but the SUMMARY carries the
+    aggregate and `usage_reported` is True: every empty row on
+    argo/claudesonnet45 shows `input_tokens` near 37,580 and `output_tokens` 0,
+    against 78k-398k in and 1,660-4,902 out on the rows that answered. So the
+    request WAS submitted and WAS billed; what is missing is the response. "The
+    gateway never asked it" is ruled out. Whether the provider or the gateway
+    ate the reply is still not something a transcript can settle, so the count
+    stays on its own line and out of every score.
+
+    The tokens are evidence, not a condition. `applies` deliberately does not
+    test `output_tokens == 0`: a gateway that reports no usage leaves that field
+    at 0 whether the model spoke or not, and gating on it would turn a missing
+    measurement into a positive finding -- the same mistake as reading a tool's
+    0 as an absence, which is the failure this whole project exists to prevent.
+    `usage_reported` is carried so the report can stay silent about tokens it
+    was never given.
+
+    The driver's own annotation cannot be used for this either. `run_one` writes
+    the per-question jsonl before the retry loop runs and nothing rewrites it,
+    so `retries` is 0 and `error` is None on disk for rows that the scorecard in
+    the same directory calls `**ERROR** silent empty after 2 retries`. Reported
+    to the hub by `runner`; not this file's to fix, and not this file's to
+    trust.
+    """
+    applies = (not t.answer.strip() and not t.calls and not t.denied
+               and not t.error)
+    return {"applies": applies, "elapsed": t.elapsed,
+            "in_tok": t.in_tok if t.usage_reported else None,
+            "out_tok": t.out_tok if t.usage_reported else None,
+            "rounds": t.rounds}
+
+
 def judge_one(t: Transcript) -> dict:
     exp = expected_for(t.qid)
     routed, routed_detail = check_routed(t, exp)
@@ -938,6 +1087,7 @@ def judge_one(t: Transcript) -> dict:
         "refusal_parts": check_refusal_parts(t, exp),
         "forbidden_units": check_forbidden_units(t, exp),
         "control_refusal": check_control_refusal(t, exp),
+        "no_turn": check_no_turn(t),
         "denied": t.denied,
         "error": t.error,
         "truncated": t.truncated,
@@ -1006,9 +1156,17 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
         if r["error"]:
             L.append(f"| {r['q']} | — | **error** | — | {r['error'][:60]} | — | — | — | — | — |")
             continue
+        if r["no_turn"]["applies"]:
+            el = r["no_turn"]["elapsed"]
+            el = f"{el:g}s" if isinstance(el, (int, float)) else "elapsed not recorded"
+            tok = r["no_turn"]["in_tok"]
+            el += f", {tok:,} in / 0 out" if tok else ""
+            L.append(f"| {r['q']} | {r['kind']} | — | — | "
+                     f"**nothing came back** ({el}) | — | — | — | — | — |")
+            continue
         if not r["answer_chars"]:
-            # Not denied, not an exception, and nothing said. That is its own
-            # failure and must not read as a clean row.
+            # Nothing said, but the model DID call tools, or it errored/denied.
+            # That is its own failure and must not read as a clean row.
             L.append(f"| {r['q']} | {r['kind']} | {r['routed']} | {r['routed_first']} | "
                      f"**empty answer** | — | — | — | — | — |")
             continue
@@ -1022,7 +1180,13 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
         )
     L.append("")
 
-    live = [r for r in rows if not r["denied"] and not r["error"]]
+    # Three states are held out of every fraction below, for the same reason:
+    # none of them is evidence about the model's judgement. `no_turn` is the
+    # newest -- see check_no_turn for what was measured.
+    dead = [r for r in rows if r["no_turn"]["applies"]
+            and not r["denied"] and not r["error"]]
+    live = [r for r in rows if not r["denied"] and not r["error"]
+            and not r["no_turn"]["applies"]]
     routed_yes = sum(1 for r in live if r["routed"] == "yes")
     routed_scored = sum(1 for r in live if r["routed"] in ("yes", "no"))
     first_yes = sum(1 for r in live if r["routed_first"] == "yes")
@@ -1046,6 +1210,22 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
         f"**{model}** · **`zero_as_absence`: {zero}** — a zero repeated as a finding is the "
         f"failure this project exists to prevent, so it is counted on its own.",
         "",
+    ]
+    if dead:
+        els = ", ".join(
+            f"{r['q']} ({r['no_turn']['elapsed']:g}s)"
+            if isinstance(r["no_turn"]["elapsed"], (int, float)) else str(r["q"])
+            for r in dead)
+        burned = sum(r["no_turn"]["in_tok"] or 0 for r in dead)
+        cost = (f" The gateway metered **{burned:,} input tokens** across them and returned "
+                f"0 output, so the request was submitted and billed and only the reply is "
+                f"missing." if burned else "")
+        L += [f"- **{len(dead)} of {len(rows)} question(s) returned nothing at all**: {els}. "
+              f"No answer, no tool call, and the record shows no error and no denial."
+              f"{cost} Held out of every fraction below: scoring them `routed: no` would "
+              f"charge the model for a reply it was never shown to have withheld. Re-run "
+              f"these before reading anything into this model's totals.{DRIVER_BLIND_SPOT}"]
+    L += [
         f"- routed {routed_yes}/{routed_scored} scored "
         f"({len(live) - routed_scored} not scorable: source not wired, or no tool applies)",
         f"- opened on the right source {first_yes}/{first_scored} — the strict read of "
@@ -1109,6 +1289,14 @@ def write_report(by_model: dict[str, list[dict]], out: pathlib.Path,
                     cells.append("denied")
                 elif r["error"]:
                     cells.append("error")
+                elif r["no_turn"]["applies"]:
+                    # Held out here for the same reason it is held out of the
+                    # per-model fractions. Caught 17 Sep: this table was still
+                    # printing `no` for argo/claudesonnet45 Q1 and Q14 while the
+                    # table above them said "nothing came back" -- a fix applied
+                    # in one place and not the other, which is worse than not
+                    # fixing it, because the two now disagree in the same file.
+                    cells.append("*nothing*")
                 else:
                     bits = [r["routed"]]
                     if r["numbers"]["unmatched"]:
@@ -1198,7 +1386,7 @@ CHECKS = [
     "no_fabrication", "no_fabrication_grey",
     "ground_truth_miss", "ground_truth_wrong", "ground_truth_substitute",
     "honest_null_declines", "honest_null_reason", "honest_null_alternative",
-    "denied", "error", "empty_answer",
+    "denied", "error", "empty_answer", "no_turn",
     # ROUTING.md / STRESS.md, added 17 Sep at Runner's request. Each one is here
     # because the demo rubric is blind to it: a shotgun passes `routed`, an
     # early stop says only true things, and a bare decline and a four-part
@@ -1226,6 +1414,7 @@ def _observed(row: dict) -> dict:
         "denied": bool(row["denied"]),
         "error": bool(row["error"]),
         "empty_answer": row["answer_chars"] == 0,
+        "no_turn": bool(row["no_turn"]["applies"]),
         "misroute_called": bool(row["misroute"].get("called")),
         "misroute_used": bool(row["misroute"].get("used")),
         "declared_missing": (row["declared"]["applies"]
@@ -1352,6 +1541,62 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
                 f"provenance guard did not separate the two records: "
                 f"scored {n_kept}, refused {refused}")
 
+    # The qid the live driver actually writes. `"Q2"` has to reach the demo map
+    # and `"R2"` the routing map, because the failure mode is not an exception
+    # -- it is a blank expectation that scores as `source: unknown` and reads
+    # like a model that used no tools. Asserted on the real string form rather
+    # than on an int, which is what the map already keys and what never broke.
+    for raw, want_source in (("Q2", "NCBI Pathogen Detection"), (2, "NCBI Pathogen Detection"),
+                             ("R2", EXPECTED_ROUTING.get("R2", {}).get("source")),
+                             ("S16", EXPECTED_STRESS.get("S16", {}).get("source"))):
+        got = expected_for(_normalise_qid(raw)).get("source")
+        print(f"  qid {raw!r} -> {_normalise_qid(raw)!r} -> source {got!r}")
+        if got != want_source or got in (None, "unknown"):
+            failures.append(
+                f"question_id {raw!r} did not reach its expectation: "
+                f"source {got!r}, wanted {want_source!r}")
+
+    # The token evidence beside a no_turn flag, both ways. Measured on
+    # argo/claudesonnet45 q01 of the 14:58 matrix: 37,583 in, 0 out,
+    # usage_reported True. The flag itself must not move when the usage is
+    # withheld, and the number must not be invented when it was not given.
+    for name, want_flag, want_tok in (("no-turn.jsonl", True, 37583),
+                                      ("no-turn-no-usage.jsonl", True, None),
+                                      ("empty-answer.jsonl", False, 1000)):
+        row = judge_one(Transcript(FIXTURES / name))["no_turn"]
+        print(f"  {name}: no_turn={row['applies']} in_tok={row['in_tok']!r}")
+        if row["applies"] != want_flag or row["in_tok"] != want_tok:
+            failures.append(
+                f"{name}: no_turn applies={row['applies']} in_tok={row['in_tok']!r}, "
+                f"wanted applies={want_flag} in_tok={want_tok!r}")
+
+    # Directory and summary are two sources for the question set. A record that
+    # says `Q2` while sitting in a `-routing` directory is one of them being
+    # wrong, and no rubric here can tell which, so it must be refused rather
+    # than scored against whichever map happens to win.
+    with tempfile.TemporaryDirectory() as tmp:
+        d = pathlib.Path(tmp) / "fixture_model-routing"
+        d.mkdir()
+        prov = {"run_id": "20260917-145854-bafed0f", "code_sha": "bafed0f"}
+        rows = {"q02.jsonl": "Q2", "r02.jsonl": "R2"}
+        for name, qid in rows.items():
+            rec = ({"role": "user", "text": "q"},
+                   {"summary": {"question_id": qid, "question_number": qid,
+                                "question": "q", "model": "fixture",
+                                "tools_in_order": [], "answer": "37 Series.",
+                                "answer_chars": 10, **prov}})
+            (d / name).write_text(
+                "\n".join(json.dumps(x) for x in rec) + "\n", encoding="utf-8")
+        kept, refused = collect(pathlib.Path(tmp))
+        n_kept = sum(len(v) for v in kept.values())
+        clashed = [x for x in refused if "disagrees" in x]
+        print(f"  set-conflict guard: {n_kept} scored, {len(clashed)} refused "
+              f"({clashed[0] if clashed else 'none'})")
+        if not (n_kept == 1 and len(clashed) == 1 and "q02.jsonl" in clashed[0]):
+            failures.append(
+                f"set-conflict guard did not refuse the mismatched record: "
+                f"scored {n_kept}, refused {refused}")
+
     print()
     if failures:
         print(f"SELF-TEST FAILED — {len(failures)} problem(s):", file=sys.stderr)
@@ -1383,12 +1628,39 @@ def provenance_of(summary: dict) -> tuple[bool, str]:
     return True, str(summary["run_id"])
 
 
+def qid_conflict(t: "Transcript") -> str | None:
+    """Does the record's own id disagree with the directory it sits in?
+
+    The question set is carried twice: by the run directory, because Runner
+    derives RUN_TAG from the questions-file stem (`argo_gpt4o-routing/`), and
+    by `question_id` in the summary. When the two agree the record is fine.
+    When they disagree one of them is wrong, nothing here can say which, and
+    scoring it would measure a routing answer against the demo rubric or the
+    reverse. So it is refused, like a record with no provenance at all.
+    """
+    mine = (t.qid or "")[:1]
+    theirs = (t.qid_by_path or "")[:1]
+    mine = mine if mine in "RS" else ""
+    theirs = theirs if theirs in "RS" else ""
+    if mine != theirs:
+        return f"summary says {t.qid!r}, directory says {t.qid_by_path!r}"
+    return None
+
+
 def collect(runs: pathlib.Path) -> tuple[dict[str, list[dict]], list[str]]:
     by_model: dict[str, list[dict]] = {}
     skipped: list[str] = []
     for model_dir in sorted(p for p in runs.iterdir() if p.is_dir()):
         rows = []
-        for path in sorted(model_dir.glob("q*.jsonl")):
+        # q/r/s, not q. `_filename_id` at run_questions.py:278 pads whatever
+        # prefix the question set uses -- `Q1 -> q01`, `R12 -> r12`, `S3 -> s03`
+        # -- so a routing directory holds no `q*.jsonl` at all. Globbing for `q`
+        # alone found nothing there and the model dropped out of the report with
+        # no row and no skip line, which reads as "not run yet" rather than as
+        # "I could not see it". Caught by the set-conflict self-test on 17 Sep.
+        paths = sorted(q for pat in ("q*.jsonl", "r*.jsonl", "s*.jsonl")
+                       for q in model_dir.glob(pat))
+        for path in paths:
             try:
                 t = Transcript(path)
             except Exception as exc:   # one unreadable transcript must not lose the run
@@ -1399,6 +1671,12 @@ def collect(runs: pathlib.Path) -> tuple[dict[str, list[dict]], list[str]]:
                 rel = f"{model_dir.name}/{path.name}"
                 skipped.append(f"{rel} ({why})")
                 print(f"  SKIPPED, no provenance: {rel} -- {why}", file=sys.stderr)
+                continue
+            clash = qid_conflict(t)
+            if clash:
+                rel = f"{model_dir.name}/{path.name}"
+                skipped.append(f"{rel} (question set disagrees: {clash})")
+                print(f"  SKIPPED, set disagrees: {rel} -- {clash}", file=sys.stderr)
                 continue
             try:
                 rows.append(judge_one(t))

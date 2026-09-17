@@ -1,4 +1,4 @@
 {"role": "user", "text": "How many E. coli isolates has NCBI sequenced?"}
 {"role": "assistant", "text": "", "tool_calls": [{"tool": "ncbi_pathogen_organisms", "args": {"contains": "coli"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
 {"role": "tool", "tool": "ncbi_pathogen_organisms", "seconds": 0.4, "result_excerpt": "{\"groups\": [\"E.coli and Shigella\", \"Staphylococcus aureus\"], \"count\": 106}", "result_chars": 74}
-{"summary": {"question_number": 2, "question": "How many E. coli isolates has NCBI sequenced?", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": ["ncbi_pathogen_organisms"], "tool_call_count": 1, "denied": false, "error": null, "answer": "", "answer_chars": 0, "input_tokens": 1000, "output_tokens": 50}}
+{"summary": {"question_number": 2, "question": "How many E. coli isolates has NCBI sequenced?", "model": "fixture", "elapsed_s": 60.0, "tools_in_order": ["ncbi_pathogen_organisms"], "tool_call_count": 1, "denied": false, "error": null, "answer": "", "answer_chars": 0, "input_tokens": 1000, "output_tokens": 50, "llm_round_trips": 1, "usage_reported": true}}

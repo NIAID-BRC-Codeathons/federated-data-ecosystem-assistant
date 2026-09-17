@@ -39,17 +39,19 @@ def asst(calls, text: str = "") -> dict:
 
 
 def write(name, q, question, steps, answer, denied=False, error=None,
-          qid: str | None = None) -> str:
+          qid: str | None = None, elapsed: float = 1.0,
+          usage: tuple = (1000, 50, 1, True)) -> str:
     tools_in_order = [c["tool"] for s in steps for c in (s.get("tool_calls") or [])]
     lines = [{"role": "user", "text": question}] + steps
     summary_extra = {"question_id": qid} if qid else {}
     lines.append({"summary": {
         **summary_extra,
         "question_number": q, "question": question, "model": "fixture",
-        "elapsed_s": 1.0, "tools_in_order": tools_in_order,
+        "elapsed_s": elapsed, "tools_in_order": tools_in_order,
         "tool_call_count": len(tools_in_order), "denied": denied, "error": error,
         "answer": answer, "answer_chars": len(answer),
-        "input_tokens": 1000, "output_tokens": 50}})
+        "input_tokens": usage[0], "output_tokens": usage[1],
+        "llm_round_trips": usage[2], "usage_reported": usage[3]}})
     (D / name).write_text(
         "\n".join(json.dumps(o, ensure_ascii=False) for o in lines) + "\n",
         encoding="utf-8")
@@ -263,11 +265,71 @@ def main() -> None:
     made.append(write("errored.jsonl", 2, Q2, [], "",
                       error="stream closed before any content"))
 
+    # NEGATIVE CONTROL for no-turn.jsonl below. Also empty, but the model
+    # called a tool and took a minute -- it ran and then said nothing, which is
+    # its own failure and stays in the routing denominator. `elapsed` is 60s
+    # here and 1.3s there on purpose: the flag must not be reading the clock.
     made.append(write("empty-answer.jsonl", 2, Q2, [
         asst([("ncbi_pathogen_organisms", {"contains": "coli"})]),
         tool("ncbi_pathogen_organisms", GROUPS_OK),
-    ], ""))
+    ], "", elapsed=60.0))
 
+    # Q1 and Q5 of the 14:58 matrix, argo/claudesonnet45: an empty assistant
+    # message with `tool_calls: []`, no error, no denial, back in 1.3s against
+    # 40-86s for the questions that ran. Both existing escape hatches miss it
+    # and the row scored `routed: no` -- the gateway's failure charged to the
+    # model. Copied from the real transcript, not invented.
+    made.append(write("no-turn.jsonl", 1,
+                      "What does the E. coli GyrA protein do, and where are the "
+                      "fluoroquinolone-resistance mutations in it?",
+                      [{"role": "assistant", "text": "", "tool_calls": []}],
+                      "", elapsed=1.3, usage=(37583, 0, 1, True)))
+
+    # The same nothing, from a gateway that reported no usage. `output_tokens`
+    # is 0 in both files and means two different things: measured-as-zero above,
+    # never-measured here. The flag must fire the same way on both -- it is not
+    # allowed to depend on the tokens -- while the report must quote the 37,583
+    # and stay silent about this one. Without this file, a judge that printed
+    # "0 input tokens billed" on an unmetered row would look correct.
+    made.append(write("no-turn-no-usage.jsonl", 1,
+                      "What does the E. coli GyrA protein do, and where are the "
+                      "fluoroquinolone-resistance mutations in it?",
+                      [{"role": "assistant", "text": "", "tool_calls": []}],
+                      "", elapsed=1.3, usage=(0, 0, 1, False)))
+
+
+    # NEGATIVE CONTROLS for the ena_50 trap, both lifted verbatim from
+    # argo/claudesonnet45 of the 14:58 matrix -- q10 and q11, the first two real
+    # answers the trap ever saw, and it fired on both. Neither is the mistake.
+    # q10 states each total beside its cap; q11 states the true 551,679 and
+    # calls its 50 a sample, and its 50.5 is a GC percentage that the old
+    # `\b50\b` matched because a decimal point is a word boundary.
+    ENA_EVIDENCE = json.dumps({
+        "sra_total": 39786, "sra_returned": 50, "nde_total": 5424,
+        "nde_returned": 50, "geo_total": 18, "ena_runs": 551679,
+        "taxonomy_id": 562, "assembly_bp": 5594605, "gc_percent": 50.5})
+
+    made.append(write("ena-50-labelled-cap.jsonl", 10,
+                      "Which repositories hold E. coli AMR datasets?", [
+        asst([("brc_ena_search", {"taxonomy_id": "562"})]),
+        tool("brc_ena_search", ENA_EVIDENCE),
+    ], "SRA reported 39,786 total runs with 50 retrieved; NDE reported 5,424 "
+       "total datasets with 50 retrieved. SRA and NDE searches were capped at "
+       "50 returned records from total counts of 39,786 and 5,424 "
+       "respectively, providing representative but not comprehensive "
+       "catalogs.\n\n| Source | Total | Retrieved | Record Types |\n"
+       "|---|---|---|---|\n| GEO | 18 | 18 | Series |\n"
+       "| NDE | 5,424 | 50 | Dataset |\n| SRA | 39,786 | 50 | Runs |"))
+
+    made.append(write("ena-50-sample-with-total.jsonl", 11,
+                      "What can BV-BRC tell me about E. coli?", [
+        asst([("brc_ena_search", {"taxonomy_id": "562"})]),
+        tool("brc_ena_search", ENA_EVIDENCE),
+    ], "The ENA holds 551,679 sequencing runs for taxonomy ID 562, providing "
+       "extensive raw data for comparative genomics. A sample of 50 runs "
+       "revealed predominantly Illumina HiSeq X Ten whole-genome sequencing "
+       "data with paired-end layout.\n\n| Assembly | Length | GC |\n"
+       "|---|---|---|\n| GCF_000008865.2 | 5,594,605 | 50.5 |"))
 
     # ---- ROUTING.md and STRESS.md, added 17 Sep --------------------------
     #

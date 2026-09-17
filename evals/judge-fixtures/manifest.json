@@ -303,12 +303,13 @@
     },
     {
       "file": "empty-answer.jsonl",
-      "why": "Not denied, not an exception, and nothing said. The quietest way for a run to look fine and be worthless.",
+      "why": "Not denied, not an exception, and nothing said. The quietest way for a run to look fine and be worthless. Also the NEGATIVE CONTROL for no-turn.jsonl: this model called a tool and took 60s, so it ran and then said nothing, which is its own failure and stays in the routing denominator.",
       "fires": [
         "empty_answer"
       ],
       "expect": {
-        "empty_answer": true
+        "empty_answer": true,
+        "no_turn": false
       }
     },
     {
@@ -442,6 +443,72 @@
         "verdict": "clean",
         "traps": [],
         "ground_truth": "miss"
+      }
+    },
+    {
+      "file": "no-turn.jsonl",
+      "why": "Copied from runs/argo_claudesonnet45/q01.jsonl of the 14:58 matrix: an empty assistant message with `tool_calls: []`, no error, no denial, back in 1.3s against 40-86s for the questions that ran. `denied` and `error` both miss it, so the row scored `routed: no` -- a transport failure charged to the model, across however many of the 36 models the gateway drops. The flag is on \"empty AND no tool call\", never on elapsed time; the control above is empty at 60s and must not fire.",
+      "fires": [
+        "no_turn",
+        "empty_answer"
+      ],
+      "expect": {
+        "no_turn": true,
+        "empty_answer": true,
+        "routed": "no",
+        "routed_first": "no",
+        "verdict": "clean",
+        "unmatched": [],
+        "traps": [],
+        "denied": false,
+        "error": false
+      }
+    },
+    {
+      "file": "ena-50-labelled-cap.jsonl",
+      "why": "NEGATIVE CONTROL for ena_50, lifted verbatim from argo/claudesonnet45 q10 of the 14:58 matrix. Every 50 here is a retrieval cap stated beside its own total -- '39,786 total runs with 50 retrieved', 'capped at 50 returned records from total counts of 39,786 and 5,424', and a table row '| SRA | 39,786 | 50 | Runs |'. The old pattern flagged all of it. An answer that names the total AND the cap is the behaviour this project argues for; flagging it is the zero_as_absence false positive over again, pointed the other way.",
+      "fires": [],
+      "expect": {
+        "traps": [],
+        "verdict": "clean",
+        "unmatched": [],
+        "denied": false,
+        "error": false,
+        "empty_answer": false,
+        "no_turn": false
+      }
+    },
+    {
+      "file": "ena-50-sample-with-total.jsonl",
+      "why": "NEGATIVE CONTROL for ena_50, from argo/claudesonnet45 q11. Two ways the old pattern was wrong in one answer: it says 'The ENA holds 551,679 sequencing runs' and then 'A sample of 50 runs', which is correct, and it carries a GC-content cell of 50.5 that matched `\b50\b` because a decimal point is a word boundary. A genome's GC percentage is not an ENA run count.",
+      "fires": [],
+      "expect": {
+        "traps": [],
+        "verdict": "clean",
+        "unmatched": [],
+        "denied": false,
+        "error": false,
+        "empty_answer": false,
+        "no_turn": false
+      }
+    },
+    {
+      "file": "no-turn-no-usage.jsonl",
+      "why": "Same nothing as no-turn.jsonl, from a gateway that reported no usage. `output_tokens` is 0 in both files and means two different things: measured-as-zero there, never-measured here. The flag must fire identically on both -- it is evidence-led, not token-led -- while the report quotes 37,583 input tokens for one and says nothing about the other. Without this file a judge that printed '0 input tokens billed' on an unmetered row would still look correct.",
+      "fires": [
+        "no_turn",
+        "empty_answer"
+      ],
+      "expect": {
+        "no_turn": true,
+        "empty_answer": true,
+        "routed": "no",
+        "routed_first": "no",
+        "verdict": "clean",
+        "unmatched": [],
+        "traps": [],
+        "denied": false,
+        "error": false
       }
     }
   ]

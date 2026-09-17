@@ -6,17 +6,79 @@ expectations encoded at the top of that file, which come from `QUESTIONS.md` and
 `PIPELINES.md`. Disagree with a flag by editing `EXPECTED` or `TRAP_NOTES` and
 re-running.
 
-## Nothing scorable
+## `argo_claudeopus5`
 
-No transcript under `evals/runs/` carries provenance and a question this
-scorer can address. The base matrix has produced no records yet, and the
-pre-matrix runs were declared void and moved to
-`evals/runs/_archive-pre-matrix/` on 17 Sep. **Do not score the archive** --
-it straddles the 14:08 port-move commit.
+| Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
+|---|---|---|---|---|---:|---|---|---|---|
+| 1 | answer | yes | yes | `uniprot_search` → `string_resolve_proteins` → `uniprot_get_entry` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_ | 27 | needs-review: 106, 499, 34,335, 22,890,400 +7 | — | — | — |
+| 2 | answer | yes | yes | `ncbi_pathogen_organisms` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_isolate_count | 47 | needs-review: 127, 148,341, 433,123 | 581,464 ✓ (also cites 1,162,675) | — | — |
+| 3 | answer | yes | yes | `geo_search` → `geo_search` | 32 | needs-review: 36,631,985, 36,708,705, 36,718,533, 36,853,057 +11 | 37 ✓? | — | — |
+| 4 | answer | yes | yes | `search_organisms` → `list_workflow_categories` → `get_assemblies` → `get_compatible_workflows` → `check_compatibility`  | 27 | needs-review: 131,567, 386,585, 5,594,605 | 2 ✓? · 17 **missing** (a competing small figure is in the answer) | — | — |
+| 5 | answer | yes | yes | `lapis_list_organisms` → `lapis_describe_organism` → `lapis_describe_organism` → `lapis_aggregate_samples` → `lapis_aggr | 29 | needs-review: 100, 1,865, 6,571, 1,789,535,426 | — | — | — |
+| 6 | answer | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` → `ncb | 53 | needs-review: 118,856, 134,985, 140,498, 142,284 +13 | 75,487 ✓ (also cites 150,926) | — | — |
+| 7 | answer | yes | yes | `geo_search` → `geo_search` → `search_organisms` → `list_workflow_categories` → `get_assemblies` → `get_workflows_in_cat | 38 | needs-review: 5,594,605, 28,591,134, 29,795,541 | 37 ✓? | — | — |
+| 8 | answer | yes | yes | `geo_series` → `geo_resolve_accession` → `ncbi_sra_runs_for_project` → `brc_ena_study` → `get_assemblies` → `get_workflo | 39 | needs-review: 150, 4,000, 10,415,434, 11,363,329 +17 | — | — | — |
 
-The rubric itself is still verified. `python evals/judge.py --self-test`
-scores the deliberately broken transcripts in `evals/judge-fixtures/` and
-fails unless every check is observed firing on at least one of them.
+**argo_claudeopus5** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
+
+- routed 8/8 scored (0 not scorable: source not wired, or no tool applies)
+- opened on the right source 7/8 — the strict read of the same question
+- ground truth, where PIPELINES.md pins one (5 questions): 4 correct · 0 **wrong figure** · 1 **never stated**
+- fabrication flags 0 · unmatched-but-truncated 8
+- other trap flags 0 (none)
+- gap questions (0): 0 declined · 0 gave a reason · 0 named a source · **0 did all three**
+
+## `argo_claudesonnet45`
+
+| Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
+|---|---|---|---|---|---:|---|---|---|---|
+| 1 | answer | — | — | **nothing came back** (1.3s, 37,583 in / 0 out) | — | — | — | — | — |
+| 2 | answer | yes | yes | `ncbi_pathogen_organisms` → `ncbi_pathogen_isolate_count` | 9 | needs-review: 100,000 | 581,464 ✓ (also cites 1,162,675) | — | — |
+| 3 | answer | yes | yes | `geo_search` → `geo_series` → `geo_series` → `pubmed_get_summaries` | 13 | needs-review: 120, 39,235,234, 40,804,527, 41,805,196 | 37 ✓? | — | — |
+| 4 | answer | yes | yes | `search_organisms` → `get_assemblies` → `list_workflow_categories` → `get_compatible_workflows` → `get_assembly_details` | 10 | — | 2 ✓? · 17 **missing** | — | — |
+| 5 | answer | — | — | **nothing came back** (3.3s, 37,571 in / 0 out) | — | — | — | — | — |
+| 6 | answer | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` | 52 | needs-review: 34,406, 34,905, 118,856, 157,830 +14 | 75,487 ✓ (also cites 150,926) | — | — |
+| 7 | answer | — | — | **nothing came back** (1.4s, 37,585 in / 0 out) | — | — | — | — | — |
+| 8 | answer | yes | yes | `geo_series` → `ncbi_sra_runs_for_project` → `get_organism` → `get_assemblies` → `get_workflows_in_category` → `check_co | 22 | needs-review: 150, 801, 894, 926 +4 | — | — | — |
+| 9 | answer | — | — | **nothing came back** (1.4s, 37,592 in / 0 out) | — | — | — | — | — |
+| 10 | gap | yes | yes | `nde_search_datasets` → `ncbi_pathogen_isolates` → `geo_search` → `nde_search_datasets` → `ncbi_sra_search` → `geo_serie | 20 | needs-review: 126, 38,964,154, 41,972,762, 42,573,571 | — | — | **no decline** · **no reason** · **no source** |
+| 11 | gap | blocked | blocked | `search_organisms` → `list_workflow_categories` → `get_organism` → `get_assemblies` → `get_workflows_in_category` → `get | 23 | needs-review: 100, 640, 386,585, 550,000 +1 | — | — | **no decline** · **no reason** · source ✓ |
+| 12 | answer | yes | yes | `mygene_search_genes` → `mygene_get_gene` → `uniprot_get_protein_info` | 17 | needs-review: 2,628, 339,419, 2,336,792, 2,339,419 | — | — | — |
+| 13 | gap | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_isolates` | 12 | needs-review: 464, 580,000, 581,464 | 2 ✓? · 581,464 ✓ · 93,260 **missing** (a competing small figure is in the answer) | — | **no decline** · reason ✓ · source ✓ |
+| 14 | gap | — | — | **nothing came back** (1.3s, 37,582 in / 0 out) | — | — | — | — | — |
+| 15 | gap | — | — | **nothing came back** (1.3s, 37,578 in / 0 out) | — | — | — | — | — |
+
+**argo_claudesonnet45** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
+
+- **6 of 15 question(s) returned nothing at all**: 1 (1.3s), 5 (3.3s), 7 (1.4s), 9 (1.4s), 14 (1.3s), 15 (1.3s). No answer, no tool call, and the record shows no error and no denial. The gateway metered **225,491 input tokens** across them and returned 0 output, so the request was submitted and billed and only the reply is missing. Held out of every fraction below: scoring them `routed: no` would charge the model for a reply it was never shown to have withheld. Re-run these before reading anything into this model's totals. Note that `retries: 0` and `error: null` in these records are not measurements: `run_one` writes the file before the retry loop runs and nothing rewrites it, so the driver's own `routing-scorecard.md` calls the same rows `**ERROR** silent empty after 2 retries`. Verified 17 Sep on argo/claudesonnet45 Q1, Q5, Q14, Q15.
+- routed 8/8 scored (1 not scorable: source not wired, or no tool applies)
+- opened on the right source 6/8 — the strict read of the same question
+- ground truth, where PIPELINES.md pins one (5 questions): 3 correct · 0 **wrong figure** · 2 **never stated**
+- fabrication flags 0 · unmatched-but-truncated 8
+- other trap flags 0 (none)
+- gap questions (3): 0 declined · 1 gave a reason · 2 named a source · **0 did all three**
+
+## Cross-model
+
+| Q | `argo_claudeopus5` | `argo_claudesonnet45` |
+|---|---|---|
+| 1 | yes · unm | *nothing* |
+| 10 | — | yes · unm · null:--- |
+| 11 | — | blocked · unm · null:--s |
+| 12 | — | yes · unm |
+| 13 | — | yes · unm · null:-rs |
+| 14 | — | *nothing* |
+| 15 | — | *nothing* |
+| 2 | yes · unm | yes · unm |
+| 3 | yes · unm | yes · unm |
+| 4 | yes · unm | yes |
+| 5 | yes · unm | *nothing* |
+| 6 | yes · unm | yes · unm |
+| 7 | yes · unm | *nothing* |
+| 8 | yes · unm | yes · unm |
+| 9 | — | *nothing* |
+
+`null:drs` = declined · gave a reason · named a source; a `-` is the part that was missing. **ZERO** is `zero_as_absence`.
 
 ## What each trap flag means
 
