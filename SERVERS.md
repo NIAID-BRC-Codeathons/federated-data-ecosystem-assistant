@@ -22,7 +22,8 @@ Ports are not interchangeable: `chatbot.py`'s `MCP_SERVERS` hard-codes each URL.
 | 8004 | `mcp_servers/myvariant.py` | existing |
 | 8005 | `mcp_servers/ncbi.py` (+ `ncbi_lib/`) | Jonathan Gunti |
 | 8006 | `mcp_servers/pubmed.py` | Everaldo |
-| 8007 | `mcp_servers/geo.py` | Bobby |
+| 8007 | NDE (`NIAID-Data-Ecosystem/`) | Robert Olson |
+| 8009 | `mcp_servers/geo.py` | Bobby |
 | 8008 | `mcp_servers/brc_analytics.py` | Bobby |
 | — | `brc-analytics`, federated remote | Galaxy Project, nothing to start |
 | — | `string`, `expasy` | public remotes, nothing to start |

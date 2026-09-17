@@ -31,7 +31,7 @@ Rate limit: NCBI allows 3 requests/second per IP without an API key, and that
 ceiling is shared across every NCBI host, so the FTP listing draws on the same
 budget as E-utilities.
 
-Run over HTTP:  uv run mcp_servers/geo.py --port 8007
+Run over HTTP:  uv run mcp_servers/geo.py --port 8009
 Run over stdio: uv run mcp_servers/geo.py --stdio
 """
 
@@ -55,7 +55,7 @@ mcp = FastMCP(
         "the only source here with expression data. Resolve GEO accessions with "
         "geo_resolve_accession rather than by searching for them."
     ),
-    port=8007,
+    port=8009,   # 8007 went to the NDE server in PR #12
     streamable_http_path="/mcp-geo",
 )
 
@@ -750,7 +750,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="NCBI GEO MCP server")
     parser.add_argument("--stdio", action="store_true", help="run over stdio")
-    parser.add_argument("--port", type=int, default=8007, help="HTTP port")
+    parser.add_argument("--port", type=int, default=8009, help="HTTP port")
     args = parser.parse_args()
 
     if args.stdio:
