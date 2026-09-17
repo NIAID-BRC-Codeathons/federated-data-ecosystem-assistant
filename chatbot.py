@@ -111,18 +111,32 @@ async def _oauth_callback_handler() -> tuple[str, str | None]:
     return result.get("code", ""), result.get("state")
 
 
-def _bvbrc_auth() -> OAuthClientProvider:
-    """Build an OAuthClientProvider for the BV-BRC MCP server."""
-    return OAuthClientProvider(
-        server_url="https://dev-9.bv-brc.org",
-        client_metadata=OAuthClientMetadata(
-            redirect_uris=[f"http://localhost:{OAUTH_CALLBACK_PORT}/callback"],
-            client_name="BV-BRC Chatbot",
-        ),
-        storage=_FileTokenStorage(OAUTH_TOKEN_FILE),
-        redirect_handler=_oauth_redirect_handler,
-        callback_handler=_oauth_callback_handler,
-    )
+def _bvbrc_connection() -> dict:
+    """Build the MCP connection config for the BV-BRC server.
+
+    If P3_AUTH_TOKEN is set, use it directly as a bearer token header.
+    Otherwise, fall back to the full OAuth browser flow.
+    """
+    conn: dict = {
+        "url": "https://dev-9.bv-brc.org",
+        "transport": "streamable_http",
+    }
+    token = os.environ.get("P3_AUTH_TOKEN")
+    if token:
+        print("[bv-brc] Using P3_AUTH_TOKEN for authentication")
+        conn["headers"] = {"Authorization": f"Bearer {token}"}
+    else:
+        conn["auth"] = OAuthClientProvider(
+            server_url="https://dev-9.bv-brc.org",
+            client_metadata=OAuthClientMetadata(
+                redirect_uris=[f"http://localhost:{OAUTH_CALLBACK_PORT}/callback"],
+                client_name="BV-BRC Chatbot",
+            ),
+            storage=_FileTokenStorage(OAUTH_TOKEN_FILE),
+            redirect_handler=_oauth_redirect_handler,
+            callback_handler=_oauth_callback_handler,
+        )
+    return conn
 
 
 # Existing MCP servers or local ones running on localhost. The local servers are started by the `mcp_servers` scripts.
@@ -167,14 +181,27 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8007/mcp-nde",
             "transport": "streamable_http",
         },
-        "bv-brc": {
-            "url": "https://dev-9.bv-brc.org",
+        "bv-brc": _bvbrc_connection(),
+        "geo": {
+            # GEO is the only source registered here with processed gene
+            # expression: what genes changed, under what treatment.
+            # 8009, not 8007: NDE landed on 8007 first (PR #12).
+            "url": "http://127.0.0.1:8009/mcp-geo",
             "transport": "streamable_http",
-            "auth": _bvbrc_auth(),
+        },
+        "brc_analytics_local": {
+            # Complements "brc-analytics" above, which is BRC's own public
+            # server. This covers only what that server cannot do: ENA paging
+            # past its hard 50-row cap and the real total, a working keyword
+            # search (theirs answers HTTP 400), and study lookup (theirs 500s).
+            "url": "http://127.0.0.1:8008/mcp-brc-analytics",
+            "transport": "streamable_http",
         },
     }
 
-#LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
+# Overridable from .env so nobody has to commit a model switch. The default is
+# unchanged; the commented lines below are the other providers that are wired.
+# LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/google/gemma-4-26b-a4b-it")
 # LLM_MODEL="openrouter/mistralai/mistral-small-2603"
 # LLM_MODEL="cesnet/qwen3-coder"
 # LLM_MODEL="ollama/gemma4"
