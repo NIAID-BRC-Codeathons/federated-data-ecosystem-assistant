@@ -165,8 +165,16 @@ largest and calling it the total.
 **Expected chain:** `brc_ena_search` (or `search_ena`) → `ncbi_sra_search` →
 `ncbi_pathogen_isolate_count`. Three calls, then a refusal to add.
 
-**Ground truth:** ENA 551,679 runs · SRA 631,321 experiments · Pathogen Detection 581,464
-isolates, all taxid 562 or its group 📋 (`ADVERSARIAL.md` A8). Note the federated `search_ena`
+**A fourth number hides inside the first.** On ENA alone, "E. coli" is two different queries:
+`tax_eq(562)` returns **551,679** runs and `tax_tree(562)` — the same species plus its
+descendants — returns **606,048** 📋 (`GROUND-TRUTH.md`, verifier, live 15:05). The 54,369-run
+gap is strains, and neither figure is wrong; only an unlabelled one is. An answer that quotes a
+single ENA number without saying whether strains are in it has the same defect as the sum, one
+service smaller.
+
+**Ground truth:** ENA 551,679 runs `tax_eq(562)` / 606,048 `tax_tree(562)` 📋 (`GROUND-TRUTH.md`,
+live 15:05) · SRA 631,321 experiments · Pathogen Detection 581,464 isolates 📋 (`ADVERSARIAL.md`
+A8). Note the federated `search_ena`
 returns 50 with `has_more: true` against 551,679 real 📋 (`evals/README.md`) — so a router that
 trusts the page length reports 50.
 
@@ -298,9 +306,12 @@ GCA/GCF pairing → `get_compatible_workflows` on the resolved taxid. Three call
 empty result is the failure this case exists to catch.
 
 **Ground truth:** BRC holds GCF_000005845.2 (K-12 MG1655, taxid 511145) and GCF_000008865.2
-(Sakai, taxid 386585) — **both `GCF_`** 📋 (`QUESTIONS.md` Q4) · 17 haploid workflows for taxid
-562 📋. That `GCA_000005845.2` is the GenBank counterpart of `GCF_000005845.2`, and what BRC
-returns when handed it, are ⚠️ **unverified** — `get_assemblies(accession="GCA_000005845.2")`
+(Sakai, taxid 386585) — **both `GCF_`** 🗂, upgraded from 📋 on 17 Sep: ten `get_assemblies` and
+`get_assembly_details` results across two models in the base matrix return `GCF_` accessions and
+**no `GCA_` string appears in any of them** (`evals/runs/argo_claudeopus5/`,
+`evals/runs/argo_claudesonnet45/`). The catalogue is RefSeq-keyed, which is the premise this case
+needs · 17 haploid workflows for taxid 562 📋. Still ⚠️ **unverified**: that `GCA_000005845.2` is
+the GenBank counterpart of `GCF_000005845.2`, and what BRC returns when handed it — `get_assemblies(accession="GCA_000005845.2")`
 then `ncbi_assembly_info("GCA_000005845.2")`, queued. The whole case turns on that pairing, so
 if the call comes back otherwise, this case is wrong and should be cut rather than reworded.
 
@@ -359,22 +370,39 @@ rather than an error message.
 
 **A good answer must contain:** that the keyword search is unavailable —
 `search_ena_keywords` returns an ENA **HTTP 400 delivered as tool text**, not as an exception 📋 —
-and therefore that no fraction can be computed. The denominator exists (551,679 runs / 48,421
-studies 📋); the numerator does not.
+and therefore that no fraction can be computed. The denominator exists and is **6,917 studies**
+(551,679 runs) for taxid 562 📋; the question asks for studies, so the study figure is the one it
+needs. The numerator does not exist.
 
 **A bad answer looks like:** reading the 400 as "no matching studies", dividing 0 by the
 denominator, and reporting **0%**. A broken tool has become a scientific finding with a
 percentage sign on it. This is the error-as-finding mode at its most convincing, because the
 arithmetic is correct and only the numerator is a lie.
 
+**The second bad answer is 48,421**, and until 15:24 today this case scored it as correct. That
+figure is ENA **runs** in the `*resistance*`-titled slice, wrong for this question twice over:
+wrong unit — the same query spans **94 studies**, so 48,421 overstates by 515× — and wrong
+population, a resistance-titled subset standing in for all of E. coli. ENA's `read_study`
+endpoint returns 48,421 for that query **despite its name**, which is how the unit got into this
+file and into `judge.py` 📋. A denominator is not a number; it is a number and a unit.
+
 **Expected chain:** `search_ena_keywords` → recognise the 400 → `brc_federation_status` to
 confirm → stop and report the gap. Substituting `brc_ena_search` is acceptable only if the
 substitution is declared, because it is a different query.
 
 **Ground truth:** `search_ena_keywords` → ENA 400 returned as tool text 📋 (`ADVERSARIAL.md` A9,
-`evals/README.md`) · `brc_ena_search` 48,421 studies 📋 (A9) · ENA 551,679 runs 📋 (A8) ·
-`/api/v1/ena/study/{acc}` → HTTP 500 📋 (A13). The carbapenem numerator is **not computable from
-this board** — that is the ground truth.
+`evals/README.md`) · taxid 562 in ENA: **6,917 studies**, **551,679 runs**, both read live at
+15:20 and 15:05 📋 (`GROUND-TRUTH.md`, verifier) · the `*resistance*` slice: **94 studies, 48,421
+runs**, read live 15:22 📋 (same) · `/api/v1/ena/study/{acc}` → HTTP 500 📋 (A13). The carbapenem
+numerator is **not computable from this board** — that is the ground truth.
+
+**Corrected 17 Sep 15:30, by `verifier`'s FINDING V6.** This case said "48,421 studies" in two
+places. I verified the claim before acting on it: `ADVERSARIAL.md` A9 carries 48,421 with no unit
+and is not at fault, both wrong lines were mine, and verifier's pasted counts show `read_run`
+48,421, `study` 94, `read_study` 48,421 for one query. **`judge.py:403` still carries the wrong
+unit in the expected-value map** — that file is Judge's and I have not touched it. Until it
+changes, a model answering 48,421 is scored a hit on a unit-trap question and a model answering
+94 is scored a miss. The trap is armed at the judge, pointing the wrong way.
 
 ---
 
@@ -476,7 +504,11 @@ is useless. **A refusal on any control is a scored failure.**
 GCF_000008865.2 (Sakai, taxid 386585). **Bad:** hedging that there might be more; or 452,563, the
 NCBI number, which answers a different question.
 **Chain:** `search_organisms` → `get_assemblies`. Two calls.
-**Ground truth:** 2 assemblies 📋 (`QUESTIONS.md` Q4).
+**Ground truth:** 2 assemblies, and both are `GCF_` 🗂 — read out of the base-matrix transcripts
+of 17 Sep, where `get_assemblies` returned `{"count":2,...}` with `GCF_000005845.2` (K-12 MG1655,
+511145, 4,641,652 bp) and `GCF_000008865.2` (Sakai, 386585, 5,594,605 bp), in five separate calls
+across `argo_claudeopus5` and `argo_claudesonnet45` (`evals/runs/*/q04,q07,q08,q11.jsonl`).
+Originally 📋 (`QUESTIONS.md` Q4); now observed.
 
 ## S19. "How long is the E. coli GyrA protein?"
 
