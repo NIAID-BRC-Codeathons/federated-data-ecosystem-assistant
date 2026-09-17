@@ -6,6 +6,50 @@ expectations encoded at the top of that file, which come from `QUESTIONS.md` and
 `PIPELINES.md`. Disagree with a flag by editing `EXPECTED` or `TRAP_NOTES` and
 re-running.
 
+**26 record(s) present under `evals/runs/` and NOT scored.** Each is refused for a named reason. A refusal is not a failing score and it is not an absence: the transcript exists, and something about it stopped this file from addressing it.
+
+*11 × no-rubric.* The question set exists and the transcripts are real, but this file holds no expectations for it, so there is nothing to score against. **This is a gap in `judge.py`, not a model failure.** Add the set to `SCORABLE_SETS` with its own `EXPECTED_*` map to turn these into rows.
+
+- `argo_claudehaiku45-bobby-lanes` — 3 record(s)
+- `argo_gpt41mini-bobby-lanes` — 5 record(s)
+- `argo_gpt4o-bobby-lanes` — 3 record(s)
+
+*15 × placeholder.* The question text is a stub like `question 7`, so the record answers nothing and cannot be scored for or against a model. **These are fixtures, not a model failure.** Scoring them would publish a run that never happened as a very bad result.
+
+- `[placeholder] argo_claudesonnet45/q01.jsonl -- question text is 'question 1', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q02.jsonl -- question text is 'question 2', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q03.jsonl -- question text is 'question 3', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q04.jsonl -- question text is 'question 4', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q05.jsonl -- question text is 'question 5', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q06.jsonl -- question text is 'question 6', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q07.jsonl -- question text is 'question 7', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q08.jsonl -- question text is 'question 8', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q09.jsonl -- question text is 'question 9', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q10.jsonl -- question text is 'question 10', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q11.jsonl -- question text is 'question 11', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q12.jsonl -- question text is 'question 12', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q13.jsonl -- question text is 'question 13', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q14.jsonl -- question text is 'question 14', a stub, not a real question`
+- `[placeholder] argo_claudesonnet45/q15.jsonl -- question text is 'question 15', a stub, not a real question`
+
+## Coverage — what was attempted, what survived, what was scored
+
+Three numbers, and none of them means anything alone. **Attempted** is the row count in that run's `routing-scorecard.md`. **On disk** is the transcripts actually present. They differ because `run_one()` writes the jsonl from inside itself, so a question whose API call raises never reaches the write -- the driver records an `**ERROR**` row in the scorecard and leaves *nothing* in the directory. Counting the directory therefore counts survivors, and a model that crashed on half the set would score only on the half it handled.
+
+| run directory | lane | in set | scorecard rows | errored | on disk | scored | ids with no transcript |
+|---|---|---|---|---|---|---|---|
+| `argo_claudehaiku45-bobby-lanes` | B | 16 | ? | ? | 3 | 0 | B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16 |
+| `argo_claudeopus5` | demo | 15 | 15 | 0 | 15 | 15 | — |
+| `argo_claudesonnet45` | demo | 15 | 15 | 6 | 15 | 0 | — |
+| `argo_gemini25pro` | demo | 15 | 2 | 2 | 2 | 2 | Q1, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 |
+| `argo_gpt41mini-bobby-lanes` | B | 16 | ? | ? | 5 | 0 | B6, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16 |
+| `argo_gpt4o` | demo | 15 | ? | ? | 2 | 2 | Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 |
+| `argo_gpt4o-bobby-lanes` | B | 16 | ? | ? | 3 | 0 | B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16 |
+
+**in set** is the question count in the manifest (BOBBY-LANES.md, QUESTIONS.md) — the only column here that does not shrink when a run goes wrong. **on disk** counts transcripts that exist, so it silently drops every question that failed before one was written; **scorecard rows** is right where a scorecard exists and absent where a run died before writing one. Score against *in set*.
+
+**Directories whose transcripts do not cover their set:** `argo_claudehaiku45-bobby-lanes` 3 of 16; `argo_gemini25pro` 2 of 15; `argo_gpt41mini-bobby-lanes` 5 of 16; `argo_gpt4o` 2 of 15; `argo_gpt4o-bobby-lanes` 3 of 16. Those questions were asked and produced nothing to read, which is not the same as a question that was never asked, and not the same as a bad answer.
+
 ## `argo_claudeopus5`
 
 | Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
@@ -19,8 +63,8 @@ re-running.
 | 7 | answer | yes | yes | `geo_search` → `geo_search` → `search_organisms` → `list_workflow_categories` → `get_assemblies` → `get_workflows_in_cat | 38 | needs-review: 5,594,605, 28,591,134, 29,795,541 | 37 ✓? | — | — |
 | 8 | answer | yes | yes | `geo_series` → `geo_resolve_accession` → `ncbi_sra_runs_for_project` → `brc_ena_study` → `get_assemblies` → `get_workflo | 39 | needs-review: 150, 4,000, 10,415,434, 11,363,329 +17 | — | — | — |
 | 9 | answer | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_isolate_count` →  | 20 | needs-review: 2,336,792, 2,339,172, 2,339,173, 2,339,174 +6 | 170,726 ✓ (also cites 341,342) | — | — |
-| 10 | gap | yes | yes | `nde_search_datasets` → `nde_facet_counts` → `ncbi_pathogen_organisms` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_ | 25 | needs-review: 126, 146, 587, 751 +5 | — | — | **no decline** · reason ✓ · source ✓ |
-| 11 | gap | blocked | blocked | `brc_federation_status` → `search_organisms` → `get_assemblies` → `list_workflow_categories` → `get_compatible_workflows | 39 | needs-review: 100, 679, 386,585, 5,594,605 | — | — | **no decline** · reason ✓ · source ✓ |
+| 10 | answer | yes | yes | `nde_search_datasets` → `nde_facet_counts` → `ncbi_pathogen_organisms` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_ | 25 | needs-review: 126, 146, 587, 751 +5 | — | — | — |
+| 11 | answer | no | no | `brc_federation_status` → `search_organisms` → `get_assemblies` → `list_workflow_categories` → `get_compatible_workflows | 39 | needs-review: 100, 679, 386,585, 5,594,605 | — | — | — |
 | 12 | answer | yes | yes | `mygene_search_genes` → `uniprot_search` → `ncbi_taxonomy_lookup` → `mygene_get_gene` → `uniprot_get_entry` → `uniprot_g | 43 | needs-review: 2,628, 3,918, 5,829, 8,359 +5 | — | — | — |
 | 13 | gap | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` → `ncb | 28 | — | 2 ✓? · 581,464 ✓ · 93,260 **wrong** (said 94,336) | — | **no decline** · reason ✓ · source ✓ |
 | 14 | gap | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_isolate_count` →  | 47 | needs-review: 130, 131, 150, 351 +7 | — | — | **no decline** · reason ✓ · source ✓ |
@@ -29,45 +73,33 @@ re-running.
 **argo_claudeopus5** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
 
 - **scorable 15 of 15** — nothing held out. Every rate below is out of the scorable count, not out of 15; two models with different denominators cannot be compared on these percentages alone.
-- routed 13/13 scored (2 not scorable: source not wired, or no tool applies)
-- opened on the right source 9/13 — the strict read of the same question
+- routed 13/14 scored (1 not scorable: source not wired, or no tool applies)
+- opened on the right source 9/14 — the strict read of the same question
 - ground truth, where PIPELINES.md pins one (7 questions): 5 correct · 1 **wrong figure** · 0 **never stated** · 1 **pin moved** (the pinned figure is in no tool result either -- re-verify it against the live source before reading the row as the model's failure)
 - **retrieved-not-reported 0/6** — answers that passed on a page size as the finding, out of the answers where a tool showed both a total and a returned count (14 such pairs). **Read this with its denominator**: 111 tool result(s) were cut at 600 characters before a pair became legible and 19 carried a count key too ambiguous to interpret, so the check could not look at those at all. A 0 here means 0 among what was visible.
 - fabrication flags 0 · unmatched-but-truncated 14
 - other trap flags 0 (none)
-- gap questions (5): 0 declined · 5 gave a reason · 5 named a source · **0 did all three**
+- gap questions (3): 0 declined · 3 gave a reason · 3 named a source · **0 did all three**
 
-## `argo_claudesonnet45`
+## `argo_gemini25pro`
 
 | Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
 |---|---|---|---|---|---:|---|---|---|---|
-| 1 | answer | — | — | **nothing came back** (1.3s, 37,583 in / 0 out, 1 round trip) | — | — | — | — | — |
-| 2 | answer | yes | yes | `ncbi_pathogen_organisms` → `ncbi_pathogen_isolate_count` | 9 | needs-review: 100,000 | 581,464 ✓ (also cites 1,162,675) | — | — |
-| 3 | answer | yes | yes | `geo_search` → `geo_series` → `geo_series` → `pubmed_get_summaries` | 13 | needs-review: 120, 39,235,234, 40,804,527, 41,805,196 | 37 ✓? | — | — |
-| 4 | answer | yes | yes | `search_organisms` → `get_assemblies` → `list_workflow_categories` → `get_compatible_workflows` → `get_assembly_details` | 10 | — | 2 ✓? · 17 **pin moved** (not in the answer and not in any tool result -- BRC Analytics workflow catalogue; 14 on 17 Sep) | — | — |
-| 5 | answer | — | — | **nothing came back** (3.3s, 37,571 in / 0 out, 1 round trip) | — | — | — | — | — |
-| 6 | answer | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` | 52 | needs-review: 34,406, 34,905, 118,856, 157,830 +14 | 75,487 ✓ (also cites 150,926) | — | — |
-| 7 | answer | — | — | **nothing came back** (1.4s, 37,585 in / 0 out, 1 round trip) | — | — | — | — | — |
-| 8 | answer | yes | yes | `geo_series` → `ncbi_sra_runs_for_project` → `get_organism` → `get_assemblies` → `get_workflows_in_category` → `check_co | 22 | needs-review: 150, 801, 894, 926 +4 | — | — | — |
-| 9 | answer | — | — | **nothing came back** (1.4s, 37,592 in / 0 out, 1 round trip) | — | — | — | — | — |
-| 10 | gap | yes | yes | `nde_search_datasets` → `ncbi_pathogen_isolates` → `geo_search` → `nde_search_datasets` → `ncbi_sra_search` → `geo_serie | 20 | needs-review: 126, 38,964,154, 41,972,762, 42,573,571 | — | — | **no decline** · **no reason** · **no source** |
-| 11 | gap | blocked | blocked | `search_organisms` → `list_workflow_categories` → `get_organism` → `get_assemblies` → `get_workflows_in_category` → `get | 23 | needs-review: 100, 640, 386,585, 550,000 +1 | — | — | **no decline** · **no reason** · source ✓ |
-| 12 | answer | yes | yes | `mygene_search_genes` → `mygene_get_gene` → `uniprot_get_protein_info` | 17 | needs-review: 2,628, 339,419, 2,336,792, 2,339,419 | — | — | — |
-| 13 | gap | yes | no | `ncbi_pathogen_organisms` → `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` → `ncbi_pathogen_isolates` | 12 | needs-review: 464, 580,000, 581,464 | 2 ✓? · 581,464 ✓ · 93,260 **missing** (a competing small figure is in the answer) | — | **no decline** · reason ✓ · source ✓ |
-| 14 | gap | — | — | **nothing came back** (1.3s, 37,582 in / 0 out, 1 round trip) | — | — | — | — | — |
-| 15 | gap | — | — | **nothing came back** (1.3s, 37,578 in / 0 out, 1 round trip) | — | — | — | — | — |
+| 2 | — | **error** | — | APIError: 2 validation errors for Schema
+any_of.0.any_of.0.e | — | — | — | — | — |
+| 3 | — | **error** | — | APIError: 2 validation errors for Schema
+any_of.0.any_of.0.e | — | — | — | — | — |
 
-**argo_claudesonnet45** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
+**argo_gemini25pro** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
 
-- **6 of 15 question(s) returned nothing at all**: 1 (1.3s), 5 (3.3s), 7 (1.4s), 9 (1.4s), 14 (1.3s), 15 (1.3s). No answer, no tool call, and the record shows no error and no denial. The gateway metered **225,491 input tokens** across them and returned 0 output, so the request was submitted and billed and only the reply is missing. Held out of every fraction below: scoring them `routed: no` would charge the model for a reply it was never shown to have withheld. Re-run these before reading anything into this model's totals. Note that `retries: 0` and `error: null` in these records are not measurements: `run_one` writes the file before the retry loop runs and nothing rewrites it, so the driver's own `routing-scorecard.md` calls the same rows `**ERROR** silent empty after 2 retries`. Verified 17 Sep on argo/claudesonnet45 Q1, Q5, Q14, Q15.
-- **scorable 9 of 15** — 6 returned nothing, held out. Every rate below is out of the scorable count, not out of 15; two models with different denominators cannot be compared on these percentages alone.
-- routed 8/8 scored (1 not scorable: source not wired, or no tool applies)
-- opened on the right source 6/8 — the strict read of the same question
-- ground truth, where PIPELINES.md pins one (5 questions): 3 correct · 0 **wrong figure** · 1 **never stated** · 1 **pin moved** (the pinned figure is in no tool result either -- re-verify it against the live source before reading the row as the model's failure)
-- **retrieved-not-reported 0/3** — answers that passed on a page size as the finding, out of the answers where a tool showed both a total and a returned count (3 such pairs). **Read this with its denominator**: 35 tool result(s) were cut at 600 characters before a pair became legible and 13 carried a count key too ambiguous to interpret, so the check could not look at those at all. A 0 here means 0 among what was visible.
-- fabrication flags 0 · unmatched-but-truncated 8
+- **scorable 0 of 2** — 2 errored, held out. Every rate below is out of the scorable count, not out of 2; two models with different denominators cannot be compared on these percentages alone.
+- routed 0/0 scored (0 not scorable: source not wired, or no tool applies)
+- opened on the right source 0/0 — the strict read of the same question
+- ground truth, where PIPELINES.md pins one (0 questions): 0 correct · 0 **wrong figure** · 0 **never stated**
+- **retrieved-not-reported 0/0** — answers that passed on a page size as the finding, out of the answers where a tool showed both a total and a returned count (0 such pairs). **Read this with its denominator**: 0 tool result(s) were cut at 600 characters before a pair became legible and 0 carried a count key too ambiguous to interpret, so the check could not look at those at all. A 0 here means 0 among what was visible.
+- fabrication flags 0 · unmatched-but-truncated 0
 - other trap flags 0 (none)
-- gap questions (3): 0 declined · 1 gave a reason · 2 named a source · **0 did all three**
+- gap questions (0): 0 declined · 0 gave a reason · 0 named a source · **0 did all three**
 
 ## `argo_gpt4o`
 
@@ -89,23 +121,23 @@ re-running.
 
 ## Cross-model
 
-| Q | `argo_claudeopus5` | `argo_claudesonnet45` | `argo_gpt4o` |
+| Q | `argo_claudeopus5` | `argo_gemini25pro` | `argo_gpt4o` |
 |---|---|---|---|
-| 1 | yes · unm | *nothing* | yes |
-| 10 | yes · unm · null:-rs | yes · unm · null:--- | — |
-| 11 | blocked · unm · null:-rs | blocked · unm · null:--s | — |
-| 12 | yes · unm | yes · unm | — |
-| 13 | yes · null:-rs | yes · unm · null:-rs | — |
-| 14 | yes · unm · null:-rs | *nothing* | — |
-| 15 | n/a · unm · null:-rs | *nothing* | — |
-| 2 | yes · unm | yes · unm | yes |
-| 3 | yes · unm | yes · unm | — |
-| 4 | yes · unm | yes | — |
-| 5 | yes · unm | *nothing* | — |
-| 6 | yes · unm | yes · unm | — |
-| 7 | yes · unm | *nothing* | — |
-| 8 | yes · unm | yes · unm | — |
-| 9 | yes · unm | *nothing* | — |
+| 1 | yes · unm | — | yes |
+| 10 | yes · unm | — | — |
+| 11 | no · unm | — | — |
+| 12 | yes · unm | — | — |
+| 13 | yes · null:-rs | — | — |
+| 14 | yes · unm · null:-rs | — | — |
+| 15 | n/a · unm · null:-rs | — | — |
+| 2 | yes · unm | error | yes |
+| 3 | yes · unm | error | — |
+| 4 | yes · unm | — | — |
+| 5 | yes · unm | — | — |
+| 6 | yes · unm | — | — |
+| 7 | yes · unm | — | — |
+| 8 | yes · unm | — | — |
+| 9 | yes · unm | — | — |
 
 `null:drs` = declined · gave a reason · named a source; a `-` is the part that was missing. **ZERO** is `zero_as_absence`.
 
