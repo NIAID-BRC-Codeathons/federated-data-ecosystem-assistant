@@ -338,6 +338,15 @@ Full write-up and a suggested rewrite in `_reports/verifier.md`. Escalated to th
 > `NCBI_SERVER_SHARE` — and `ncbi_lib`, which claims the **whole** 3/s keyless ceiling by
 > itself. Applying `geo.py`'s own divide-by-share to both would land the sum at exactly 3.0/s.
 
+**The count of three was checked, not assumed.** I looked for a fourth NCBI client and found
+two false leads and no real one. `mcp_servers/pdn.py` is Pathoplexus and Loculus
+(`lapis.pathoplexus.org`, `api.loculus.genspectrum.org`), not NCBI Pathogen Detection, despite
+the name — it has no pacing at all and does not need any. `mygene.py` and `myvariant.py` both
+contain `ncbi.nlm.nih.gov` strings, but they are output link templates (`NCBI_GENE_URL`,
+`DBSNP_URL`, `CLINVAR_URL`); the hosts they request are `mygene.info` and `myvariant.info`.
+So the NCBI budget is shared by exactly three processes: `geo.py`, `pubmed.py`, and `ncbi.py`
+through `ncbi_lib`.
+
 The original finding, as escalated, follows.
 
 
@@ -390,7 +399,11 @@ launching from `evals/`, but it is not what happened here.
 ## What I have not done
 
 - **I did not re-measure any Pathogen Detection figure, including 581,464** — the number
-  the headline finding turns on. That is now the single largest gap in this table. Those
+  the headline finding turns on. That is now the single largest gap in this table.
+  **Blocked, not forgotten:** a BOBBY-LANES run has held the NCBI budget since 15:52
+  (`evals/run_questions.py`, PID 39716, `--parallel 6`, confirmed in the process list at
+  16:35). Adding measurement traffic on top of a live scored run is the one thing my own
+  rate-limit rule forbids. I am waiting for it to exit and will take the reading then. Those
   rows are `same-day`: a teammate read them today and pasted the call, and I have not
   repeated one. Pathogen Detection grows daily and 581,464 is the figure `analyze.py`
   hardcodes, so this is where drift will appear first.
