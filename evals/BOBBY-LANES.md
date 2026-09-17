@@ -133,7 +133,18 @@ and will drift; treat a small discrepancy as drift and a large one as a defect.
   which is why this tool exists.
 - **A good answer** gives 551,679 and distinguishes it from how many rows it saw.
 
-## B8. "How many of those are whole-genome sequencing rather than RNA-Seq?"
+## B8. "For E. coli in ENA, how many runs are whole-genome sequencing and how many are RNA-Seq?"
+
+*Rewritten 17 Sep, after running it. It originally read "How many of **those**
+are..." — and **there is no "those"**. Every question runs in a fresh session with
+no conversation history, so the referent from B7 does not exist. Six of nine
+models correctly refused and asked what "those" meant; the two that answered
+reached the right number by **assuming** E. coli. The case rewarded guessing and
+penalised noticing, which is backwards. The question now carries its own context.*
+
+*If multi-turn questions are wanted later, that is a harness feature, not a
+wording fix — and the six refusals above are the evidence for how a model should
+behave without it.*
 
 - **Must call** `brc_ena_search(taxonomy_id="562", library_strategy="WGS")` and
   again with `"RNA-Seq"`.
