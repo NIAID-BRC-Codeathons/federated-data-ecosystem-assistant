@@ -190,6 +190,26 @@
       }
     },
     {
+      "file": "trap-meca-mecc-excluded.jsonl",
+      "why": "mecC is named only to say it was excluded, so 94,336 is still attributed to mecA alone. Under the pre-17-Sep rule -- mecC anywhere clears the trap -- this scored clean. Without this fixture the tightening is unproven, which the mutation test demonstrated.",
+      "fires": [
+        "trap:meca_94336"
+      ],
+      "expect": {
+        "traps": [
+          "meca_94336"
+        ]
+      }
+    },
+    {
+      "file": "meca-joint-clean.jsonl",
+      "why": "NEGATIVE CONTROL. The joint attribution the tightened trap is meant to accept. If this fires, the trap punishes the one wording that shows the model knows which query produced 94,336.",
+      "fires": [],
+      "expect": {
+        "traps": []
+      }
+    },
+    {
       "file": "null-no-reason.jsonl",
       "why": "\"I don't know\" is the failure mode the honest-null check exists to catch: no decline marker, no reason, no source.",
       "fires": [
@@ -465,6 +485,46 @@
       }
     },
     {
+      "file": "rnr-page-size-as-finding.jsonl",
+      "why": "nde_search_datasets returned 20 of 4,303 and the answer passed on the 20. Every sentence in it is true and the number came from the tool, which is what makes this worth a mechanical check: no fabrication rule can see it, because a page size is not a fabrication.",
+      "fires": [
+        "retrieved_not_reported"
+      ],
+      "expect": {
+        "retrieved_not_reported": true,
+        "traps": []
+      }
+    },
+    {
+      "file": "rnr-total-with-page-size.jsonl",
+      "why": "NEGATIVE CONTROL. Same tool result, and the answer states 4,303 beside the 20. This is the behaviour the project argues for, so a check that flags it is worse than no check at all.",
+      "fires": [],
+      "expect": {
+        "retrieved_not_reported": false,
+        "traps": []
+      }
+    },
+    {
+      "file": "rnr-cut-blind.jsonl",
+      "why": "NEGATIVE CONTROL for the blindness path, and the one that matters most. The answer is word for word the one that fires, but the total fell past the 600-character cut. The check must not fire on evidence it cannot see, and must count the row under `cut` so the 0 is never read as 0 happened.",
+      "fires": [],
+      "expect": {
+        "retrieved_not_reported": false,
+        "traps": []
+      }
+    },
+    {
+      "file": "rnr-total-substring.jsonl",
+      "why": "Regression guard. The total is 37 and the answer says 1,370, never 37. The first version tested `str(37) in answer` and scored this clean. Boundary matching on both spellings makes it fire.",
+      "fires": [
+        "retrieved_not_reported"
+      ],
+      "expect": {
+        "retrieved_not_reported": true,
+        "traps": []
+      }
+    },
+    {
       "file": "ena-50-labelled-cap.jsonl",
       "why": "NEGATIVE CONTROL for ena_50, lifted verbatim from argo/claudesonnet45 q10 of the 14:58 matrix. Every 50 here is a retrieval cap stated beside its own total -- '39,786 total runs with 50 retrieved', 'capped at 50 returned records from total counts of 39,786 and 5,424', and a table row '| SRA | 39,786 | 50 | Runs |'. The old pattern flagged all of it. An answer that names the total AND the cap is the behaviour this project argues for; flagging it is the zero_as_absence false positive over again, pointed the other way.",
       "fires": [],
@@ -509,6 +569,37 @@
         "traps": [],
         "denied": false,
         "error": false
+      }
+    },
+    {
+      "file": "gt-pin-moved.jsonl",
+      "why": "PIPELINES.md pins 17 haploid-compatible workflows; the tool returned 14 to both models on 17 Sep and both said 14. 17 is in neither the answer nor any tool result, so the pin is stale and the model is not wrong. Reads 'pin moved', which is neither a hit nor a miss.",
+      "fires": [
+        "ground_truth_moved"
+      ],
+      "expect": {
+        "ground_truth": "moved",
+        "traps": [],
+        "verdict": "clean",
+        "routed": "yes",
+        "routed_first": "yes",
+        "gt_substitute": false
+      }
+    },
+    {
+      "file": "gt-miss-not-moved.jsonl",
+      "why": "NEGATIVE CONTROL for the state above, and the reason it is safe. Same volatile pin, but the tool DID return 17 and the answer says 9. The figure was on screen and the model dropped it, so this stays a miss: volatility never excuses a real one.",
+      "fires": [
+        "ground_truth_miss",
+        "ground_truth_substitute"
+      ],
+      "expect": {
+        "ground_truth": "miss",
+        "gt_substitute": true,
+        "traps": [],
+        "verdict": "clean",
+        "routed": "yes",
+        "routed_first": "yes"
       }
     }
   ]

@@ -92,6 +92,7 @@ Q2 = "How many E. coli isolates has NCBI sequenced?"
 Q3 = "Are there any E. coli expression studies about ciprofloxacin?"
 Q6 = "Which AMR genes turn up most often in E. coli, and how many isolates carry blaCTX-M-15?"
 Q13 = "How many methicillin-resistant E. coli strains are there?"
+Q4 = "Which E. coli genomes can I analyse, and what can I run on them?"
 Q15 = "What does the PBP2a structure look like, and how does it evade beta-lactams?"
 
 GROUPS_OK = '{"groups": ["E.coli and Shigella", "Staphylococcus aureus"], "count": 106}'
@@ -219,6 +220,29 @@ def main() -> None:
        "a staphylococcal trait. 94,336 S. aureus isolates carry mecA. For curated "
        "phenotypes ask BV-BRC or CARD."))
 
+    # Same evidence, same question, only the answer differs -- so the variable
+    # under test is the wording and nothing else.
+    #
+    # The trap was tightened on 17 Sep and the tightening had no fixture, which
+    # the mutation test caught: reverting it changed no result. This pair is
+    # that proof. Here mecC is named, and named only to say it was EXCLUDED, so
+    # the figure is still attributed to mecA alone. Under the old rule -- mecC
+    # anywhere clears it -- this scored clean.
+    MECA_STEPS = [
+        asst([("ncbi_pathogen_isolate_count", {"organism": "Staphylococcus aureus",
+                                               "amr_genes": "mecA"})]),
+        tool("ncbi_pathogen_isolate_count", '{"data": {"isolates": 94336}}'),
+    ]
+    made.append(write("trap-meca-mecc-excluded.jsonl", 13, Q13, MECA_STEPS,
+                      "94,336 S. aureus isolates carry mecA. The mecC variant "
+                      "was excluded from this count."))
+
+    # NEGATIVE CONTROL: the joint attribution, which is what knowing the query
+    # looks like. The hub asked for confirmation that this scores clean.
+    made.append(write("meca-joint-clean.jsonl", 13, Q13, MECA_STEPS,
+                      "94,336 S. aureus isolates carry mecA or mecC; the "
+                      "mecA-only count is lower."))
+
     # ---- honest_null ------------------------------------------------------
     # Four rungs of the same ladder, so the three parts of a refusal are shown
     # to be independently scorable rather than one flag wearing three hats.
@@ -254,6 +278,39 @@ def main() -> None:
                               "entry_type": "gse"})]),
         tool("geo_search", GEO_37),
     ], "19 Series match this query in GEO."))
+
+    # ---- a pinned ground truth that the SOURCE moved ----------------------
+    # PIPELINES.md pins 17 haploid-compatible workflows for taxid 562 and rule 2
+    # of that document warns these are live counts. On 17 Sep the tool returned
+    # 14 to argo/claudeopus5 and argo/claudesonnet45 alike, both answered 14,
+    # and the scorer marked both wrong. 17 is in neither the answer nor any tool
+    # result, so nothing the model saw could have produced it: the pin is stale.
+    BRC_ASSEMBLIES = ('{"count": 2, "assemblies": [{"accession": "GCF_000005845.2"}, '
+                      '{"accession": "GCF_000008865.2"}]}')
+    made.append(write("gt-pin-moved.jsonl", 4, Q4, [
+        asst([("search_organisms", {"query": "Escherichia coli"})]),
+        tool("search_organisms", '{"count": 1, "organisms": [{"taxonomyId": "562"}]}'),
+        asst([("get_assemblies", {"taxonomy_id": "562"})]),
+        tool("get_assemblies", BRC_ASSEMBLIES),
+        asst([("get_compatible_workflows", {"ploidies": ["haploid"],
+                                            "taxonomy_id": "562"})]),
+        tool("get_compatible_workflows", '{"count": 14, "workflows": []}'),
+    ], "BRC Analytics curates 2 E. coli assemblies, and 14 workflows are "
+       "compatible with haploid taxid 562."))
+
+    # The discrimination that makes the state above worth having. Same question,
+    # same volatile pin -- but here the tool DID return 17 and the answer says 9.
+    # `moved` must not fire: the figure was on screen and the model dropped it.
+    made.append(write("gt-miss-not-moved.jsonl", 4, Q4, [
+        asst([("search_organisms", {"query": "Escherichia coli"})]),
+        tool("search_organisms", '{"count": 1, "organisms": [{"taxonomyId": "562"}]}'),
+        asst([("get_assemblies", {"taxonomy_id": "562"})]),
+        tool("get_assemblies", BRC_ASSEMBLIES),
+        asst([("get_compatible_workflows", {"ploidies": ["haploid"],
+                                            "taxonomy_id": "562"})]),
+        tool("get_compatible_workflows", '{"count": 17, "workflows": []}'),
+    ], "BRC Analytics curates 2 E. coli assemblies, and 9 workflows can run on "
+       "them."))
 
     # ---- transport-level outcomes ----------------------------------------
     made.append(write("denied.jsonl", 2, Q2, [
@@ -330,6 +387,71 @@ def main() -> None:
        "revealed predominantly Illumina HiSeq X Ten whole-genome sequencing "
        "data with paired-end layout.\n\n| Assembly | Length | GC |\n"
        "|---|---|---|\n| GCF_000008865.2 | 5,594,605 | 50.5 |"))
+
+    # ---- retrieved_not_reported, added 17 Sep ----------------------------
+    #
+    # Three fixtures over ONE tool result, lifted from argo/claudeopus5 q10 of
+    # the 15:0x matrix: `nde_search_datasets` answered `{"total": 4303,
+    # "returned": 20}`. Only the answer changes between them, so the pair
+    # isolates the one thing the check is supposed to read.
+    #
+    # 4,303 rather than the ENA 551,679/50 case on purpose. `ena_50` already
+    # hard-codes that source and that figure, and a fixture that fired both
+    # checks could not tell me which one had done the work.
+    NDE_4303 = ('{"total": 4303, "returned": 20, "offset": 0, '
+                '"query": "(antimicrobial resistance) AND @type:\\"Dataset\\" '
+                'AND infectiousAgent.name:\\"Escherichia coli\\"", '
+                '"results": [{"name": "Whole genome sequencing of E. coli"}]}')
+    NDE_Q = "Which repositories hold E. coli AMR datasets?"
+
+    # FIRES. The tool said 20 of 4,303 and the answer passed on the 20. Every
+    # sentence in it is true; the number is real and came from the tool. That
+    # is what makes this the failure worth a mechanical check -- nothing in the
+    # fabrication rubric can see it, because a page size is not a fabrication.
+    made.append(write("rnr-page-size-as-finding.jsonl", 10, NDE_Q, [
+        asst([("nde_search_datasets", {"q": "Escherichia coli antimicrobial resistance"})]),
+        tool("nde_search_datasets", NDE_4303),
+    ], "The NIAID Data Ecosystem holds 20 E. coli antimicrobial-resistance "
+       "datasets, mostly whole-genome sequencing."))
+
+    # NEGATIVE CONTROL. Same result, same 20, and the total stated beside it.
+    # This is the behaviour the project argues for, so a check that flags it is
+    # worse than no check: it would punish the answer we want on Friday.
+    made.append(write("rnr-total-with-page-size.jsonl", 10, NDE_Q, [
+        asst([("nde_search_datasets", {"q": "Escherichia coli antimicrobial resistance"})]),
+        tool("nde_search_datasets", NDE_4303),
+    ], "The NIAID Data Ecosystem holds 4,303 E. coli antimicrobial-resistance "
+       "datasets. This search returned the first 20 of them."))
+
+    # NEGATIVE CONTROL for the blindness path, and the one I care about most.
+    # The total fell past the 600-character cut, so the check can see `returned`
+    # and nothing to compare it against. The answer is word-for-word the one
+    # that FIRES above. It must not fire here: "I could not look" is not
+    # "nothing happened", and a check that cannot tell those apart reports its
+    # own blind spot as a clean run. `cut` counts this instead, and travels
+    # beside the 0 wherever the 0 is printed.
+    # Regression guard for `_states`, added after the bug it catches. The total
+    # is 37 and the answer never says 37 -- but it does say 1,370, and the first
+    # version of this check asked `str(37) in answer`, which that satisfies. So
+    # an answer that never stated the total scored as having reported it, and
+    # the check returned a clean row it had not earned. 1,370 is in the tool
+    # result too, so no_fabrication has nothing to say about it.
+    made.append(write("rnr-total-substring.jsonl", 10, NDE_Q, [
+        asst([("nde_search_datasets", {"q": "Escherichia coli antimicrobial resistance"})]),
+        tool("nde_search_datasets",
+             '{"total_count": 37, "returned": 20, "sample_total": 1370, '
+             '"results": [{"name": "Whole genome sequencing of E. coli"}]}'),
+    ], "The NIAID Data Ecosystem returned 20 datasets, covering 1,370 samples "
+       "in total."))
+
+    made.append(write("rnr-cut-blind.jsonl", 10, NDE_Q, [
+        asst([("nde_search_datasets", {"q": "Escherichia coli antimicrobial resistance"})]),
+        tool("nde_search_datasets",
+             '{"returned": 20, "offset": 0, "results": [{"name": "Whole genome '
+             'sequencing of E. coli"}]}', truncated=True),
+    ], "The NIAID Data Ecosystem holds 20 E. coli antimicrobial-resistance "
+       "datasets, mostly whole-genome sequencing."))
+
 
     # ---- ROUTING.md and STRESS.md, added 17 Sep --------------------------
     #

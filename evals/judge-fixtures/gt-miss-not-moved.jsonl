@@ -1,0 +1,8 @@
+{"role": "user", "text": "Which E. coli genomes can I analyse, and what can I run on them?"}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "search_organisms", "args": {"query": "Escherichia coli"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "search_organisms", "seconds": 0.4, "result_excerpt": "{\"count\": 1, \"organisms\": [{\"taxonomyId\": \"562\"}]}", "result_chars": 50}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "get_assemblies", "args": {"taxonomy_id": "562"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "get_assemblies", "seconds": 0.4, "result_excerpt": "{\"count\": 2, \"assemblies\": [{\"accession\": \"GCF_000005845.2\"}, {\"accession\": \"GCF_000008865.2\"}]}", "result_chars": 96}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "get_compatible_workflows", "args": {"ploidies": ["haploid"], "taxonomy_id": "562"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "get_compatible_workflows", "seconds": 0.4, "result_excerpt": "{\"count\": 17, \"workflows\": []}", "result_chars": 30}
+{"summary": {"question_number": 4, "question": "Which E. coli genomes can I analyse, and what can I run on them?", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": ["search_organisms", "get_assemblies", "get_compatible_workflows"], "tool_call_count": 3, "denied": false, "error": null, "answer": "BRC Analytics curates 2 E. coli assemblies, and 9 workflows can run on them.", "answer_chars": 76, "input_tokens": 1000, "output_tokens": 50, "llm_round_trips": 1, "usage_reported": true}}

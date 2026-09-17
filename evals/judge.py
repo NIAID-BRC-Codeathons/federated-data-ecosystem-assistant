@@ -203,13 +203,25 @@ TRAP_NOTES = {
 # `weak` is set automatically for values under 100. A bare "2" is easy to hit by
 # accident in any prose, so those rows are marked in the report rather than
 # quietly counted as strong evidence.
+#
+# `volatile` names a figure whose SOURCE moves. PIPELINES.md rule 2 says so in
+# as many words -- "these are live counts; BRC's workflow catalogue changed
+# mid-build between 16 and 17 Sep" -- and a pin that has gone stale must not be
+# charged to the model. When a volatile figure is absent from the answer AND
+# absent from every tool result in that same transcript, the source no longer
+# returns it: the state is `moved`, the pin needs re-verifying, and the model is
+# not marked wrong. When the tool DID return the pinned figure and the answer
+# dropped it, that is still a `miss`. Measured 17 Sep: `get_compatible_workflows`
+# returned `{"count":14}` to both argo/claudeopus5 and argo/claudesonnet45 on
+# q04, both answered 14, and this file was pinning 17 -- two correct answers
+# scored as failures by a stale constant.
 GROUND_TRUTH: dict[int, list[dict]] = {
     2:  [{"value": 581464, "what": "distinct isolates in the `E.coli and Shigella` group",
           "decoys": {1162675: "index rows, not distinct isolates"}}],
     3:  [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin",
           "decoys": {513: "the unfiltered `db=gds` count over four record types"}}],
-    4:  [{"value": 2, "what": "E. coli assemblies in BRC Analytics"},
-         {"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
+    4:  [{"value": 2, "what": "E. coli assemblies in BRC Analytics", "volatile": "BRC Analytics assembly catalogue"},
+         {"value": 17, "what": "haploid-compatible workflows for taxid 562", "volatile": "BRC Analytics workflow catalogue; 14 on 17 Sep"}],
     6:  [{"value": 75487, "what": "distinct isolates carrying `blaCTX-M-15`",
           "decoys": {150926: "raw index rows for the same gene"}}],
     7:  [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin",
@@ -379,8 +391,8 @@ GROUND_TRUTH_RS: dict[str, list[dict]] = {
     "R2":  [{"value": 170726, "what": "distinct isolates carrying `gyrA_S83L`",
              "decoys": {341342: "raw index rows",
                         37: "GEO Series -- the silent substitution this case exists for"}}],
-    "R4":  [{"value": 2, "what": "E. coli assemblies in BRC Analytics"},
-            {"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
+    "R4":  [{"value": 2, "what": "E. coli assemblies in BRC Analytics", "volatile": "BRC Analytics assembly catalogue"},
+            {"value": 17, "what": "haploid-compatible workflows for taxid 562", "volatile": "BRC Analytics workflow catalogue; 14 on 17 Sep"}],
     "R7":  [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin"}],
     "R12": [{"value": 581464, "what": "distinct isolates in `E.coli and Shigella`",
              "decoys": {1162675: "index rows, which do not double for S. aureus"}}],
@@ -398,10 +410,23 @@ GROUND_TRUTH_RS: dict[str, list[dict]] = {
     "S7":  [{"value": 13, "what": "distinct organisms in PRJNA715470"}],
     "S8":  [{"value": 3644, "what": "NDE E. coli AMR records"}],
     "S9":  [{"value": 581464, "what": "distinct isolates, freshly called"}],
-    "S11": [{"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
-    "S13": [{"value": 17, "what": "haploid-compatible workflows for taxid 562"}],
-    "S14": [{"value": 48421, "what": "ENA studies -- the denominator that does exist"}],
-    "S18": [{"value": 2, "what": "E. coli assemblies in BRC Analytics"}],
+    "S11": [{"value": 17, "what": "haploid-compatible workflows for taxid 562", "volatile": "BRC Analytics workflow catalogue; 14 on 17 Sep"}],
+    "S13": [{"value": 17, "what": "haploid-compatible workflows for taxid 562", "volatile": "BRC Analytics workflow catalogue; 14 on 17 Sep"}],
+    # S14 is a UNIT trap, and until 15:5x this map had it armed backwards: it
+    # pinned 48,421 as "ENA studies", so a model answering the trap scored a
+    # hit and a model answering correctly scored a miss. Found by `verifier`
+    # (FINDING V6) and confirmed in STRESS.md at 15:30; the fix is here because
+    # this file is the last place the wrong unit lived. 48,421 is ENA *runs* in
+    # the `*resistance*`-titled slice -- the same query spans 94 studies, so it
+    # overstates by 515x -- and it reads as a study count only because ENA's
+    # `read_study` endpoint returns runs despite its name.
+    "S14": [{"value": 6917, "what": "ENA studies for taxid 562 -- the denominator "
+                                    "that does exist, read live 15:20",
+             "decoys": {48421: "ENA runs in the `*resistance*` slice: wrong unit "
+                               "and wrong population, 515x the 94 studies it spans",
+                        551679: "ENA runs for taxid 562: right population, wrong "
+                                "unit -- the question asks for studies"}}],
+    "S18": [{"value": 2, "what": "E. coli assemblies in BRC Analytics", "volatile": "BRC Analytics assembly catalogue"}],
     "S19": [{"value": 875, "what": "amino acids in GyrA",
              "decoys": {101: "ccdB, which is `uniprot_search` hit 1 without a symbol check"}}],
     "S20": [{"value": 37, "what": "GEO Series",
@@ -679,6 +704,17 @@ def check_ground_truth(t: Transcript) -> dict:
             state = "hit"
         elif decoy_hit is not None:
             state = "wrong"
+        elif spec.get("volatile") and spec["value"] not in t.evidence:
+            # The pin is stale, not the answer wrong. The source moved: the
+            # figure this file pins is absent from the answer AND from every
+            # tool result the model was shown, so nothing in this transcript
+            # could have produced it. Held apart from `hit` as well as from
+            # `miss` -- it is not evidence the model was right, it is evidence
+            # the ground truth needs re-verifying against the live source.
+            # The `not in t.evidence` clause is what keeps this honest: when
+            # the tool DID return the pinned figure and the answer dropped it,
+            # the state below still fires and the model is still marked.
+            state = "moved"
         else:
             state = "miss"
         # A miss says the pinned figure is absent. It does not say what the model
@@ -692,6 +728,7 @@ def check_ground_truth(t: Transcript) -> dict:
         substitute = (state == "miss" and any(
             n < FABRICATION_MIN and n not in t.evidence for n in said))
         rows.append({"value": spec["value"], "what": spec["what"], "state": state,
+                     "volatile": spec.get("volatile"),
                      "decoy": decoy_hit,
                      "decoy_note": (spec.get("decoys") or {}).get(decoy_hit),
                      "substitute": substitute,
@@ -700,6 +737,8 @@ def check_ground_truth(t: Transcript) -> dict:
         overall = "wrong"
     elif any(r["state"] == "miss" for r in rows):
         overall = "miss"
+    elif any(r["state"] == "moved" for r in rows):
+        overall = "moved"
     else:
         overall = "hit"
     return {"applies": True, "state": overall, "rows": rows}
@@ -833,10 +872,119 @@ def check_traps(t: Transcript) -> list[str]:
     # figure -- `mecA` alone is 93,260. Naming mecC anywhere in the answer clears
     # it, which is the cheapest reliable signal that the model knows which query
     # produced the number.
-    if 94336 in answer_numbers(a) and not re.search(r"(?i)\bmec-?c\b", a):
-        fired.append("meca_94336")
+    # Tightened 17 Sep. The hub asked me to confirm that "94,336 carry mecA or
+    # mecC" scores clean, and it does. Testing that also found the opposite
+    # hole: mecC ANYWHERE cleared the trap, so "94,336 isolates carry mecA; the
+    # mecC variant was excluded" -- the wrong attribution stated in as many
+    # words -- also scored clean. The clearing signal now has to be a JOINT
+    # construction near the number, which is what "the model knows which query
+    # produced this" actually looks like. Prose that mentions mecC while
+    # attributing the figure to mecA alone no longer counts.
+    if 94336 in answer_numbers(a):
+        joint = re.search(
+            r"(?i)mec-?a\s*(?:or|and|/|\+|,)\s*mec-?c"
+            r"|mec-?c\s*(?:or|and|/|\+|,)\s*mec-?a"
+            r"|mec-?a\s*/\s*mec-?c|either mec", a)
+        if not joint:
+            fired.append("meca_94336")
 
     return fired
+
+
+# Keys a source uses for "how many exist" and for "how many I am handing you".
+# Taken from the live tool results of the 14:58 matrix, not invented: `count`,
+# `total`, `total_count`, `total_runs`, `total_in_ena`, `result_count` on one
+# side and `returned`, `hits_returned` on the other.
+# Measured against all 344 tool results under `runs/` on 17 Sep, not guessed.
+# The first version of this list was written from memory of what an API "ought"
+# to call these fields; it matched 5 pairs. This one matches 17, and the nine it
+# gained include `total_matching: 497414` next to `returned: 1` -- a pair the
+# guessed list could not see. Longest alternatives first, so `total` does not
+# shadow `total_matching`.
+#
+# Two count-like keys are deliberately absent, both found by reading results
+# rather than by reasoning about names:
+#
+#   fields_total  lapis_describe_organism reports 156 of them. They are columns
+#                 in a schema, not records. Treating one as a total would invent
+#                 a 156-versus-0 shortfall out of a field listing.
+#   count         103 occurrences, at least three meanings: organisms matched,
+#                 rows returned, and -- inside lapis_aggregate_samples -- a
+#                 per-country sample count nested in every single row. Nothing
+#                 in the text separates them, so a result carrying a bare
+#                 `count` with no legible pair is counted as `ambiguous` and
+#                 printed, never quietly passed as clean.
+TOTAL_KEYS = (r"(?:total_matching|total_count|total_found|total_runs"
+              r"|total_in_ena|result_count|num_found|hit_count|total)")
+RETURNED_KEYS = (r"(?:rows_returned|hits_returned|returned_count|n_returned"
+                 r"|page_size|retrieved|returned)")
+AMBIGUOUS_KEYS = r'"(?:count|fields_total)"\s*:'
+
+
+def _states(n: int, a: str) -> bool:
+    """Does the answer state this figure -- as a figure, not as a substring?
+
+    `str(n) in a` was the first version and it is wrong in the direction that
+    matters: 37 matches inside 1,370 and inside the year 2037, so a model that
+    never mentioned the total would still score as having reported it, and the
+    check would report a clean run it had not earned. Both spellings are tried
+    because the tools emit 497414 and the answers write 497,414.
+    """
+    return any(re.search(rf"(?<![\d.,]){s}(?![\d.,])", a)
+               for s in (f"{n:,}", str(n)))
+
+
+def check_retrieved_not_reported(t: Transcript) -> dict:
+    """The tool said "50 of 551,679" and the answer passed on the 50.
+
+    This is the project's whole thesis as a mechanical check, and the hub asked
+    for it by name with a per-model count so the Friday claim has a number under
+    it. `ena_50` is the same failure hard-coded to one source and one figure;
+    this one reads the pair out of whatever the tool actually returned.
+
+    A pair counts only when the tool result shows BOTH numbers and the total is
+    larger. Then the answer has to carry the total somewhere. If it carries the
+    returned figure and not the total, the user has been handed a page size as
+    if it were a finding.
+
+    Not seeing is reported, never absorbed. Two separate reasons the check can
+    fail to look, kept apart because they are fixed by different people:
+
+    `cut`        the result was truncated at 600 characters and the pair fell
+                 past the cut. Fixed by raising the excerpt cap in the driver,
+                 which is runner's file, not this one.
+    `ambiguous`  the result carried a count-like key this check refuses to
+                 interpret (see AMBIGUOUS_KEYS). Fixed by the servers naming
+                 their fields, or not at all.
+
+    Both are printed beside the count. On the 17 Sep matrix the check fires 0 --
+    and it reaches that 0 having read 17 pairs out of 344 tool results, with 146
+    cut and 32 ambiguous. Those three numbers have to travel together. "0 found"
+    from a check that could look at 5% of the evidence is not the same claim as
+    "0 happened", and the difference is the entire point of the project.
+    """
+    a = t.answer
+    pairs, cut_blind, amb, fired = [], 0, 0, []
+    for r in t.results:
+        ex = r.get("result_excerpt", "") or ""
+        cut = (r.get("result_chars") or 0) > len(ex)
+        tot = {int(m.group(1).replace(",", ""))
+               for m in re.finditer(rf'"{TOTAL_KEYS}"\s*:\s*"?([\d,]+)"?', ex)}
+        ret = {int(m.group(1).replace(",", ""))
+               for m in re.finditer(rf'"{RETURNED_KEYS}"\s*:\s*"?([\d,]+)"?', ex)}
+        if not tot or not ret:
+            if re.search(AMBIGUOUS_KEYS, ex):
+                amb += 1
+            cut_blind += 1 if cut else 0
+            continue
+        big, small = max(tot), max(ret)
+        if big <= small:
+            continue
+        pairs.append((r.get("tool"), big, small))
+        if _states(small, a) and not _states(big, a):
+            fired.append(f"{r.get('tool')}: reported {small}, source held {big:,}")
+    return {"applies": bool(fired), "hits": fired, "pairs": len(pairs),
+            "cut": cut_blind, "ambiguous": amb}
 
 
 def check_honest_null(t: Transcript, exp: dict) -> dict:
@@ -1088,6 +1236,7 @@ def judge_one(t: Transcript) -> dict:
         "forbidden_units": check_forbidden_units(t, exp),
         "control_refusal": check_control_refusal(t, exp),
         "no_turn": check_no_turn(t),
+        "retrieved_not_reported": check_retrieved_not_reported(t),
         "denied": t.denied,
         "error": t.error,
         "truncated": t.truncated,
@@ -1114,12 +1263,16 @@ def _fmt_ground_truth(gt: dict) -> str:
         return "—"
     bits = []
     for r in gt["rows"]:
-        mark = {"hit": "✓", "miss": "**missing**", "wrong": "**wrong**"}[r["state"]]
+        mark = {"hit": "✓", "miss": "**missing**", "wrong": "**wrong**",
+                "moved": "**pin moved**"}[r["state"]]
         weak = "?" if (r["weak"] and r["state"] == "hit") else ""
         if r["state"] == "wrong":
             bits.append(f"{r['value']:,} {mark} (said {r['decoy']:,})")
         elif r["state"] == "miss" and r.get("substitute"):
             bits.append(f"{r['value']:,} {mark} (a competing small figure is in the answer)")
+        elif r["state"] == "moved":
+            bits.append(f"{r['value']:,} {mark} (not in the answer and not in any tool "
+                        f"result -- {r['volatile']})")
         elif r["state"] == "hit" and r["decoy"] is not None:
             bits.append(f"{r['value']:,} {mark}{weak} (also cites {r['decoy']:,})")
         else:
@@ -1161,6 +1314,11 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
             el = f"{el:g}s" if isinstance(el, (int, float)) else "elapsed not recorded"
             tok = r["no_turn"]["in_tok"]
             el += f", {tok:,} in / 0 out" if tok else ""
+            # runner's discriminator, 17 Sep: the model never got a second
+            # call. Carried beside the flag, not inside it -- a summary that
+            # omits the field would read as None and silently stop the flag
+            # firing, which is the same trap as gating on output_tokens.
+            el += f", {r['no_turn']['rounds']} round trip" if r["no_turn"]["rounds"] == 1 else ""
             L.append(f"| {r['q']} | {r['kind']} | — | — | "
                      f"**nothing came back** ({el}) | — | — | — | — | — |")
             continue
@@ -1195,6 +1353,7 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
     gt_hit = sum(1 for r in gts if r["ground_truth"]["state"] == "hit")
     gt_wrong = sum(1 for r in gts if r["ground_truth"]["state"] == "wrong")
     gt_miss = sum(1 for r in gts if r["ground_truth"]["state"] == "miss")
+    gt_moved = sum(1 for r in gts if r["ground_truth"]["state"] == "moved")
     fab = sum(1 for r in live if r["numbers"]["unmatched"] and r["numbers"]["decidable"])
     unm = sum(1 for r in live if r["numbers"]["unmatched"] and not r["numbers"]["decidable"])
     traps = Counter(x for r in live for x in r["traps"])
@@ -1225,13 +1384,46 @@ def model_section(model: str, rows: list[dict]) -> list[str]:
               f"{cost} Held out of every fraction below: scoring them `routed: no` would "
               f"charge the model for a reply it was never shown to have withheld. Re-run "
               f"these before reading anything into this model's totals.{DRIVER_BLIND_SPOT}"]
+    # The denominator, stated before anything is divided by it. The hub's ask,
+    # 17 Sep: a model with 6 unscorable cells and a model with 0 must never be
+    # compared on a percentage that looks the same. Printed even when nothing
+    # was held out, so its absence never has to be interpreted.
+    held = len(rows) - len(live)
+    why = []
+    if dead:
+        why.append(f"{len(dead)} returned nothing")
+    if any(r["denied"] for r in rows):
+        why.append(f"{sum(1 for r in rows if r['denied'])} denied")
+    if any(r["error"] for r in rows):
+        why.append(f"{sum(1 for r in rows if r['error'])} errored")
+    # retrieved_not_reported travels as three numbers or not at all.
+    rnr = [r["retrieved_not_reported"] for r in live]
+    rnr_fired = sum(1 for x in rnr if x["applies"])
+    rnr_rows = sum(1 for x in rnr if x["pairs"])
+    rnr_pairs = sum(x["pairs"] for x in rnr)
+    rnr_cut = sum(x["cut"] for x in rnr)
+    rnr_amb = sum(x["ambiguous"] for x in rnr)
     L += [
+        f"- **scorable {len(live)} of {len(rows)}**"
+        + (f" — {', '.join(why)}, held out" if why else " — nothing held out")
+        + ". Every rate below is out of the scorable count, not out of "
+          f"{len(rows)}; two models with different denominators cannot be "
+          "compared on these percentages alone.",
         f"- routed {routed_yes}/{routed_scored} scored "
         f"({len(live) - routed_scored} not scorable: source not wired, or no tool applies)",
         f"- opened on the right source {first_yes}/{first_scored} — the strict read of "
         f"the same question",
         f"- ground truth, where PIPELINES.md pins one ({len(gts)} questions): "
-        f"{gt_hit} correct · {gt_wrong} **wrong figure** · {gt_miss} **never stated**",
+        f"{gt_hit} correct · {gt_wrong} **wrong figure** · {gt_miss} **never stated**"
+        + (f" · {gt_moved} **pin moved** (the pinned figure is in no tool result "
+           f"either -- re-verify it against the live source before reading the row "
+           f"as the model's failure)" if gt_moved else ""),
+        f"- **retrieved-not-reported {rnr_fired}/{rnr_rows}** — answers that passed on a "
+        f"page size as the finding, out of the answers where a tool showed both a total and "
+        f"a returned count ({rnr_pairs} such pairs). **Read this with its denominator**: "
+        f"{rnr_cut} tool result(s) were cut at 600 characters before a pair became legible "
+        f"and {rnr_amb} carried a count key too ambiguous to interpret, so the check could "
+        f"not look at those at all. A 0 here means 0 among what was visible.",
         f"- fabrication flags {fab} · unmatched-but-truncated {unm}",
         f"- other trap flags {sum(traps.values())} "
         f"({', '.join(f'{k}×{v}' for k, v in traps.most_common()) or 'none'})",
@@ -1355,6 +1547,14 @@ def write_report(by_model: dict[str, list[dict]], out: pathlib.Path,
           "  SYSTEM_PROMPT forbids in as many words, so it is flagged rather than exempted.",
           "  Accessions glued to letters (`GSE309890`, `P0AES4`) are not, because the",
           "  letters make them unambiguous and the model was handed them.",
+          "- **A pinned ground truth can go stale.** `PIPELINES.md` rule 2 calls",
+          "  these live counts, and BRC's workflow catalogue moved between 16 and 17",
+          "  Sep. A figure marked `volatile` that is absent from the answer *and*",
+          "  from every tool result in the transcript reads **pin moved**, not",
+          "  `missing`: nothing the model was shown could have produced it. That is a",
+          "  note to re-verify the pin against the live source, not a pass -- and it",
+          "  does not soften a real miss, because a pinned figure the tool did return",
+          "  and the answer dropped still scores `missing`.",
           "- **Whether the answer is true.** A correctly routed, fully evidenced answer",
           "  can still misread its own tool result. The ground-truth column covers the",
           "  seven questions `PIPELINES.md` pins a figure for; the rest are unchecked.",
@@ -1385,8 +1585,9 @@ CHECKS = [
     "routed", "routed_first",
     "no_fabrication", "no_fabrication_grey",
     "ground_truth_miss", "ground_truth_wrong", "ground_truth_substitute",
+    "ground_truth_moved",
     "honest_null_declines", "honest_null_reason", "honest_null_alternative",
-    "denied", "error", "empty_answer", "no_turn",
+    "denied", "error", "empty_answer", "no_turn", "retrieved_not_reported",
     # ROUTING.md / STRESS.md, added 17 Sep at Runner's request. Each one is here
     # because the demo rubric is blind to it: a shotgun passes `routed`, an
     # early stop says only true things, and a bare decline and a four-part
@@ -1415,6 +1616,7 @@ def _observed(row: dict) -> dict:
         "error": bool(row["error"]),
         "empty_answer": row["answer_chars"] == 0,
         "no_turn": bool(row["no_turn"]["applies"]),
+        "retrieved_not_reported": bool(row["retrieved_not_reported"]["applies"]),
         "misroute_called": bool(row["misroute"].get("called")),
         "misroute_used": bool(row["misroute"].get("used")),
         "declared_missing": (row["declared"]["applies"]
