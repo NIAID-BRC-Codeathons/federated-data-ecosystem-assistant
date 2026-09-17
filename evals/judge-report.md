@@ -6,78 +6,17 @@ expectations encoded at the top of that file, which come from `QUESTIONS.md` and
 `PIPELINES.md`. Disagree with a flag by editing `EXPECTED` or `TRAP_NOTES` and
 re-running.
 
-## `argo_claudeopus5`
+## Nothing scorable
 
-| Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
-|---|---|---|---|---|---:|---|---|---|---|
-| 1 | answer | yes | yes | `uniprot_search` → `string_resolve_proteins` → `uniprot_get_entry` → `string_all_interaction_partners` → `ncbi_pathogen_ | 52 | needs-review: 106, 196, 499, 524 +21 | — | — | — |
-| 3 | answer | yes | yes | `geo_search` → `geo_search` | 30 | needs-review: 36,631,985, 36,708,705, 36,718,533, 36,853,057 +9 | 37 ✓? | — | — |
+No transcript under `evals/runs/` carries provenance and a question this
+scorer can address. The base matrix has produced no records yet, and the
+pre-matrix runs were declared void and moved to
+`evals/runs/_archive-pre-matrix/` on 17 Sep. **Do not score the archive** --
+it straddles the 14:08 port-move commit.
 
-**argo_claudeopus5** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
-
-- routed 2/2 scored (0 not scorable: source not wired, or no tool applies)
-- opened on the right source 2/2 — the strict read of the same question
-- ground truth, where PIPELINES.md pins one (1 questions): 1 correct · 0 **wrong figure** · 0 **never stated**
-- fabrication flags 0 · unmatched-but-truncated 2
-- other trap flags 0 (none)
-- gap questions (0): 0 declined · 0 gave a reason · 0 named a source · **0 did all three**
-
-## `argo_claudesonnet45`
-
-| Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
-|---|---|---|---|---|---:|---|---|---|---|
-| 1 | answer | no | no | **empty answer** | — | — | — | — | — |
-| 2 | answer | yes | yes | `ncbi_pathogen_organisms` → `ncbi_pathogen_isolate_count` | 10 | — | 581,464 ✓ (also cites 1,162,675) | — | — |
-| 3 | answer | yes | yes | `geo_search` → `pubmed_get_article` → `pubmed_get_article` → `pubmed_get_article` | 2 | — | 37 ✓? | — | — |
-| 4 | — | **denied** | — | — | — | — | — | — | — |
-
-**argo_claudesonnet45** · **`zero_as_absence`: 0** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
-
-- routed 2/3 scored (0 not scorable: source not wired, or no tool applies)
-- opened on the right source 2/3 — the strict read of the same question
-- ground truth, where PIPELINES.md pins one (2 questions): 2 correct · 0 **wrong figure** · 0 **never stated**
-- fabrication flags 0 · unmatched-but-truncated 0
-- other trap flags 0 (none)
-- gap questions (0): 0 declined · 0 gave a reason · 0 named a source · **0 did all three**
-
-## `argo_gpt4o`
-
-| Q | expects | routed | first | tools called | nums ≥100 | unmatched | ground truth | traps | honest null |
-|---|---|---|---|---|---:|---|---|---|---|
-| 1 | answer | yes | yes | `uniprot_search` → `lapis_list_organisms` → `uniprot_get_entry` → `lapis_describe_organism` → `lapis_get_mutations` → `l | 0 | — | — | — | — |
-| 2 | answer | yes | yes | `ncbi_pathogen_isolate_count` | 0 | — | 581,464 **missing** (a competing small figure is in the answer) | `pathogen_wrong_group`, `zero_as_absence` | — |
-| 3 | answer | yes | yes | `geo_search` | 0 | — | 37 ✓? | — | — |
-| 4 | answer | yes | yes | `search_organisms` → `get_assemblies` → `list_workflow_categories` → `get_workflows_in_category` → `get_workflows_in_cat | 5 | needs-review: 5,594,605 | 2 ✓? · 17 **missing** (a competing small figure is in the answer) | — | — |
-| 5 | answer | yes | yes | `lapis_list_organisms` → `lapis_describe_organism` → `lapis_aggregate_samples` | 3 | — | — | — | — |
-| 6 | answer | yes | yes | `ncbi_pathogen_amr_genes` → `ncbi_pathogen_isolate_count` | 0 | — | 75,487 **missing** | `pathogen_wrong_group`, `zero_as_absence` | — |
-| 7 | answer | yes | yes | `geo_search` → `search_organisms` → `get_assemblies` → `get_compatible_workflows` | 1 | — | 37 **missing** (a competing small figure is in the answer) | — | — |
-| 8 | answer | yes | yes | `geo_series` → `ncbi_sra_runs_for_project` → `get_assemblies` → `get_assembly_details` → `get_workflows_in_category` → ` | 5 | needs-review: 4,000 | — | — | — |
-| 9 | answer | yes | yes | `ncbi_pathogen_isolate_count` → `search_organisms` → `get_assemblies` → `ncbi_sequence_fetch` → `ncbi_find_uids` → `ncbi | 1 | — | 170,726 **missing** (a competing small figure is in the answer) | `pathogen_wrong_group`, `zero_as_absence` | — |
-
-**argo_gpt4o** · **`zero_as_absence`: 3** — a zero repeated as a finding is the failure this project exists to prevent, so it is counted on its own.
-
-- routed 9/9 scored (0 not scorable: source not wired, or no tool applies)
-- opened on the right source 9/9 — the strict read of the same question
-- ground truth, where PIPELINES.md pins one (6 questions): 1 correct · 0 **wrong figure** · 5 **never stated**
-- fabrication flags 0 · unmatched-but-truncated 2
-- other trap flags 3 (pathogen_wrong_group×3)
-- gap questions (0): 0 declined · 0 gave a reason · 0 named a source · **0 did all three**
-
-## Cross-model
-
-| Q | `argo_claudeopus5` | `argo_claudesonnet45` | `argo_gpt4o` |
-|---|---|---|---|
-| 1 | yes · unm | no | yes |
-| 2 | — | yes | yes · **ZERO** · trap:pathogen_wrong_group |
-| 3 | yes · unm | yes | yes |
-| 4 | — | denied | yes · unm |
-| 5 | — | — | yes |
-| 6 | — | — | yes · **ZERO** · trap:pathogen_wrong_group |
-| 7 | — | — | yes |
-| 8 | — | — | yes · unm |
-| 9 | — | — | yes · **ZERO** · trap:pathogen_wrong_group |
-
-`null:drs` = declined · gave a reason · named a source; a `-` is the part that was missing. **ZERO** is `zero_as_absence`.
+The rubric itself is still verified. `python evals/judge.py --self-test`
+scores the deliberately broken transcripts in `evals/judge-fixtures/` and
+fails unless every check is observed firing on at least one of them.
 
 ## What each trap flag means
 
@@ -129,7 +68,7 @@ re-running.
   can still misread its own tool result. The ground-truth column covers the
   seven questions `PIPELINES.md` pins a figure for; the rest are unchecked.
 - **Whether these checks work at all.** That question is not answered by this
-  report. `python evals/judge.py --self-test` scores 22 deliberately broken
+  report. `python evals/judge.py --self-test` scores the deliberately broken
   transcripts in `evals/judge-fixtures/` and fails unless every check above is
   observed firing on at least one of them and *none* fires on the clean
   control. A green report from a scorer whose self-test has not been run is

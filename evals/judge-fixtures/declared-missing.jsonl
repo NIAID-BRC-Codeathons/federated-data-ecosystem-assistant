@@ -1,0 +1,4 @@
+{"role": "user", "text": "How many E. coli genomes are there?"}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "ncbi_pathogen_isolate_count", "args": {"taxgroup_name": "E.coli and Shigella"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "ncbi_pathogen_isolate_count", "seconds": 0.4, "result_excerpt": "{\"taxgroup_name\": \"E.coli and Shigella\", \"distinct_isolates\": 581464}", "result_chars": 69}
+{"summary": {"question_id": "R9", "question_number": 9, "question": "How many E. coli genomes are there?", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": ["ncbi_pathogen_isolate_count"], "tool_call_count": 1, "denied": false, "error": null, "answer": "There are 581,464.", "answer_chars": 18, "input_tokens": 1000, "output_tokens": 50}}

@@ -38,10 +38,13 @@ def asst(calls, text: str = "") -> dict:
             "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
 
 
-def write(name, q, question, steps, answer, denied=False, error=None) -> str:
+def write(name, q, question, steps, answer, denied=False, error=None,
+          qid: str | None = None) -> str:
     tools_in_order = [c["tool"] for s in steps for c in (s.get("tool_calls") or [])]
     lines = [{"role": "user", "text": question}] + steps
+    summary_extra = {"question_id": qid} if qid else {}
     lines.append({"summary": {
+        **summary_extra,
         "question_number": q, "question": question, "model": "fixture",
         "elapsed_s": 1.0, "tools_in_order": tools_in_order,
         "tool_call_count": len(tools_in_order), "denied": denied, "error": error,
@@ -52,6 +55,36 @@ def write(name, q, question, steps, answer, denied=False, error=None) -> str:
         encoding="utf-8")
     return name
 
+
+
+R2_Q = "How common is the gyrA S83L mutation out in the world?"
+R9_Q = "How many E. coli genomes are there?"
+S1_Q = ("Start from the sertraline ciprofloxacin study, find the raw sequencing, "
+        "work out whether BRC can process it, and tell me what the resistance "
+        "protein is.")
+S10_Q = ("For each ciprofloxacin study in GEO, tell me the platform and the sample "
+         "count. Then do the same for every organism group in Pathogen Detection.")
+S16_Q = "What's the MIC distribution for ciprofloxacin in E. coli?"
+S17_Q = ("How far is the ciprofloxacin binding site from the GyrA active site, "
+         "in angstroms?")
+S20_Q = "How many GEO Series are there on E. coli and ciprofloxacin?"
+
+PD_GYRA = ('{"taxgroup_name": "E.coli and Shigella", "element": "gyrA_S83L", '
+           '"distinct_isolates": 170726, "index_rows": 341342, '
+           '"group_total_distinct": 581464}')
+PD_TOTAL = '{"taxgroup_name": "E.coli and Shigella", "distinct_isolates": 581464}'
+PD_AST = ('{"taxgroup_name": "E.coli and Shigella", "total_isolates": 581464, '
+          '"with_ciprofloxacin_AST": 9036, "note": "AST_phenotypes is returned per '
+          'isolate and is not a filterable field"}')
+GEO_GYRA = ('{"entry_type": "gsm", "count": 4812, "ids": ["3812004", "3811887"], '
+            '"query_translation": "Escherichia coli[Organism] AND gyrA"}')
+GEO_37_R = ('{"entry_type": "gse", "count": 37, "ids": ["200309890", "200298114"], '
+            '"query_translation": "Escherichia coli[Organism] AND ciprofloxacin"}')
+GEO_SERT = '{"entry_type": "gse", "count": 1, "ids": ["200309890"]}'
+GSE_DETAIL = ('{"accession": "GSE309890", "bioproject": "PRJNA1363958", '
+              '"n_samples": 6, "organism": "Escherichia coli str. K-12 substr. MG1655"}')
+UNIPROT_GYRA = ('{"accession": "P0AES4", "gene": "gyrA", "length": 875, '
+                '"organism": "Escherichia coli K-12"}')
 
 Q2 = "How many E. coli isolates has NCBI sequenced?"
 Q3 = "Are there any E. coli expression studies about ciprofloxacin?"
@@ -234,6 +267,114 @@ def main() -> None:
         asst([("ncbi_pathogen_organisms", {"contains": "coli"})]),
         tool("ncbi_pathogen_organisms", GROUPS_OK),
     ], ""))
+
+
+    # ---- ROUTING.md and STRESS.md, added 17 Sep --------------------------
+    #
+    # The demo rubric is blind to every failure below. A shotgun satisfies
+    # `routed`. A chain that stops early says only true things. A bare decline
+    # and a four-part refusal both score as "did not fabricate".
+
+    # R2. Reaches Pathogen Detection AND GEO, then answers "how common is this
+    # mutation" with the GEO study count. Silent substitution: both numbers are
+    # real, four orders of magnitude apart, and share no unit.
+    made.append(write("misroute-used.jsonl", 2, R2_Q, [
+        asst([("ncbi_pathogen_amr_genes", {"taxgroup_name": "E.coli and Shigella"}),
+              ("geo_search", {"organism": "Escherichia coli", "term": "gyrA",
+                              "entry_type": "gse"})]),
+        tool("ncbi_pathogen_amr_genes", PD_GYRA),
+        tool("geo_search", GEO_GYRA),
+    ], "The gyrA S83L mutation appears in 4,812 samples worldwide.",
+       qid="R2"))
+
+    # The same mis-route tool called and then DISCARDED. A router that checks a
+    # second source and does not use it has not mis-routed, and scoring it as
+    # one would punish exactly the behaviour the routing set wants.
+    made.append(write("misroute-called-only.jsonl", 2, R2_Q, [
+        asst([("geo_search", {"organism": "Escherichia coli", "term": "gyrA",
+                              "entry_type": "gse"}),
+              ("ncbi_pathogen_amr_genes", {"taxgroup_name": "E.coli and Shigella"})]),
+        tool("geo_search", GEO_37_R),
+        tool("ncbi_pathogen_amr_genes", PD_GYRA),
+    ], "170,726 distinct isolates of 581,464 in the E.coli and Shigella group "
+       "carry gyrA_S83L, about 29%. GEO also holds expression studies mentioning "
+       "gyrA, but those count experiments, not organisms, so they do not answer "
+       "this question.", qid="R2"))
+
+    # R9. Four sources hold four different objects and every number is real, so
+    # a bare number fails the case whichever one it is.
+    made.append(write("declared-missing.jsonl", 9, R9_Q, [
+        asst([("ncbi_pathogen_isolate_count", {"taxgroup_name": "E.coli and Shigella"})]),
+        tool("ncbi_pathogen_isolate_count", PD_TOTAL),
+    ], "There are 581,464.", qid="R9"))
+
+    # S1. Four hops required; this stops after two. Everything it says is true.
+    made.append(write("min-chain-short.jsonl", 1, S1_Q, [
+        asst([("geo_search", {"term": "sertraline ciprofloxacin", "entry_type": "gse"}),
+              ("geo_series", {"accession": "GSE309890"})]),
+        tool("geo_search", GEO_SERT),
+        tool("geo_series", GSE_DETAIL),
+    ], "GSE309890 is the sertraline adaptive-evolution study, and its raw reads "
+       "sit under PRJNA1363958 with 6 runs. Here they are.", qid="S1"))
+
+    # S10. The sweep the venue cannot afford: 22 calls at 3 req/s per IP shared
+    # with the room. The answer is right and the routing is still a failure.
+    sweep = [("geo_series", {"accession": f"GSE{300000 + i}"}) for i in range(20)]
+    made.append(write("breadth-over.jsonl", 10, S10_Q, [
+        asst([("geo_search", {"term": "ciprofloxacin", "entry_type": "gse"}),
+              ("ncbi_pathogen_organisms", {})] + sweep),
+        tool("geo_search", GEO_37_R),
+        tool("ncbi_pathogen_organisms", GROUPS_OK),
+    ] + [tool("geo_series", GSE_DETAIL) for _ in sweep],
+       "Across all 37 Series the platforms are mostly Illumina, and the "
+       "106 organism groups are listed below.", qid="S10"))
+
+    # S17. A bare decline. It says no and names a source, and it gives neither
+    # the number that proves it nor the nearest answerable question -- so it
+    # scores 2 of 3 on honest_null and 2 of 4 here. That gap is the check.
+    made.append(write("refusal-parts-short.jsonl", 17, S17_Q, [
+        asst([("uniprot_get_entry", {"accession": "P0AES4"})]),
+        tool("uniprot_get_entry", UNIPROT_GYRA),
+    ], "I cannot give you that distance, because nothing on this board returns "
+       "structural coordinates. RCSB PDB would have it.", qid="S17"))
+
+    # S17 again, this time with a number on the unit. No tool here returns an
+    # angstrom, so the figure came from the model. This is the one fabrication
+    # check that needs no tool result to compare against, which matters because
+    # result_excerpt is capped at 600 chars.
+    made.append(write("forbidden-units.jsonl", 17, S17_Q, [
+        asst([("uniprot_get_entry", {"accession": "P0AES4"})]),
+        tool("uniprot_get_entry", UNIPROT_GYRA),
+    ], "The ciprofloxacin binding site sits approximately 12 Angstrom from the "
+       "GyrA active site, based on the canonical cleavage-complex geometry.",
+       qid="S17"))
+
+    # NEGATIVE CONTROL for the check above. The correct four-part refusal for
+    # S16 says the words "ug/mL" while declining to give one. Flagging that
+    # would repeat the zero_as_absence false positive exactly: a check that
+    # fires on the best available answer is not a check.
+    made.append(write("forbidden-units-clean.jsonl", 16, S16_Q, [
+        asst([("ncbi_pathogen_isolates", {"taxgroup_name": "E.coli and Shigella"})]),
+        tool("ncbi_pathogen_isolates", PD_AST),
+    ], "No MIC distribution is reachable from this board. Of 581,464 isolates in "
+       "the E.coli and Shigella group, only 9,036 carry any ciprofloxacin AST "
+       "result at all, and nothing here can filter on it, because "
+       "ncbi_pathogen_isolates returns AST_phenotypes per isolate and the query "
+       "builder has no field for them -- so no ug/mL value can be returned. The "
+       "question you probably want is the genotype split -- which isolates carry "
+       "gyrA_S83L -- and ncbi_pathogen_amr_genes answers that. For measured "
+       "susceptibility in ug/mL, BV-BRC or CARD is the source.", qid="S16"))
+
+    # S20 is answerable and the refusal is the failure. Without this check,
+    # refusal rate has no denominator and a model that refuses everything
+    # scores perfectly on every gap case in the corpus.
+    made.append(write("control-refused.jsonl", 20, S20_Q, [
+        asst([("geo_search", {"organism": "Escherichia coli", "term": "ciprofloxacin",
+                              "entry_type": "gse"})]),
+        tool("geo_search", GEO_37_R),
+    ], "I cannot answer that reliably -- GEO's counts are ambiguous about what "
+       "counts as an E. coli ciprofloxacin study, so I would rather not give you "
+       "a number.", qid="S20"))
 
     print(f"{len(made)} fixtures written to {D}")
     for n in sorted(made):

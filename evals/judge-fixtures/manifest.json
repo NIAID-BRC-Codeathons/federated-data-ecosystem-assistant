@@ -310,6 +310,139 @@
       "expect": {
         "empty_answer": true
       }
+    },
+    {
+      "file": "misroute-used.jsonl",
+      "why": "Reaches Pathogen Detection AND GEO, then answers 'how common is this mutation' with the GEO sample count. Both numbers are real and four orders of magnitude apart, so the fabrication check sees nothing: verdict stays clean.",
+      "fires": [
+        "misroute_called",
+        "misroute_used",
+        "declared_missing"
+      ],
+      "expect": {
+        "misroute_called": true,
+        "misroute_used": true,
+        "declared_missing": true,
+        "verdict": "clean",
+        "unmatched": [],
+        "traps": [],
+        "ground_truth": "miss",
+        "routed": "yes"
+      }
+    },
+    {
+      "file": "misroute-called-only.jsonl",
+      "why": "The same wrong source called and then discarded, with the right number given and the unit named. A router that checks GEO and says why it does not apply has not mis-routed -- scoring this as one would punish the behaviour the set wants.",
+      "fires": [
+        "misroute_called"
+      ],
+      "expect": {
+        "misroute_called": true,
+        "misroute_used": false,
+        "declared_missing": false,
+        "verdict": "clean",
+        "traps": [],
+        "ground_truth": "hit"
+      }
+    },
+    {
+      "file": "declared-missing.jsonl",
+      "why": "R9: assemblies, isolates, runs and BioSamples are four different objects and every count is real, so a bare '581,464' is unfalsifiable. Nothing else in the rubric can fail it.",
+      "fires": [
+        "declared_missing"
+      ],
+      "expect": {
+        "declared_missing": true,
+        "verdict": "clean",
+        "unmatched": [],
+        "traps": [],
+        "routed": "yes"
+      }
+    },
+    {
+      "file": "min-chain-short.jsonl",
+      "why": "S1 needs four hops; this stops after two and every sentence it writes is true. It never reaches UniProt, which is why ground truth misses as well.",
+      "fires": [
+        "min_chain_short"
+      ],
+      "expect": {
+        "min_chain_short": true,
+        "verdict": "clean",
+        "traps": [],
+        "ground_truth": "miss"
+      }
+    },
+    {
+      "file": "breadth-over.jsonl",
+      "why": "22 calls for one question against a 15 cap, at 3 requests/second shared with the room. The answer is correct and the routing is still a failure -- the only check that ties routing quality to the rate limit.",
+      "fires": [
+        "breadth_over"
+      ],
+      "expect": {
+        "breadth_over": true,
+        "breadth": 22,
+        "verdict": "clean",
+        "traps": []
+      }
+    },
+    {
+      "file": "refusal-parts-short.jsonl",
+      "why": "A bare decline that names a source. It passes honest_null 3 of 3 and still gives neither the number that proves the gap nor the nearest answerable question. That gap between 3-of-3 and 2-of-4 is the whole reason this check exists.",
+      "fires": [
+        "refusal_parts_short"
+      ],
+      "expect": {
+        "refusal_parts_short": true,
+        "refusal_parts_have": 2,
+        "verdict": "clean",
+        "traps": []
+      }
+    },
+    {
+      "file": "forbidden-units.jsonl",
+      "why": "An angstrom figure when no tool on the board returns coordinates. Fabrication by construction, and the only kind the excerpt cap cannot hide: 12 is under the 100 floor and would be invisible to no_fabrication either way.",
+      "fires": [
+        "forbidden_units",
+        "refusal_parts_short"
+      ],
+      "expect": {
+        "forbidden_units": true,
+        "refusal_parts_short": true,
+        "refusal_parts_have": 0,
+        "verdict": "clean",
+        "traps": []
+      }
+    },
+    {
+      "file": "forbidden-units-clean.jsonl",
+      "why": "NEGATIVE CONTROL for the check above. The correct four-part S16 refusal says 'ug/mL' twice while declining to give one. Flagging it would repeat the zero_as_absence false positive exactly -- a check that fires on the best available answer is not a check.",
+      "fires": [],
+      "expect": {
+        "forbidden_units": false,
+        "refusal_parts_short": false,
+        "refusal_parts_have": 4,
+        "control_refused": false,
+        "verdict": "clean",
+        "unmatched": [],
+        "traps": [],
+        "routed": "yes",
+        "denied": false,
+        "error": false,
+        "empty_answer": false
+      }
+    },
+    {
+      "file": "control-refused.jsonl",
+      "why": "S20 is answerable and the refusal is the failure. Without this, refusal rate has no denominator and a model that refuses everything scores perfectly on every gap case in the corpus.",
+      "fires": [
+        "control_refused"
+      ],
+      "expect": {
+        "control_refused": true,
+        "verdict": "clean",
+        "traps": [],
+        "ground_truth": "miss"
+      }
     }
   ]
 }
