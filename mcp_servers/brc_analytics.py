@@ -394,7 +394,12 @@ def brc_ena_search(
         )
     if insecure:
         result["insecure_links"] = insecure
-    return result
+    return _cap_result(
+        result, "results", "total_matching",
+        how_to_get_more=(
+            "Lower limit, or narrow with library_strategy or title_contains."
+        ),
+    )
 
 
 @mcp.tool()
@@ -466,7 +471,12 @@ def brc_ena_study(study_accession: str) -> dict:
         )
     if insecure:
         result["insecure_links"] = insecure
-    return result
+    return _cap_result(
+        result, "results", "run_count",
+        how_to_get_more=(
+            "Use brc_ena_runs(taxonomy_id=..., limit=..., offset=...) to page through the runs, or ask about a specific run accession."
+        ),
+    )
 
 
 @mcp.tool()

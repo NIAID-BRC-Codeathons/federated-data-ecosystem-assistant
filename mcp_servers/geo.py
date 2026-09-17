@@ -797,7 +797,12 @@ def geo_series(accession: str, list_files: bool = True) -> dict:
             f"{len(listing)} entries. These files are the only place the "
             f"processed expression values exist."
         )
-    return result
+    return _cap_result(
+        result, "files", None,
+        how_to_get_more=(
+            "Call geo_series again with list_files=False for the metadata alone, or fetch a named file directly from the URLs already returned."
+        ),
+    )
 
 
 @mcp.tool()
