@@ -43,6 +43,7 @@ TBD
 `uv run mcp_servers/pdn.py --port 8001`
 `uv run mcp_servers/mygene.py --port 8002`
 `uv run mcp_servers/uniprot.py --port 8003`
+`uv run mcp_servers/myvariant.py --port 8004`
 
 7. Run chatbot:
 `uv run chainlit run chatbot.py`

@@ -37,6 +37,10 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8003/mcp-uniprot",
             "transport": "streamable_http",
         },
+        "myvariant": {
+            "url": "http://127.0.0.1:8004/mcp-myvariant",
+            "transport": "streamable_http",
+        },
     }
 
 LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
