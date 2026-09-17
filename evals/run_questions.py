@@ -153,14 +153,13 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
     tool_result_chars = 0
     ttft: float | None = None          # time to the first token from the model
     tool_timings: list[dict] = []      # per tool call: name, seconds
-    last_request_done: float | None = None   # when the assistant finished asking for tools
+    last_activity: float = t0          # when the model last emitted anything
     tool_seconds = 0.0
 
     def flush_ai():
-        nonlocal ai_acc, answer, denied, llm_round_trips, last_request_done
+        nonlocal ai_acc, answer, denied, llm_round_trips
         if ai_acc is None:
             return
-        last_request_done = time.monotonic()
         llm_round_trips += 1
         um = getattr(ai_acc, "usage_metadata", None) or {}
         for k in usage:
@@ -182,10 +181,11 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
         if isinstance(chunk, ToolMessage):
             flush_ai()
             now = time.monotonic()
-            # Tools in one assistant turn run back to back; the gap from the request
-            # being complete (or the previous result) to this result is this tool.
-            secs = round(now - (last_request_done or t0), 2)
-            last_request_done = now
+            # last_activity is when the model last emitted a chunk, i.e. when it
+            # finished asking for this tool (or when the previous tool result was
+            # consumed). The gap to this result is the tool's wall time.
+            secs = round(now - last_activity, 2)
+            last_activity = now
             tool_seconds += secs
             raw = _text(chunk)
             name = getattr(chunk, "name", None)
@@ -198,8 +198,9 @@ async def run_one(agent, model: str, number: int, question: str) -> dict:
                 "result_chars": len(raw),
             })
         elif isinstance(chunk, AIMessageChunk):
+            last_activity = time.monotonic()
             if ttft is None and (chunk.content or getattr(chunk, "tool_call_chunks", None)):
-                ttft = round(time.monotonic() - t0, 2)
+                ttft = round(last_activity - t0, 2)
             ai_acc = chunk if ai_acc is None else ai_acc + chunk
     flush_ai()
     elapsed = round(time.monotonic() - t0, 1)
