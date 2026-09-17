@@ -28,3 +28,9 @@ scratch/
 # See evals/README.md, "What is committed and what is not".
 evals/runs/**/q*.jsonl
 !evals/runs/final/**
+
+# Scratch patch scripts. How a change was made, not what the change is -- the
+# commit message is the durable record. Committed once by accident on 17 Sep,
+# in the very commit whose README says they are never committed.
+evals/_patch*.py
+_patch*.py
