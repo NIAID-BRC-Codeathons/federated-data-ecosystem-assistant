@@ -1,7 +1,8 @@
 """Parsing the formats E-utilities returns, against real captured responses."""
 
-from ncbi_mcp.databases import RUNINFO_OPEN_ACCESS_EMPTY
-from ncbi_mcp.parsing import (
+from ncbi_helpers import load_json, load_text
+from ncbi_lib.databases import RUNINFO_OPEN_ACCESS_EMPTY
+from ncbi_lib.parsing import (
     expand_sra_summary,
     expand_xml_field,
     missing_accessions,
@@ -13,8 +14,6 @@ from ncbi_mcp.parsing import (
     parse_xml_fragment,
     xml_to_dict,
 )
-
-from .conftest import load_json, load_text
 
 # --- runinfo CSV ----------------------------------------------------------
 

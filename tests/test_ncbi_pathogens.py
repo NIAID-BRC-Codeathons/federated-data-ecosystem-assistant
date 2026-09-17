@@ -7,9 +7,9 @@ pin the three defenses in place.
 """
 
 import pytest
-
-from ncbi_mcp.envelope import NCBIError
-from ncbi_mcp.pathogens import (
+from ncbi_helpers import load_json
+from ncbi_lib.envelope import NCBIError
+from ncbi_lib.pathogens import (
     _parse,
     build_fq,
     count_params,
@@ -21,8 +21,6 @@ from ncbi_mcp.pathogens import (
     records,
     solr_query,
 )
-
-from .conftest import load_json
 
 # --- the 2x duplication ---------------------------------------------------
 

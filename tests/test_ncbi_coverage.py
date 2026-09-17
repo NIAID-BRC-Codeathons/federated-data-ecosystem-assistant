@@ -7,9 +7,9 @@ percentage invented for a split nobody measured, and a coverage lookup being
 credited as a source of data.
 """
 
-from ncbi_mcp import coverage
-from ncbi_mcp.envelope import provenance
-from ncbi_mcp.eutils import Call
+from ncbi_lib import coverage
+from ncbi_lib.envelope import provenance
+from ncbi_lib.eutils import Call
 
 # --- picking a denominator ------------------------------------------------
 

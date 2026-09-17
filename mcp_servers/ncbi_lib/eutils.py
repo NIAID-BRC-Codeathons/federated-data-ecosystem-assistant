@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Self
 from urllib.parse import urlencode
 
-import httpx2 as httpx
-from typing_extensions import Self
+import httpx
 
 from .envelope import EUTILS_SOURCE, NCBIError, check_for_error
 from .limiter import RateLimiter

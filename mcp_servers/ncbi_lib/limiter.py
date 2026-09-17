@@ -82,7 +82,7 @@ class RateLimiter:
     def note_response(self, status_code: int, headers) -> None:
         """Fold a response's rate-limit headers back into the schedule.
 
-        ``headers`` is any case-insensitive mapping (httpx2's ``Headers``).
+        ``headers`` is any case-insensitive mapping (httpx's ``Headers``).
         Safe to call on every response, success or failure.
         """
         if status_code == 429:

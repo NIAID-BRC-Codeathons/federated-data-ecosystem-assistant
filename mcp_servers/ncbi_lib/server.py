@@ -11,13 +11,20 @@
     the whole room shares one IP, so the cost of that mistake is everyone's
     tools breaking at once, not just these.
 
-    One event loop, one anyio.Lock, one httpx2.AsyncClient. Do not add a sync
+    One event loop, one anyio.Lock, one httpx.AsyncClient. Do not add a sync
     tool here, and do not "simplify" a tool that does not appear to await
     anything --- it still has to await the limiter.
 
-Built on `fastmcp` (jlowin's standalone package, v4). Note that this is NOT the
-`mcp.server.fastmcp` module vendored inside the official `mcp` SDK --- that one
-is a tombstone in mcp 2.x and raises on import. Same name, different project.
+Built on `mcp.server.fastmcp`, the FastMCP vendored in the official `mcp` SDK
+(1.x), which is what the rest of this repo uses --- see `mygene.py` and
+`uniprot.py`. Note that jlowin's standalone `fastmcp` package is a *different
+project* with the same class name; it requires `mcp>=2.0`, where this module is
+a tombstone that raises on import. The two cannot share an environment, so this
+server stays on the SDK's copy and installs from the root `pyproject.toml`.
+
+The sibling servers use `requests` and sync tools. This one does not, and the
+reason is the invariant above: NCBI rate-limits per IP, so the pacing has to be
+shared across every in-flight call.
 
 Parameter descriptions use Annotated[..., Field(description=...)], which is what
 reaches the agent: a description written only in the docstring documents the
@@ -30,8 +37,8 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from pydantic import Field
 
 from . import coverage, databases, parsing, pathogens
@@ -40,8 +47,16 @@ from .envelope import NCBIError, envelope, provenance
 from .eutils import MAX_ESUMMARY_UIDS, EUtilsClient, Timer, TransportError
 from .pathogens import PathogensClient
 
+# Each MCP server in this repo owns a port and a namespaced path, so they can
+# all run at once behind one host: 8001 pdn, 8002 mygene, 8003 uniprot.
+DEFAULT_PORT = 8004
+HTTP_PATH = "/mcp-ncbi"
+
 server = FastMCP(
-    name="fdea-ncbi",
+    name="NCBI MCP",
+    dependencies=["mcp", "httpx"],
+    port=DEFAULT_PORT,
+    streamable_http_path=HTTP_PATH,
     instructions=(
         "Two NCBI services.\n\n"
         "E-utilities: sequencing runs (SRA), samples (BioSample), projects "
@@ -1650,27 +1665,4 @@ async def ncbi_pathogen_organisms(
     return await _run(body, "ncbi_pathogen_organisms")
 
 
-# Each MCP server in this repo listens on its own port: 8000 uniprot, 8001 pdn.
-# The path is namespaced the way pdn.py namespaces its own, so several servers
-# can sit behind one host without colliding.
-DEFAULT_PORT = 8002
-HTTP_PATH = "/mcp-ncbi"
-
-
-def run() -> None:
-    """Start the server on stdio. Synchronous --- FastMCP.run owns the event loop.
-
-    The startup banner goes to stderr (verified), so stdout stays a clean
-    JSON-RPC stream.
-    """
-    server.run("stdio")
-
-
-def run_http(host: str = "127.0.0.1", port: int = DEFAULT_PORT) -> None:
-    """Start the server on streamable HTTP, for chatbot.py's MultiServerMCPClient.
-
-    Bound to loopback by default. This server carries no credentials, but it
-    will happily spend the whole venue's shared 3/sec NCBI budget on behalf of
-    anyone who can reach it, so it is not exposed off-host without asking.
-    """
-    server.run("http", host=host, port=port, path=HTTP_PATH)
+# Running the server lives in mcp_servers/ncbi.py, next to the other servers.

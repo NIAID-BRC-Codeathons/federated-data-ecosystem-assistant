@@ -6,11 +6,9 @@ four distinct ways.
 """
 
 import pytest
-
-from ncbi_mcp.envelope import NCBIError, check_for_error, envelope, provenance
-from ncbi_mcp.parsing import parse_esummary_records
-
-from .conftest import load_json
+from ncbi_helpers import load_json
+from ncbi_lib.envelope import NCBIError, check_for_error, envelope, provenance
+from ncbi_lib.parsing import parse_esummary_records
 
 
 def test_top_level_error_is_raised():

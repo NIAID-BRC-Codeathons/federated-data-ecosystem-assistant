@@ -82,7 +82,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlencode
 
-import httpx2 as httpx
+import httpx
 
 from .envelope import NCBIError
 from .eutils import MAX_ATTEMPTS, TOOL_NAME, Call, TransportError

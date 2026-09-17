@@ -1,84 +1,76 @@
 # NCBI MCP server
 
 One of the MVP's "at least three resources". Exposes two NCBI services as 20 MCP
-tools, all prefixed `ncbi_` so the assistant can tell them apart from the PDN and
-NDE tools when routing:
+tools, all prefixed `ncbi_` so the assistant can tell them apart from the mygene,
+uniprot and PDN tools when routing:
 
 - **E-utilities** — SRA, BioSample, BioProject, PubMed, Taxonomy, Gene,
   Assembly, and sequence databases.
 - **Pathogen Detection** — the Isolates Browser, a curated index of bacterial
   isolates with computed AMR genotypes.
 
+The entry point is **`mcp_servers/ncbi.py`**, alongside the other servers. This
+directory holds the implementation it imports.
+
 ## Setup
 
-**This server needs its own virtualenv.** It cannot share one with `pdn.py` or
-the root `chatbot.py` project — see [Why a separate
-environment](#why-a-separate-environment) below. Run everything from this
-directory:
+Nothing beyond the repo's own install — this server has no separate environment
+and no dependencies outside the root `pyproject.toml`:
 
 ```sh
-cd mcp_servers/ncbi
-python3 -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m pytest          # 80 offline tests
+uv sync
+uv run mcp_servers/ncbi.py --port 8004      # HTTP
+uv run mcp_servers/ncbi.py --stdio          # stdio
+uv run pytest                               # 209 tests, NCBI's 80 among them
 ```
 
-### Running it
-
-Two transports, the same pair `uniprot_mcp.py` and `pdn.py` offer:
-
-```sh
-.venv/bin/fdea-ncbi-mcp                 # HTTP on http://127.0.0.1:8002/mcp-ncbi
-.venv/bin/fdea-ncbi-mcp --stdio         # stdio, for a client that launches it
-```
-
-HTTP is the default, so `chatbot.py` can reach it alongside the others. Each
-server in this repo owns a port and a namespaced path:
+Each server owns a port and a namespaced path so they can all run at once:
 
 | server | port | path |
 |---|---|---|
-| `uniprot_mcp.py` | 8000 | `/mcp` |
 | `mcp_servers/pdn.py` | 8001 | `/mcp-pdn` |
-| `mcp_servers/ncbi` | 8002 | `/mcp-ncbi` |
+| `mcp_servers/mygene.py` | 8002 | `/mcp-mygene` |
+| `mcp_servers/uniprot.py` | 8003 | `/mcp-uniprot` |
+| `mcp_servers/ncbi.py` | 8004 | `/mcp-ncbi` |
 
-`--host` and `--port` override the defaults. The bind address is loopback on
-purpose: this server has no auth, and anyone who can reach it spends the host's
-shared 3/sec NCBI budget.
+`chatbot.py` already lists it. Binding is loopback: this server has no auth, and
+anyone who can reach it spends the host's shared 3/sec NCBI budget.
 
-To add it to `chatbot.py`'s `MultiServerMCPClient`:
+Set `NCBI_EMAIL` to your own address before running it — see
+[Configuration](#configuration). No NCBI account is required; the server paces
+itself at NCBI's keyless limit of 3 requests/second.
 
-```python
-"ncbi": {
-    "url": "http://127.0.0.1:8002/mcp-ncbi",
-    "transport": "streamable_http",
-},
-```
+### Why this one is a package and not a single file
 
-`.mcp.json` in this directory wires up the stdio path for a client launched from
-here — set `NCBI_EMAIL` to your own address first. Every setting is in
-[Configuration](#configuration) below.
+The other servers fit in one module. This one is ~3,300 lines, because NCBI
+rate-limits **per source IP** at 3/sec: every call has to pass one
+process-global limiter, which forces async tools, a shared client, retry and
+backoff handling, and the provenance bookkeeping layered on top. Splitting it
+puts each measured hazard behind its own seam — see [Why the code looks the way
+it does](#why-the-code-looks-the-way-it-does).
 
-### Why a separate environment
+### A note on `fastmcp`
 
-The two MCP libraries in this repo are different projects that happen to share a
-class name, and they pin incompatible versions of `mcp`:
+This server was first built on **jlowin's standalone `fastmcp` package (v4)** and
+was ported to `mcp.server.fastmcp` to live in the repo's environment. They are
+different projects that share a class name, and they cannot coexist:
 
-| | uses | needs |
-|---|---|---|
-| `mcp_servers/ncbi` (this server) | `fastmcp` 4, the standalone package | `mcp>=2.0,<3.0` (via `fastmcp-slim`) |
-| `mcp_servers/pdn.py`, root project | `mcp.server.fastmcp`, vendored in the official SDK | `mcp<2` |
+| | needs |
+|---|---|
+| `mcp.server.fastmcp` — the SDK's copy, what every server here uses | `mcp<2` |
+| `fastmcp` — the standalone package | `mcp>=2.0` |
 
-`mcp.server.fastmcp` is a **tombstone in `mcp` 2.x** — importing it raises
-`ModuleNotFoundError` pointing at the rename to `MCPServer`. So installing this
-server into the root `uv` environment would break `pdn.py` on import, and
-installing `pdn.py`'s deps here would break this one. The root `pyproject.toml`
-asks for `mcp >=1.15.0` with no upper bound; it resolves to 1.30.0 only because
-`uv.lock` pins it. Worth capping at `mcp<2` there.
+In `mcp` 2.x, `mcp.server.fastmcp` is a **tombstone** that raises
+`ModuleNotFoundError` on import, pointing at a rename to `MCPServer`. So the root
+`pyproject.toml` now pins `mcp >=1.15.0,<2`; before, it was unbounded and
+resolved to 1.30.0 only because `uv.lock` happened to pin it, which meant
+regenerating the lock would have broken all four servers at once.
 
-`NIAID-Data-Ecosystem/` is laid out the same way and for the same reason.
-
-No NCBI account is required. The server paces itself at NCBI's keyless limit of
-3 requests/second.
+One behavior differs between the two and is worth knowing if you port anything
+else: **fastmcp 4 runs a sync tool on a worker thread; the SDK's copy runs it
+directly on the event loop** (measured on mcp 1.30.0,
+`tests/test_ncbi_invariants.py`). Either way a sync tool here would bypass the
+rate limiter, which is why every tool in `server.py` is `async def`.
 
 ## Configuration
 
@@ -232,7 +224,7 @@ behavior the code relies on was measured, because there is nothing to read.
 
 Everything below was measured against the live API, not read out of the
 documentation, and several items contradict what the documentation implies.
-`ncbi_mcp/databases.py` holds the per-database table.
+`databases.py` holds the per-database table.
 
 - **Omitting `db` on esearch does not error.** It silently searches PubMed and
   returns plausible PubMed UIDs. `eutils.py` never sends a request without one.
@@ -277,21 +269,19 @@ documentation, and several items contradict what the documentation implies.
 ## Testing
 
 ```sh
-.venv/bin/python -m pytest          # 80 offline tests, no network
-.venv/bin/python -m pytest -m live  # 7 tests against the real API
+uv run pytest                     # whole repo; NCBI's 80 offline tests included
+uv run pytest -k ncbi             # just this server
+uv run pytest -m live             # 7 tests against the real API, opt-in
 ```
 
-Offline tests run against real captured responses in `tests/fixtures/`, so they
-stay honest about what NCBI actually sends. Live tests are opt-in and
-deliberately few — at 3 requests/second a broad live suite is slow and spends an
-allowance the whole room shares.
+The tests live in the repo's `tests/` as `test_ncbi_*.py`, beside the mygene
+suite. Offline tests run against real captured responses in
+`tests/ncbi_fixtures/`, so they stay honest about what NCBI actually sends.
+Live tests are deselected by default — at 3 requests/second a broad live suite
+is slow and spends an allowance the whole room shares.
 
 ## Known gaps
 
-- Built on `fastmcp` 4 (the standalone package). Note this is **not**
-  `mcp.server.fastmcp`, the module vendored inside the official `mcp` SDK — that
-  one is a tombstone in `mcp` 2.x and raises on import. Same name, different
-  project. Most tutorials online mean the old one.
 - The 12 stripped SRA runinfo columns are all dbGaP/1000-Genomes
   controlled-access fields, measured empty on one open-access viral study. They
   should be expected to populate for controlled data, which this server cannot

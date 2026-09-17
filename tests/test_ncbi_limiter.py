@@ -5,8 +5,7 @@ and flaky, and the thing under test is arithmetic on timestamps.
 """
 
 import pytest
-
-from ncbi_mcp.limiter import RateLimiter
+from ncbi_lib.limiter import RateLimiter
 
 
 class FakeClock:

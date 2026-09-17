@@ -13,8 +13,7 @@ to ignore.
 """
 
 import pytest
-
-from ncbi_mcp.server import (
+from ncbi_lib.server import (
     client,
     ncbi_find_uids,
     ncbi_linked_records,
@@ -32,9 +31,10 @@ EBOLA_RUN = "SRR1972976"
 def unwrap(tool, **kwargs):
     """Call a tool directly.
 
-    FastMCP 4's @tool decorator returns the original function rather than a
-    wrapper object, so the tools are ordinary coroutines here. (list_tools()
-    still yields Tool objects, which is what test_invariants inspects.)
+    FastMCP's @tool() decorator returns the original function rather than a
+    wrapper object (measured on mcp 1.30.0), so the tools are ordinary
+    coroutines here. (list_tools() still yields Tool objects, which is what
+    test_ncbi_invariants inspects.)
     """
     return tool(**kwargs)
 
@@ -91,7 +91,7 @@ async def test_query_translation_is_reported():
 
 
 async def test_bad_accession_fails_with_an_actionable_message():
-    from fastmcp.exceptions import ToolError
+    from mcp.server.fastmcp.exceptions import ToolError
 
     with pytest.raises(ToolError) as exc:
         await unwrap(ncbi_sra_runs_for_project, accession="PRJNA000000000")
