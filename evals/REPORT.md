@@ -8,9 +8,13 @@ Both are scored against a verified ground truth.
 
 | | correct |
 |---|---|
-| baseline (raw API, written from the docs) | **0/10** |
-| our MCP tools | **10/10** |
-| cases where the tool fixes a wrong answer | **10/10** |
+| baseline (raw API, written from the docs) | **1/14** |
+| our MCP tools | **13/14** |
+| cases where the tool fixes a wrong answer | **13/14** |
+
+1 of the cases below is a **measured gap**: the question is on the board, the system
+cannot answer it, and the row says so rather than being left out of the
+denominator. A gap does not fail the run.
 
 Most of the failures below are not API outages: they return HTTP 200 with a
 plausible-looking answer, which is what makes them worth wrapping. A few fail
@@ -68,10 +72,10 @@ Expected: `GSE309890_FPKMs_allSamples.csv.gz` — fixes a silent wrong answer.
 
 | | result | correct |
 |---|---|---|
-| baseline | `count=1929 but 20 ids returned, silently` | **no** |
+| baseline | `count=1929 but 20 ids returned; retmax echoed as 20, no truncation flag in the payload` | **no** |
 | tool | `total_count=1929, returned=5, truncated=True` | yes |
 
-Expected: `count and id list agree, or the truncation is stated` — fixes a silent wrong answer.
+Expected: `the id list is complete, or the payload says it was cut` — fixes a silent wrong answer.
 
 ## Find E. coli sequencing runs whose study mentions resistance
 
@@ -127,3 +131,47 @@ Expected: `581464` — fixes a silent wrong answer.
 | tool | `mecA in E. coli = 2 of 581,464; in S. aureus = 93,260 of 171,412 -- the question is malformed, not the data missing` | yes |
 
 Expected: `a number that shows the category is empty, plus a reframing` — fixes a silent wrong answer.
+
+## What group submitted BioProject PRJNA715470?
+
+*esummary indexes UIDs, not accessions. Passing the accession returns HTTP 200 with the failure buried in an error key and zero records, which reads as 'this project has no submitter' rather than 'bad call'.*
+
+| | result | correct |
+|---|---|---|
+| baseline | `esummary db=bioproject id=PRJNA715470 -> HTTP 200, 0 records, error='Invalid uid PRJNA715470 at position= 0'` | **no** |
+| tool | `esearch term=PRJNA715470[Project Accession] -> uid 715470; esummary id=715470 -> submitter_organization='University of Pennsylvania'` | yes |
+
+Expected: `University of Pennsylvania` — fixes a silent wrong answer.
+
+## Tell me about strain E. coli K-12 MG1655
+
+*The strain name in the question is not a name NCBI Taxonomy holds; the record is 'Escherichia coli str. K-12 substr. MG1655'. The near miss resolves to 83333, a different K-12 substrain, with no warning. Go in through the assembly accession and the taxid is stated, not guessed.*
+
+| | result | correct |
+|---|---|---|
+| baseline | `taxonomy "Escherichia coli K-12 MG1655" -> 0 hits; loosened to "Escherichia coli K-12" -> taxid 83333` | **no** |
+| tool | `datasets dataset_report GCF_000005845.2 -> taxid 511145 (Escherichia coli str. K-12 substr. MG1655), 4,641,652 bp, 1 contig` | yes |
+
+Expected: `511145` — fixes a silent wrong answer.
+
+## What structures exist for E. coli GyrA (P0AES4)?
+
+*The only case here where the obvious call is the right one. The 20 PDB ids sit in the entry UniProt returns by default; ENTRY_FIELDS trims them away and nothing downstream can ask for them. The fix is one field name in a file this branch does not own, so it is reported, not patched.*
+
+| | result | correct |
+|---|---|---|
+| baseline | `GET /uniprotkb/P0AES4 (whole entry) -> 20 PDB cross-references, first four ['1AB4', '1X75', '1ZI0', '2Y3P']` | yes |
+| tool | `replaying uniprot_get_entry's ENTRY_FIELDS (uniprot.py:55) -> 0 PDB cross-references` | **no** |
+
+Expected: `at least one PDB structure for P0AES4` — **a measured gap**, the system cannot answer this.
+
+## What is the latest published in 2026 on ciprofloxacin resistance in E. coli?
+
+*An unrecognised sort value is not an error: esearch returns HTTP 200 in relevance order, so 'latest' is whatever matched best. Omitting datetype does not drop the window either -- it silently switches it to edat, the date PubMed indexed the record, which is a different question with a plausible answer nine hits away from the right one.*
+
+| | result | correct |
+|---|---|---|
+| baseline | `sort="Publication Date" (the web UI label), no datetype -> count=274, top 5 pubdates ['2026 Aug 28', '2026 Sep 28', '2026', '2026 Aug', '2026'], newest-first=False` | **no** |
+| tool | `datetype=pdat&sort=pub_date -> count=283, top 5 pubdates ['2026 Dec', '2026 Dec', '2026 Nov', '2026 Oct', '2026 Oct'], newest-first=True` | yes |
+
+Expected: `a 2026 publication-date count, newest first` — fixes a silent wrong answer.

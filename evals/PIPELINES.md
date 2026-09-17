@@ -115,7 +115,7 @@ expression data here.
 | Ground truth | **170,726** of 581,464 · `blaCTX-M-15` 75,487 · `mecA` **2** |
 | The traps | The group name is `"E.coli and Shigella"`, not `"Escherichia coli"` — a wrong value returns a confident **0**. `totalCount` is 2× the distinct count for E. coli and **1×** for *S. aureus*, so halving unconditionally under-reports *S. aureus* by half. |
 | Without the system | You would query the wrong group name and get zero, and read it as absence |
-| Honest limit | `AST_phenotypes` — the measured susceptibility calls — is **not reachable** through the current tools. `_pathogen_filter` builds its query from five fields and that is not one of them. Genotype yes; phenotype not yet. |
+| Honest limit | `AST_phenotypes` — the measured susceptibility calls — is **returned per isolate but not filterable**. `ncbi_pathogen_isolates` asks for it by name in its field list (`ncbi_lib/server.py:1545`); `_pathogen_filter` builds its query from five fields and that is not one of them, so a phenotype count needs client-side filtering over pages. For *E. coli* that filtering would come back empty anyway: of the first 200 rows retrieved for `"E.coli and Shigella"` (171 distinct isolates), **0** carried the field, against **136 of 200** for *S. aureus*, which is how we know the field name works and the absence is real. Genotype yes; phenotype only where the submitter measured it. |
 
 ---
 
@@ -166,7 +166,7 @@ fluoroquinolone-resistance mutations?"*
 | Ground truth | `P0AES4` · gyrA · 875 aa · *E. coli* K12 · cytoplasm · 2 function blocks · 10 GO terms, verified 17 Sep |
 | The trap | `uniprot_search("gyrA", organism="Escherichia coli")` returns 3 hits, and two of them are `ccdB` and `parC` — related proteins, not the one asked for. Take the hit whose gene symbol matches, never hit 1. |
 | Without the system | Manual UniProt browsing |
-| Honest limit | "Structural implications" — the board's fourth branch — is the weakest area on the whole board. BRC lists `PROTEIN_FOLDING` with **0** workflows, marked coming soon, and `uniprot_get_entry` returns no structure link. |
+| Honest limit | "Structural implications" — the board's fourth branch — is the weakest area on the whole board. BRC lists `PROTEIN_FOLDING` with **0** workflows, marked coming soon, and `uniprot_get_entry` returns no structure link. Measured 17 Sep by `board-structure`: the **20** PDB cross-references for `P0AES4` are already in the entry UniProt returns by default. `ENTRY_FIELDS` (`uniprot.py:55`) does not name `xref_pdb`, so they are trimmed on our side rather than missing upstream. |
 
 **Status: spot-checked, not ours.** An earlier draft of this file reported that
 `uniprot_get_entry`'s docstring promised interactions and an AlphaFold URL it did not
@@ -202,22 +202,49 @@ A bad system says "I don't know." A worse one invents a number. This system shou
 > - **Fluoroquinolone-resistant *E. coli*** — 170,726 carry `gyrA_S83L`
 >
 > Measured susceptibility (MIC values) is a different question again, and this system
-> cannot reach it: the `AST_phenotypes` field exists in the source but is not exposed by
-> any tool here. BV-BRC or CARD would answer it.
+> cannot reach it for *E. coli*: `ncbi_pathogen_isolates` does return `AST_phenotypes`
+> per isolate, but nothing can filter on it, and none of the 171 *E. coli* isolates
+> sampled carried it at all. BV-BRC or CARD would answer it.
 
 Every number in that answer carries the call that produced it. **That paragraph is the
 product.** It is what a researcher cannot get from an LLM alone, from the API docs, or
 from a search engine.
 
-### The other gaps, stated
+### The four sub-branches, measured
 
-| Board question | Verdict | Why |
-|---|---|---|
-| "What groups study these?" | **partial** | NDE has funders and authors but is not wired in; NCBI gives `submitter_organization` and `CenterName` |
-| "Structural implications" | **weak** | no folding workflows; UniProt structure links promised in a docstring but not returned |
-| "Tell me about strain X" | **partial** | only if X is one of 5,506 curated assemblies; for E. coli that is 2 |
-| "Latest in AMR for X" | **partial** | PubMed covers literature; the paper→data hop is sparse |
-| MIC / susceptibility values | **cannot** | field exists upstream, no tool reaches it |
+The whiteboard hung four sub-branches off the headline question, and until 17 Sep only
+the headline was measured. Each now has a harness case, so the verdicts below are
+observations rather than opinions. Every ground truth was re-verified live on 17 Sep
+2026; these are live counts, so re-run before quoting one.
+
+One inconsistency in this document, named rather than propagated: the board's questions
+at the top of this file list the headline's fourth branch as *read genome queries*, while
+this section has always tracked *latest in AMR for X* in that slot. Both are on the
+whiteboard — the second is the board's own question 2. *Read genome queries* is not
+unmeasured; it is what P2 and P3 do, with eight harness cases between them.
+
+**What "answered" means here, exactly.** These four cases call E-utilities, Datasets
+and UniProt REST directly on both sides, because the thing being compared is the shape
+of the call. They do **not** exercise our MCP servers. The NCBI server on this branch
+already exposes `ncbi_bioproject_summary`, `ncbi_taxonomy_lookup`, `ncbi_assembly_info`
+and `ncbi_pubmed_search`, which are the natural homes for three of these chains —
+whether those tools carry the guards measured here is **untested**, and it belongs to
+their owner, not to this file.
+
+| Board sub-branch | Case | Ground truth (17 Sep) | Verdict | The trap the case measures |
+|---|---|---|---|---|
+| "What groups study these?" | `board-groups` | PRJNA715470 → `submitter_organization` = **University of Pennsylvania** | **answerable** | `esummary db=bioproject id=PRJNA715470` returns **HTTP 200** with `"Invalid uid PRJNA715470 at position= 0"` buried in the body and zero records — which reads as a project with no submitter, not as a bad call. The accession has to be resolved to UID **715470** through `esearch term=PRJNA715470[Project Accession]` first. |
+| "Tell me about strain X" | `board-strain` | GCF_000005845.2 → taxid **511145**, 4,641,652 bp, 1 contig | **answerable** | NCBI Taxonomy holds no `"Escherichia coli K-12 MG1655"`: **0 hits**. Dropping the substrain to `"Escherichia coli K-12"` returns **83333**, a different substrain, with nothing to say you moved. The record is `Escherichia coli str. K-12 substr. MG1655`. Enter through the assembly accession and the taxid is stated rather than guessed. |
+| "Structural implications" | `board-structure` | **20** PDB cross-references for `P0AES4` | **gap** | The one case on this board where the obvious call is the right one: the whole entry carries all 20. `ENTRY_FIELDS` (`uniprot.py:55`) never names `xref_pdb`, so `uniprot_get_entry` returns none of them and nothing downstream can ask. The fix is one field name in a file this branch does not own, so it is reported here, not patched. |
+| "Latest in AMR for X" | `board-latest` | **283** hits with a 2026 publication date for "Escherichia coli ciprofloxacin resistance", against 5,273 with no window | **answerable** | Two silent substitutions. An unrecognised sort value — `sort="Publication Date"`, which is PubMed's own web-UI label — is not refused: esearch returns HTTP 200 in **relevance** order, so "latest" becomes "best match". And omitting `datetype` does not drop the window, it switches it to `edat`, the date PubMed indexed the record: **274** instead of 283. Nine hits apart is close enough to look right. |
+| MIC / susceptibility values | — | 0 of 171 *E. coli* isolates sampled carry `AST_phenotypes`; 136 of 200 *S. aureus* do | **cannot, for E. coli** | Not a wrapper problem. The field is returned per isolate and simply is not populated for this organism — see P4's honest limit. No tool can filter on it either. |
+
+One caveat on `board-latest` worth saying out loud: under `sort=pub_date` the top hits
+are dated **2026 Dec** while their electronic publication dates are June. PubMed sorts
+on the citation's issue date, so "latest" surfaces ahead-of-print articles in
+future-dated issues before papers actually posted last week. The sort is correct.
+"Latest" here means the issue date, not the date the paper became readable, and an
+answer that quotes it should say which one it means.
 
 ---
 
@@ -230,17 +257,30 @@ from a search engine.
 3. **A pipeline with no ground truth is not verified**, and should be labelled that way in
    any demo. P6 and P7 are in that state right now.
 4. **P8 is scored like the others.** "Cannot answer" is a correct answer and should pass,
-   not be excluded from the denominator.
+   not be excluded from the denominator. Where the system genuinely cannot answer a board
+   question, the case still runs, still scores, and is listed in `EXPECTED_GAPS` in
+   `run_eval.py`: it prints as `GAP`, keeps its place in the denominator, and does not
+   fail the run. That list is for holes the board already knows about. Adding an id to it
+   to quiet a real failure would turn the one honest number in this repo into a decoration.
 
 Coverage today:
 
 | | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 |
 |---|---|---|---|---|---|---|---|---|
 | ground truth | — | yes | yes | yes | yes | one | one | yes |
-| in the harness | — | yes | yes | yes | yes | — | — | yes |
+| in the harness | — | yes | yes | yes | yes | — | — | **5 cases** |
 | offline tests | — | — | 52 | — | 26 | — | — | — |
 | ours to own | — | part | **yes** | part | **yes** | no | no | shared |
 
 P1 is blocked and unowned. P3 and P5 are the two this branch owns outright and they are
 the two with regression tests. P6 and P7 belong to other people; the single observations
 recorded above are spot checks, not suites, and their owners should set the rest.
+
+P8's five cases are the headline question plus the four sub-branches. Two of them,
+`board-latest` and `board-structure`, reach into P6's and P7's sources — PubMed and
+UniProt — but they call those APIs directly and prove nothing about the servers that
+wrap them. The row for P6 and P7 stays empty on purpose.
+
+Harness totals on 17 Sep 2026: **14 cases, baseline 1/14, tools 13/14, one measured
+gap.** The single baseline pass is `board-structure`, the case where the raw API is
+right and we are the ones losing the answer.
