@@ -632,6 +632,35 @@ Four checks beyond the demo set:
    ends on, applied one layer up — the scoring layer can launder a unit error exactly the way a
    ground-truth file can.
 
+6. **Absence is not refusal, and absence is not omission.** Both halves now have a measured
+   example, and both would score as a pass today.
+
+   **An empty answer is a failure on S16 and S17, never a clean no-fabrication pass.** Observed
+   17 Sep 🗂: `argo/claudesonnet45` produced *nothing at all* on Q14 and Q15 — the two demo
+   questions the board cannot answer — with `output_tokens: 0`, `answer_chars: 0`, `denied:
+   false`, `error: null`. A system that says nothing and a system that correctly declines are
+   indistinguishable under any check that only asks whether it fabricated, and the silent one
+   scores better on `forbidden_units`. `check_no_turn()` already holds these out of the scored
+   fractions; the off-board cases need them counted as failures, not merely excluded. (The
+   tempting reading — that the model went quiet on exactly the two unanswerable questions — is
+   false: 6 of its 15 are empty, `q01 q05 q07 q09 q14 q15`. Harness, not judgement. I checked the
+   other thirteen before writing this.)
+
+   **A truncated answer cannot be scored for a missing part.** If the recorded answer ends
+   mid-sentence, `refusal_parts` must return *unscoreable*, not a miss. The four parts of a
+   refusal — the number, the wrong premise, the nearest question, who to ask — are what an answer
+   ends on, so truncation removes exactly the thing being measured. Observed 17 Sep 🗂: **all 15**
+   `argo/claudeopus5` answers end mid-sentence, `q08` on a table header with zero rows at
+   `output_tokens` exactly 5000. The control that makes this a finding: `argo/claudesonnet45`, same
+   driver and same `code_sha`, ends 8 of its 9 non-empty answers in a full stop, and is cut only
+   on its longest. Nothing in those records says truncated — the summary schema at `code_sha
+   bafed0f-dirty` carries no `finish_reason` key, though `run_questions.py:512-515` records one
+   now. Q15 is the case: opus5 made 15 tool calls on a decline-and-route question, wrote a
+   structural report, and mentions `PDB`, `AlphaFold`, `RCSB` and `cannot` zero times — at 1,577
+   characters against 6,681 output tokens, a quarter the length of its other answers. Whether it
+   declined is unknowable from that file, so the honest score is unscoreable and the case needs a
+   rerun.
+
 `judge.py` is Judge's file. I am sending these rows over rather than editing it, and the Q13 case
 went over as a defect report with the simulation, not as a patch.
 
