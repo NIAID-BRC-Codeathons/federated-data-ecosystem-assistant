@@ -1,0 +1,26 @@
+sample	prep	species	taxid	est_reads	kraken_reads	frac_microbial	culture_sonication	their_sequencing	verdict_vs_culture	verdict_vs_their_seq
+6	sap	Staphylococcus aureus	1280	315402	7288	0.99988	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+10	sap	Staphylococcus aureus	1280	125587	1085	1.00000	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+13	sap	Staphylococcus aureus	1280	26140	34	0.97287	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+16	sap	Staphylococcus lugdunensis	28035	1615806	900110	0.97471	Staphylococcus lugdunensis	Staphylococcus lugdunensis	species_match	species_match
+20	sap	Fusobacterium vincentii	155615	185385	4963	0.60123	Staphylococcus aureus	Staphylococcus aureus; Staphylococcus schleiferi; Fusobacterium nucleatum	species_match	species_match
+20	sap	Fusobacterium animalis	76859	45799	1581	0.14853	Staphylococcus aureus	Staphylococcus aureus; Staphylococcus schleiferi; Fusobacterium nucleatum	species_match	species_match
+20	sap	Fusobacterium nucleatum	851	25422	1155	0.08245	Staphylococcus aureus	Staphylococcus aureus; Staphylococcus schleiferi; Fusobacterium nucleatum	species_match	species_match
+20	sap	Staphylococcus aureus	1280	20978	4861	0.06803	Staphylococcus aureus	Staphylococcus aureus; Staphylococcus schleiferi; Fusobacterium nucleatum	species_match	species_match
+20	sap	Staphylococcus schleiferi	1295	20144	17741	0.06533	Staphylococcus aureus	Staphylococcus aureus; Staphylococcus schleiferi; Fusobacterium nucleatum	species_match	species_match
+22	sap	Enterococcus faecium	1352	1123182	667592	0.98046	Enterococcus faecium	Enterococcus faecium	species_match	species_match
+22	fil	Escherichia coli	562	4835	26	0.62776	Enterococcus faecium	Enterococcus faecium	species_match	species_match
+22	fil	Enterococcus faecium	1352	2556	914	0.33186	Enterococcus faecium	Enterococcus faecium	species_match	species_match
+25	sap	Enterobacter hormaechei	158836	1407953	16460	0.88991	Enterobacter cloacae	Enterobacter cloacae; Enterobacter hormaechei	genus_match	genus_match
+27	sap	Staphylococcus aureus	1280	506591	130308	0.99985	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+38	sap	Staphylococcus aureus	1280	1027303	241066	0.99985	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+39	sap	Staphylococcus aureus	1280	283003	8175	0.99845	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+41	sap	Staphylococcus aureus	1280	270874	40164	0.98396	Staphylococcus aureus	Staphylococcus aureus; Enterococcus faecium	species_match	species_match
+46	sap	Staphylococcus aureus	1280	466712	16044	1.00000	negative	Staphylococcus aureus	culture_negative	species_match
+54	sap	Staphylococcus aureus	1280	318447	127886	0.99937	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+72	sap	Streptococcus dysgalactiae	1334	1225006	65956	0.98834	Streptococcus dysgalactiae	Streptococcus dysgalactiae	species_match	species_match
+72	fil	Streptococcus dysgalactiae	1334	32518	1631	1.00000	Streptococcus dysgalactiae	Streptococcus dysgalactiae	species_match	species_match
+79	sap	Staphylococcus aureus	1280	761299	334796	1.00000	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+103	sap	Staphylococcus aureus	1280	1256192	416611	0.99996	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+117	sap	Staphylococcus aureus	1280	21370	75	1.00000	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match
+119	sap	Staphylococcus aureus	1280	2600160	769156	0.99996	Staphylococcus aureus	Staphylococcus aureus	species_match	species_match

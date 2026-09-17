@@ -1,0 +1,6 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Staphylococcus lugdunensis	28035	S	900110	715696	1615806	0.97471
+Staphylococcus aureus	1280	S	453	41355	41808	0.02522
+Staphylococcus caprae	29380	S	13	23	36	0.00002
+Cutibacterium acnes	1747	S	28	0	28	0.00002
+Acinetobacter johnsonii	40214	S	15	38	53	0.00003

@@ -1,0 +1,8 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Escherichia coli	562	S	26	4809	4835	0.62557
+Enterococcus faecium	1352	S	914	1642	2556	0.33070
+Staphylococcus pettenkoferi	170573	S	157	26	183	0.02368
+Staphylococcus lugdunensis	28035	S	44	19	63	0.00815
+Staphylococcus caprae	29380	S	16	14	30	0.00388
+Cutibacterium acnes	1747	S	15	20	35	0.00453
+Homo sapiens	9606	S	17	8	25	0.00323

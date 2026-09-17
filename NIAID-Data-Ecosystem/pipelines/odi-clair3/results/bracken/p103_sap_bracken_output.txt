@@ -1,0 +1,4 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Staphylococcus aureus	1280	S	416611	839581	1256192	0.99984
+Cutibacterium acnes	1747	S	43	4	47	0.00004
+Homo sapiens	9606	S	149	3	152	0.00012

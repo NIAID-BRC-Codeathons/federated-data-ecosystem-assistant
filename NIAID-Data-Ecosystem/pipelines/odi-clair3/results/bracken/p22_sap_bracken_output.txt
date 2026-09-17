@@ -1,0 +1,12 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Enterococcus faecium	1352	S	667592	455590	1123182	0.98044
+Staphylococcus pettenkoferi	170573	S	3980	593	4573	0.00399
+Staphylococcus caprae	29380	S	766	528	1294	0.00113
+Staphylococcus lugdunensis	28035	S	252	71	323	0.00028
+Staphylococcus epidermidis	1282	S	196	170	366	0.00032
+Staphylococcus aureus	1280	S	165	6188	6353	0.00555
+Staphylococcus capitis	29388	S	75	100	175	0.00015
+Staphylococcus haemolyticus	1283	S	49	51	100	0.00009
+Cutibacterium acnes	1747	S	161	45	206	0.00018
+Escherichia coli	562	S	76	8917	8993	0.00785
+Homo sapiens	9606	S	14	0	14	0.00001

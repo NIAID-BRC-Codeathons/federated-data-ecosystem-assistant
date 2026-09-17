@@ -1,0 +1,45 @@
+## Resistance loci in BX571856.1 (S. aureus MRSA252)
+##
+## Coordinates taken from the EMBL feature table of BX571856.1 itself, not
+## from a secondary annotation. Five of the six agree exactly with BV-BRC
+## genome 282458.100; grlB does not (ENA starts at 1417763, BV-BRC at
+## 1417769 -- a 6 bp difference in the start-codon call). ENA wins here,
+## since Gordon et al. numbered against this record.
+##
+## fusA carries no /gene qualifier in the EMBL record; it is tagged `fus`
+## (SAR0552). Found by product ("translation elongation factor G").
+##
+## Translation of all six was verified against the genome FASTA: every CDS
+## begins at a start codon, ends in a stop, and contains no internal stops.
+## grlA and rpoB begin with V and L respectively -- GTG/TTG starts, normal
+## in S. aureus, not an off-by-one.
+##
+## !! MRSA252 IS ITSELF QUINOLONE-RESISTANT !!
+##
+## The reference already carries three resistance alleles from the Gordon
+## catalogue:
+##
+##     gyrA S84L      grlA S80F      grlB P451S
+##
+## At these codons the reference base IS the resistant state. A pipeline
+## that calls resistance by "variant differs from reference" will therefore
+## report every SUSCEPTIBLE sample as resistant at these positions, and stay
+## silent on genuinely resistant ones. The logic must be
+## "what amino acid does this sample actually have", never "does it differ
+## from MRSA252". See ref_is_resistant below and how 08_call_resistance.py
+## uses it.
+##
+## Columns:
+##   gene        catalogue gene name
+##   locus_tag   BX571856.1 locus tag
+##   start,end   1-based inclusive, on the forward strand of BX571856.1
+##   strand      + or -; dfrB is on the minus strand
+##   aa_length   including the terminal stop
+##   drug        what Gordon's table predicts from this gene
+gene	locus_tag	start	end	strand	aa_length	drug
+fusA	SAR0552	599703	601784	+	694	fusidic acid
+rpoB	SAR0547	590831	594382	+	1184	rifampicin
+dfrB	SAR1439	1497106	1497585	-	160	trimethoprim
+grlA	SAR1367	1419760	1422162	+	801	ciprofloxacin
+grlB	SAR1366	1417763	1419760	+	666	ciprofloxacin
+gyrA	SAR0006	7005	9665	+	887	ciprofloxacin

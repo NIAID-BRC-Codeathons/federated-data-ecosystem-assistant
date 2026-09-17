@@ -1,0 +1,156 @@
+sample_number	device_type	sonication_species	sonication_cfu_per_ml	tissue_culture_species	positive_tissue_samples	histology_acute_infection	sequencing_batch	barcode	total_nonhuman_bases	total_nonhuman_reads	sequencing_species	ref_coverage_1x_pct	ref_coverage_mean_depth	bases_assigned	reads_assigned	pct_bacterial_bases_assigned	pct_species_bases_mapping_ref	is_continuation
+1	Knee	Staphylococcus aureus	not recorded	Staphylococcus aureus	5/5	1	1	2	29025836	12047	Staphylococcus aureus	94.3561	8.0502	25133295	9221	98.3497	85.2676	0
+2	Orthopedic implant, not otherwise specified	Staphylococcus aureus	<5	Staphylococcus aureus	3/6	N/A	1	5	4728439	1912	Staphylococcus aureus	51.8796	1.7562	2972914	829	82.8262	86.4641	0
+3	Metalwork (ulna)	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	1	6	23723255	6660								0
+3	Metalwork (ulna)	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	1	6	23723255	6660	Enterobacter ludwigii	53.7068	2.5976	7631149	2154	33.1193	88.7996	1
+3	Metalwork (ulna)	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	1	6	23723255	6660	Cutibacterium acnes	59.1044	2.8735	4777802	1232	20.7357	91.0103	1
+4	Knee	negative		negative		0	2	1	1185276	382								0
+5	Metalwork (ankle)	coagulase negative Staphylococcus	>49	coagulase negative Staphylococcus	4/4	0	2	4	274201506	83136	Staphylococcus caprae	89.7202	51.0648	131677416	39965	50.4558	92.6527	0
+6	Knee	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	2	8	1299546137	331547	Staphylococcus aureus	93.9108	337.8526	1182582445	296862	91.8577	75.6955	0
+7	Metalwork (ankle)	Streptococcus pyogenes	>49	Streptococcus pyogenes	4/4	N/A	3	5	332424257	97504	Streptococcus pyogenes	93.4804	161.8602	314426605	91837	94.9974	89.1423	0
+8	Knee	Escherichia coli	25-49	Escherichia coli	6/6	1	3	6	2850816	1033								0
+8	Knee	Escherichia coli	25-49	Escherichia coli	6/6	1	3	6	2850816	1033								1
+9	Knee	Streptococcus dysgalactiae	>49	Streptococcus dysgalactiae	5/5	1	4	7	136971223	37725	Streptococcus dysgalactiae	75.524	64.6434	121187481	32758	90.5948	87.8005	0
+10	Knee (endobutton)	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	4	1	525272748	126722	Staphylococcus aureus	97.0226	151.336	490915752	117548	94.1551	84.3853	0
+10	Knee (endobutton)	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	4	1	525272748	126722								1
+11	Knee	negative		Staphylococcus epidermidis	3/5	1	5	2	11965778	3844								0
+12	Knee	Cutibacterium acnes	>49	Cutibacterium acnes	3/5	1	5	10	1767525541	523232	Cutibacterium acnes	100	633.4141	1746137668	515442	99.1432	92.874	0
+13	Metalwork (fibula)	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	6	1	91799578	27784	Staphylococcus aureus	81.9721	30.2598	79199223	23492	90.8501	88.3629	0
+14	Metalwork (foot)	negative		negative		0	6	6	13920488	3714								0
+15	Ankle	negative		coagulase negative Staphylococcus	2/5	0	6	8	31806044	9079								0
+16	Hip	Staphylococcus lugdunensis	>49	Staphylococcus lugdunensis	5/5	1	6	9	5533753660	1742063	Staphylococcus lugdunensis	98.3457	1111.5834	3796561699	1143066	68.7477	76.5459	0
+17	Orthopedic implant, not otherwise specified	Proteus mirabilis	>49	Proteus mirabilis	4/5	1	7	1	108831184	28321								0
+18	Hip	Staphylococcus epidermidis	>49	Staphylococcus epidermidis	4/4	1	7	4	2056802094	698175	Staphylococcus epidermidis	94.8697	508.9711	1561441871	488614	76.4137	77.2875	0
+19	Metalwork (radius)	negative		negative		0	8	5	24441840	5291								0
+20	Hip	Staphylococcus aureus	>49	Staphylococcus aureus	4/4	1	8	8	1114697604	325314	Staphylococcus aureus	79.9505	20.6517	54986337	15909	4.9509	84.7191	0
+20	Hip	Staphylococcus aureus	>49	Staphylococcus aureus	4/4	1	8	8	1114697604	325314	Staphylococcus schleiferi	91.538	28.7661	73922655	21084	6.6558	86.7593	1
+20	Hip	Staphylococcus aureus	>49	Staphylococcus aureus	4/4	1	8	8	1114697604	325314	Fusobacterium nucleatum	79.4986	363.2252	928694267	271400	83.6178	77.9726	1
+21	Elbow	negative		negative		0	9	12a	1257520	256								0
+22	Knee	Enterococcus faecium	25-49	Enterococcus faecium	6/6	1	9	7	4735939669	1308872	Enterococcus faecium	93.9991	178.3256	2960270547	856904	89.7058	15.2781	0
+22	Knee	Enterococcus faecium	25-49	Enterococcus faecium	6/6	1	9	7	4735939669	1308872								1
+22	Knee	Enterococcus faecium	25-49	Enterococcus faecium	6/6	1	9	7	4735939669	1308872								1
+22	Knee	Enterococcus faecium	25-49	Enterococcus faecium	6/6	1	9	7	4735939669	1308872								1
+23	Hip	coagulase negative Staphylococcus	not recorded	coagulase negative Staphylococcus	5/6	1	10	2	206023395	60154								0
+23	Hip	coagulase negative Staphylococcus	not recorded	coagulase negative Staphylococcus	5/6	1	10	2	206023395	60154								1
+24	Hip	negative		Streptococcus dysgalactiae	2/3	1	10	10	140129518	30435								0
+25	Knee	Enterobacter cloacae	>49	Enterobacter cloacae		1	11	1	5570859830	1670043	Enterobacter cloacae	77.3261	212.535	1074878953	314302	19.5985	81.258	0
+25	Knee	Enterobacter cloacae	>49	Enterobacter cloacae		1	11	1	5570859830	1670043	Enterobacter hormaechei	91.8606	627.667	2878103211	845195	52.477	95.8088	1
+26	Hip	Staphylococcus epidermidis	>49	Staphylococcus epidermidis	2/4	1	11	6	5829918	1484	Staphylococcus epidermidis	6.6345	16.7519	3069977	767	62.2488	90.4795	0
+27	Elbow	Staphylococcus aureus	>49	Staphylococcus aureus	6/6	1	13	11	1940136774	519474	Staphylococcus aureus	97.0047	605.7089	1922772114	512190	99.6637	86.2159	0
+28	Hip	negative		negative		0	15	10	13044263	3439								0
+31	Hip	Pseudomonas aeruginosa	not recorded	Pseudomonas aeruginosa		1	18	9	390180	95								0
+33	Knee	Staphylococcus lugdunensis	25-49	Staphylococcus lugdunensis	6/6	1	22	9	2454068563	638671	Staphylococcus lugdunensis	95.5116	891.1421	2453450651	638289	99.9787	92.2233	0
+34	Ankle	Staphylococcus aureus	10-24	Staphylococcus aureus	5/5	1	23	11	8734639	2598								0
+35	Metalwork (wrist)	negative		negative		0	25	2	3232588	859								0
+36	Hip	negative		Staphylococcus epidermidis	1/6	0	25	7	1605490	489								0
+36	Hip	negative		Staphylococcus epidermidis	1/6	0	25	7	1605490	489								1
+37	Elbow	negative		negative		0	26	9	903085	219								0
+38	Hip	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	26	11	3629537539	1061264	Staphylococcus aureus	92.5706	1237.4772	3619095226	1052103	99.8114	89.3036	0
+39	Knee	Staphylococcus aureus	<5	Staphylococcus aureus	5/5	1	27	2	902787550	288048	Staphylococcus aureus	94.8288	296.0422	892017564	282898	99.1759	88.7931	0
+40a	Metalwork (foot)	Streptococcus dysgalactiae	not recorded	Streptococcus dysgalactiae	4/5	1	27	10	1136875641	284300	Streptococcus dysgalactiae	88.247	455.5776	1007543274	249141	94.5707	86.965	0
+40b	Metalwork (ankle)	negative		Streptococcus dysgalactiae	4/5	1	27	11	8084158	3039	Streptococcus dysgalactiae	11.6181	22.0674	6325743	2295	84.1197	88.3326	0
+41	Hip	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	28	7	994792696	308269	Staphylococcus aureus	94.4704	289.3995	934153615	272653	94.9377	82.5722	0
+41	Hip	Staphylococcus aureus	>49	Staphylococcus aureus	5/5	1	28	7	994792696	308269	Enterococcus faecium	79.4432	3.3549	13786565	3903	1.4011	52.1615	1
+42	Hip	Staphylococcus epidermidis	>49	Staphylococcus epidermidis	4/4	1	28	9	1370087043	425811	Staphylococcus epidermidis	94.3089	363.6507	960342182	294757	72.0908	89.2536	0
+43	Hip	Staphylococcus capitis	>49	Staphylococcus capitis	5/5	1	28	11	229875623	78421	Staphylococcus capitis	96.5561	79.819	209561023	70197	91.5996	89.8683	0
+44	Hip	negative		negative		0	29	5	4240858	1178								0
+45	Orthopedic implant, not otherwise specified	Enterobacter cloacae	25-49	Enterobacter cloacae	1/4	1	29	7	48466441	10990								0
+46	Knee	negative		Staphylococcus aureus	1/6	1	29	11	1687201548	492638	Staphylococcus aureus	94.6023	559.4281	1663103230	479246	99.0899	89.7812	0
+47	Knee	negative		negative		1	30	2	13340874	3521								0
+48	Knee	negative		Bacillus licheniformis	1/4	0	30	9	24047	16								0
+50	Cement (wrist)	negative		negative		N/A	32	2	2797211	626								0
+51	Orthopedic implant, not otherwise specified	negative		Staphylococcus capitis	4/5	1	32	4	68764099	15439								0
+51	Orthopedic implant, not otherwise specified	negative		Staphylococcus capitis	4/5	1	32	4	68764099	15439								1
+52	Hip	negative		negative		0	32	6	98383	24								0
+53	Knee	negative		Paenibacillus spp.	1/5	1	33	6	21144292	7105	Staphylococcus aureus	89.1221	5.9784	17017237	5449	84.8142	88.3362	0
+53	Knee	negative		Paenibacillus spp.	1/5	1	33	6	21144292	7105								1
+54	Knee	Staphylococcus aureus	<5	Staphylococcus aureus	5/6	1	33	9	780995234	203544	Staphylococcus aureus	91.4416	265.6344	776703599	201722	99.5179	88.2331	0
+55	Hip	Fusobacterium spp.	>49	Fusobacterium spp.	4/4	1	34	1	16386974	3206								0
+56	Hip	Staphylococcus epidermidis	25-49	Staphylococcus epidermidis	4/4	1	34	5	158100981	44227	Staphylococcus epidermidis	95.2648	47.463	127256489	35947	84.6395	88.802	0
+57	Knee	Pseudomonas aeruginosa	25-49	Pseudomonas aeruginosa	5/5	1	35	9	288078336	65890	Pseudomonas aeruginosa	51.0348	24.1778	101355523	25430	39.4911	76.2632	0
+57	Knee	Pseudomonas aeruginosa	25-49	Pseudomonas aeruginosa	5/5	1	35	9	288078336	65890								1
+58	Metalwork (spine)	Cutibacterium acnes	>49	Cutibacterium acnes	1/4	N/A	36	2	7208268	1681	Cutibacterium acnes	55.8724	3.82	5838403	1388	83.322	93.5946	0
+59	Hip	Staphylococcus epidermidis	10-24	Staphylococcus epidermidis	5/5	1	36	5	1093265140	327868	Staphylococcus epidermidis	95.1654	212.5175	559838949	172741	56.2548	90.287	0
+59	Hip	Staphylococcus epidermidis	10-24	Staphylococcus epidermidis	5/5	1	36	5	1093265140	327868	Corynebacterium segmentosum	73.8935	38.0816	84228613	23922	8.4636	79.294	1
+60	Hip	Parvimonas micra	>49	negative		1	37	2	1944541285	458288	Parvimonas micra	92.0596	1054.5835	1865717974	436732	96.4993	84.6631	0
+61	Hip	Staphylococcus epidermidis	>49	Staphylococcus epidermidis	4/6	1	37	11	2384177490	608587	Staphylococcus epidermidis	94.7618	886.0212	2314651651	588887	97.7988	90.658	0
+62	Orthopedic implant, not otherwise specified	Staphylococcus epidermidis	10-24	Staphylococcus epidermidis	3/4	0	38	2	119385954	26999								0
+63	Hip	Streptococcus dysgalactiae	10-24	Streptococcus dysgalactiae	6/6	1	38	5	1606983628	456937	Streptococcus dysgalactiae	92.2728	632.1963	1426664154	399783	90.3639	89.1148	0
+64	Metalwork (hip)	negative		negative		0	38	7	72296877	17456								0
+65	Metalwork (wrist)	negative		Bacillus spp.	1/6	0	39	9	7229290	1368								0
+66	Metalwork (radius)	Enterobacter spp.	<5	Enterobacter cloacae	1/6	1	39	11	239403972	56009	Enterobacter bugandensis	73.8799	21.5573	82770748	20534	36.4526	90.775	0
+66	Metalwork (radius)	Enterobacter spp.	<5	Enterobacter cloacae	1/6	1	39	11	239403972	56009	Enterobacter roggenkampii	61.1977	16.8071	54197469	13660	23.8688	90.1152	1
+70	Knee	negative		negative		0	42	2	43961733	9135								0
+71	Knee	negative		Candida albicans	1/5	1	42	5	16318029	3088								0
+71	Knee	negative		Candida albicans	1/5	1	42	5	16318029	3088								1
+72	Hip	Streptococcus dysgalactiae	25-49	Streptococcus dysgalactiae	2/5	1	42	7	5366369114	1291286	Streptococcus dysgalactiae	92.3712	1944.0488	4431883295	1052226	87.8817	88.3083	0
+73	Cement (knee)	negative		negative		0	43	9	85030874	17641								0
+74	Hip	Staphylococcus aureus	<5	Staphylococcus aureus	5/6	1	44	2	21723140	5744								0
+75	Orthopedic implant, not otherwise specified	Streptococcus agalactiae	>49	Streptococcus agalactiae	5/5	1	44	6	343724830	80701	Streptococcus agalactiae	93.9774	54.0667	124803357	28426	42.6013	87.9497	0
+76	Knee	negative		negative		0	45	10	26552307	7486								0
+77	Knee	negative		Staphylococcus epidermidis	5/5	1	46	2	13811445	3729								0
+78	Orthopedic implant, not otherwise specified	Staphylococcus aureus	>49	Staphylococcus aureus	4/4	1	46	10	63833373	17768	Staphylococcus aureus	53.1659	13.2698	22453478	7722	39.0175	88.6486	0
+87	Hip	Staphylococcus epidermidis	10-24	Staphylococcus epidermidis	6/7	1	50	6	90125872	26625	Staphylococcus epidermidis	95.8001	26.3798	69473425	21014	81.0358	90.9144	0
+88	Metalwork (ankle)	negative		negative		0	50	10	402165	569								0
+89	Knee	negative		Staphylococcus capitis	4/5	1	51	2	482877	175								0
+90	Knee	Staphylococcus epidermidis	<5	Staphylococcus epidermidis	5/6	1	51	8	5350507	2817	Staphylococcus epidermidis	68.004	1.9929	3905496	1589	82.671	86.7294	0
+91	Knee	negative		negative		1	51	11	14520769	3061								0
+79	Knee	Staphylococcus aureus	>49	Staphylococcus aureus	6/6	0	52	2	3113371295	899496	Staphylococcus aureus	92.8305	988.4334	3089961190	888835	99.4887	83.7806	0
+79	Knee	Staphylococcus aureus	>49	Staphylococcus aureus	6/6	0	52	2	3113371295	899496								1
+81	Knee	Streptococcus oralis	>49	Streptococcus oralis	6/6	1	52	6	3802687337	1193518	Streptococcus oralis	82.5396	1375.0667	2768795720	857625	79.8191	80.2899	0
+81	Knee	Streptococcus oralis	>49	Streptococcus oralis	6/6	1	52	6	3802687337	1193518	Streptococcus sp. NPS 308	67.5892	121.0343	194474515	61605	5.6063	80.9641	1
+92	Metalwork (tibia)	negative		negative		0	52	9	37318038	10260								0
+95	Metalwork (tibia)	negative		negative		0	53	7	1982798	615								0
+96	Knee	coagulase negative Staphylococcus	<5	negative		0	54	7	329006	464								0
+97	Knee	negative		negative		0	55	2	12377585	3268								0
+98	Knee	negative		Staphylococcus epidermidis	6/6	0	55	5	20169729	4049								0
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Enterobacter cloacae	75.4663	14.9954	76011788	22411	3.5755	79.1225	0
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Staphylococcus epidermidis	95.017	11.8247	33134389	10270	1.5586	84.7477	1
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186								1
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Staphylococcus aureus	91.3343	13.2563	41608326	12985	1.9572	82.0983	1
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Enterobacter hormaechei	87.0547	26.2499	76351500	22722	3.5915	143.1383	1
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Anaerococcus mediterraneensis	62.4577	100.788	222263606	65768	10.4551	58.9162	1
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Prevotella intermedia	90.8625	39.83	107436316	33694	5.0537	66.2237	1
+99	Wrist	Enterobacter cloacae	not recorded	Enterobacter cloacae	4/4	1	55	10	4129774108	1298186	Dermabacter vaginalis	58.468	2.3443	3963908	1136	0.1865	82.7229	1
+100	Knee	Streptococcus oralis	>49	Streptococcus oralis	6/6	1	56	1	382506708	103382	Streptococcus oralis	89.5639	127.8958	274644643	72544	81.8426	81.6928	0
+101	Knee	negative		negative		0	56	4	Failed sequencing									0
+103	Hip	Staphylococcus aureus	10-24	Staphylococcus aureus	5/5	1	56	8	3822239040	1310889	Staphylococcus aureus	94.8921	1190.1238	3780468439	1290103	99.703	84.2821	0
+103	Hip	Staphylococcus aureus	10-24	Staphylococcus aureus	5/5	1	56	8	3822239040	1310889								1
+104	Hip	Enterococcus faecalis	>49	Streptococcus oralis	5/5	1	57	1	10500280	3722	Enterococcus faecalis	75.0023	2.984	8948903	3192	96.1412	80.4806	0
+105	Hip	Finegoldia magna	not recorded	Finegoldia magna	1/6	1	57	4	Failed sequencing									0
+106	Elbow	negative		negative		N/A	58	1	421157	132								0
+107	Knee	Staphylococcus epidermidis	25-49	Staphylococcus epidermidis	5/5	1	58	4	4384221	1152	Staphylococcus epidermidis	44.7653	2.4535	3075690	801	74.1353	89.2467	0
+108	Metalwork (femur)	negative		Enterococcus faecalis	4/4	1	58	11	758060	231								0
+109	Hip	Staphylococcus epidermidis	<5	negative		1	59	2	205377088	61389	Staphylococcus epidermidis	93.2359	51.9041	176894335	52049	92.4088	68.3732	0
+110	Hip	negative		negative		0	59	5	17847	74								0
+111	Hip	negative		negative		0	59	11	78396	32								0
+112	Hip	Escherichia coli	not recorded	Escherichia coli	3/4	1	60	2	1727396384	416502	Escherichia coli	88.4577	69.8725	429007400	110613	25.5149	66.8728	0
+112	Hip	Escherichia coli	not recorded	Escherichia coli	3/4	1	60	2	1727396384	416502	Cutibacterium acnes	97.3317	383.4416	1031252280	247884	61.333	92.656	1
+113	Metalwork (foot)	negative		no tissues		N/A	60	5	230081	68								0
+114	Hip	negative		negative		0	61	2	883981	693								0
+115	Knee	Candida parapsilosis	25-49			0	62	7	176514	67								0
+115	Knee	Candida parapsilosis	25-49			0	62	7	176514	67								1
+115	Knee	Candida parapsilosis	25-49			0	62	7	176514	67								1
+116	Hip	Enterococcus faecium	>49	Enterococcus faecium	5/5	1	62	9	1693656070	507527	Enterococcus faecium	92.74	362.8981	1463672594	435939	92.9887	62.04	0
+116	Hip	Enterococcus faecium	>49	Enterococcus faecium	5/5	1	62	9	1693656070	507527	Staphylococcus epidermidis	77.7535	14.9111	32441521	10026	2.061	89.3187	1
+117	Knee	Staphylococcus aureus	25-49	Staphylococcus aureus	6/6	1	62	11	81141631	22178	Staphylococcus aureus	43.3819	36.8321	49570926	13828	66.6737	90.9425	0
+118	Ankle	coagulase negative Staphylococcus	<5	negative		0	63	11	52967	20								0
+119	Knee	Staphylococcus aureus	>49	Staphylococcus aureus	4/4	1	63	12a	7350065534	2736769	Staphylococcus aureus	94.4596	2336.1288	7291285635	2704091	99.7288	85.3881	0
+120	Knee	Proteus mirabilis	<5	Proteus mirabilis	1/4	0	63	7	475061540	152103								0
+120	Knee	Proteus mirabilis	<5	Proteus mirabilis	1/4	0	63	7	475061540	152103	Staphylococcus epidermidis	97.4382	105.6993	297084735	96329	68.6835	86.6435	1
+120	Knee	Proteus mirabilis	<5	Proteus mirabilis	1/4	0	63	7	475061540	152103	Corynebacterium segmentosum	72.6213	11.2287	24921841	7136	5.7617	77.6589	1
+121	Metalwork (foot)	negative		Pseudomonas aeruginosa	3/3	1	64	7	304828	154								0
+121	Metalwork (foot)	negative		Pseudomonas aeruginosa	3/3	1	64	7	304828	154								1
+122	Knee	Enterococcus faecalis	>49	Enterococcus faecalis	6/6	0	64	8	237693	75								0
+123	Shoulder	negative		negative		0	64	9	293931	111								0
+124	Metalwork (ankle)	Staphylococcus aureus	25-49	Staphylococcus aureus	5/5	N/A	64	10	32223016	11422	Staphylococcus aureus	94.2448	10.32	30644435	10590	97.4056	89.5459	0
+125	Elbow	negative		negative		0	64	11	1052995	394								0
+102	Cement (wrist)	negative		Stenotrophomonas maltophilia	2/2	N/A	65	7	1207867	2090								0
+126	Knee	Pseudomonas aeruginosa	10-24	Pseudomonas aeruginosa	3/3	0	65	9	802278	1413								0
+127	Metalwork (tibia)	negative		negative		0	66	1	3516271	1832								0
+128a	Metalwork (ankle)	negative		Enterococcus faecalis	5/6	0	66	4	14932839	3184								0
+128a	Metalwork (ankle)	negative		Enterococcus faecalis	5/6	0	66	4	14932839	3184								1
+128a	Metalwork (ankle)	negative		Enterococcus faecalis	5/6	0	66	4	14932839	3184								1
+128b	Metalwork (ankle)	negative		Enterococcus faecalis	5/6	0	66	5	37335423	9278								0
+128b	Metalwork (ankle)	negative		Enterococcus faecalis	5/6	0	66	5	37335423	9278								1
+128b	Metalwork (ankle)	negative		Enterococcus faecalis	5/6	0	66	5	37335423	9278								1

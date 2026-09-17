@@ -1,0 +1,5 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Staphylococcus aureus	1280	S	127886	190561	318447	0.99930
+Cutibacterium acnes	1747	S	66	0	66	0.00021
+Moraxella osloensis	34062	S	133	2	135	0.00042
+Homo sapiens	9606	S	22	0	22	0.00007

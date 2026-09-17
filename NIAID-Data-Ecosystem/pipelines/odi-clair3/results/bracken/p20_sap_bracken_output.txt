@@ -1,0 +1,11 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Fusobacterium vincentii	155615	S	4963	180422	185385	0.60118
+Fusobacterium animalis	76859	S	1581	44218	45799	0.14852
+Fusobacterium nucleatum	851	S	1155	24267	25422	0.08244
+Fusobacterium sp. oral taxon 203	671211	S	292	2166	2458	0.00797
+Fusobacterium pseudoperiodonticum	2663009	S	242	746	988	0.00320
+Staphylococcus schleiferi	1295	S	17741	2403	20144	0.06532
+Staphylococcus aureus	1280	S	4861	16117	20978	0.06803
+Cutibacterium acnes	1747	S	63	1	64	0.00021
+Escherichia coli	562	S	28	7078	7106	0.02304
+Homo sapiens	9606	S	11	11	22	0.00007

@@ -1,0 +1,123 @@
+table	gene	substitution	ref_aa	codon	alt_aa	drug	reported_mic	gene_ambiguous
+S1	fusA	L461K	L	461	K	fusidic acid	>128	False
+S1	fusA	H457Q	H	457	Q	fusidic acid	>128	False
+S1	fusA	C473S	C	473	S	fusidic acid	>128	False
+S1	fusA	H457Y	H	457	Y	fusidic acid	>128	False
+S1	fusA	A67T	A	67	T	fusidic acid	>128	False
+S1	fusA	A70V	A	70	V	fusidic acid	>128	False
+S1	fusA	R76C	R	76	C	fusidic acid	>128	False
+S1	fusA	A655V	A	655	V	fusidic acid	>128	False
+S1	fusA	V90I	V	90	I	fusidic acid	>128	False
+S1	fusA	L461F	L	461	F	fusidic acid		False
+S1	fusA	A376V	A	376	V	fusidic acid		False
+S1	fusA	A655P	A	655	P	fusidic acid	>128	False
+S1	fusA	D463G	D	463	G	fusidic acid	>128	False
+S1	fusA	L461S	L	461	S	fusidic acid	96	False
+S1	fusA	P404L	P	404	L	fusidic acid	96	False
+S1	fusA	A71V	A	71	V	fusidic acid	96	False
+S1	fusA	M161I	M	161	I	fusidic acid	16-64	False
+S1	fusA	S416F	S	416	F	fusidic acid	64	False
+S1	fusA	H557Y	H	557	Y	fusidic acid	64	False
+S1	fusA	D373N	D	373	N	fusidic acid	64	False
+S1	fusA	Q115L	Q	115	L	fusidic acid	48	False
+S1	fusA	T436I	T	436	I	fusidic acid	8-48	False
+S1	fusA	G452S	G	452	S	fusidic acid	8-32	False
+S1	fusA	L456F	L	456	F	fusidic acid	32	False
+S1	fusA	E444V	E	444	V	fusidic acid	32	False
+S1	fusA	E444K	E	444	K	fusidic acid	16	False
+S1	fusA	G556S	G	556	S	fusidic acid	16	False
+S1	fusA	R659L	R	659	L	fusidic acid	16	False
+S1	fusA	G451V	G	451	V	fusidic acid	3-16	False
+S1	fusA	E233Q	E	233	Q	fusidic acid	16	False
+S1	fusA	A655E	A	655	E	fusidic acid	12	False
+S1	fusA	G452C	G	452	C	fusidic acid	12	False
+S1	fusA	P114H	P	114	H	fusidic acid	12	False
+S1	fusA	R659C	R	659	C	fusidic acid	12	False
+S1	fusA	R659S	R	659	S	fusidic acid	12	False
+S1	fusA	H438N	H	438	N	fusidic acid	8	False
+S1	fusA	P478S	P	478	S	fusidic acid	8	False
+S1	fusA	R659H	R	659	H	fusidic acid	8	False
+S1	fusA	P406L	P	406	L	fusidic acid	8	False
+S1	fusA	F652S	F	652	S	fusidic acid	8	False
+S1	fusA	Y654N	Y	654	N	fusidic acid	8	False
+S1	fusA	D189G	D	189	G	fusidic acid	8	False
+S1	fusA	M453I	M	453	I	fusidic acid	4-8	False
+S1	fusA	R464C	R	464	C	fusidic acid	2-8	False
+S1	fusA	R464S	R	464	S	fusidic acid	6	False
+S1	fusA	R464H	R	464	H	fusidic acid	6	False
+S1	fusA	G617D	G	617	D	fusidic acid	4	False
+S1	fusA	G664S	G	664	S	fusidic acid	4	False
+S1	fusA	T385N	T	385	N	fusidic acid	4	False
+S1	fusA	T656K	T	656	K	fusidic acid	4	False
+S1	fusA	M651I	M	651	I	fusidic acid	2	False
+S1	fusA	P404Q	P	404	Q	fusidic acid	2	False
+S1	fusA	F441Y	F	441	Y	fusidic acid		False
+S1	fusA	A160V	A	160	V	fusidic acid		False
+S1	fusA	V607I	V	607	I	fusidic acid	0.19	False
+S1	fusA	V90A	V	90	A	fusidic acid		False
+S1	fusA	T387I	T	387	I	fusidic acid		False
+S1	fusA	E449K	E	449	K	fusidic acid		False
+S1	fusA	D189V	D	189	V	fusidic acid		False
+S1	fusA	L430S	L	430	S	fusidic acid		False
+S2	dfrB	F99Y	F	99	Y	trimethoprim	64	False
+S2	dfrB	H31N	H	31	N	trimethoprim	64	False
+S2	dfrB	H150R	H	150	R	trimethoprim	64	False
+S2	dfrB	L21V	L	21	V	trimethoprim	64	False
+S2	dfrB	N60I	N	60	I	trimethoprim	64	False
+S2	dfrB	F99S	F	99	S	trimethoprim	4	False
+S2	dfrB	L41F	L	41	F	trimethoprim	4	False
+S2	dfrB	F99I	F	99	I	trimethoprim	2.5	False
+S3	rpoB	Q468K	Q	468	K	rifampicin	>1024	False
+S3	rpoB	D471Y	D	471	Y	rifampicin	>1024	False
+S3	rpoB	S486L	S	486	L	rifampicin	>1024	False
+S3	rpoB	H481N	H	481	N	rifampicin	256-1024	False
+S3	rpoB	A473T	A	473	T	rifampicin	256-1024	False
+S3	rpoB	A477T	A	477	T	rifampicin	256-1024	False
+S3	rpoB	I527M	I	527	M	rifampicin	>512	False
+S3	rpoB	Q468L	Q	468	L	rifampicin	512	False
+S3	rpoB	Q565R	Q	565	R	rifampicin	512	False
+S3	rpoB	S529L	S	529	L	rifampicin	512	False
+S3	rpoB	L466S	L	466	S	rifampicin	256-512	False
+S3	rpoB	H481Y	H	481	Y	rifampicin	128-512	False
+S3	rpoB	H481D	H	481	D	rifampicin	>256	False
+S3	rpoB	I527L	I	527	L	rifampicin	>256	False
+S3	rpoB	Q468R	Q	468	R	rifampicin	256	False
+S3	rpoB	Q456K	Q	456	K	rifampicin	128-256	False
+S3	rpoB	R484H	R	484	H	rifampicin	128-256	False
+S3	rpoB	A477D	A	477	D	rifampicin	128	False
+S3	rpoB	D550G	D	550	G	rifampicin	128	False
+S3	rpoB	M470T	M	470	T	rifampicin	12	False
+S3	rpoB	D471G	D	471	G	rifampicin	12	False
+S3	rpoB	S463P	S	463	P	rifampicin	8	False
+S3	rpoB	S464P	S	464	P	rifampicin	4	False
+S3	rpoB	I527F	I	527	F	rifampicin	4	False
+S3	rpoB	A477V	A	477	V	rifampicin	1	False
+S4	grlA|gyrA|grlB	S80F	S	80	F	ciprofloxacin	>1024	True
+S4	grlA|gyrA|grlB	E84V	E	84	V	ciprofloxacin	>1024	True
+S4	grlA|gyrA|grlB	E88K	E	88	K	ciprofloxacin	>1024	True
+S4	grlA|gyrA|grlB	S80Y	S	80	Y	ciprofloxacin	512-1024	True
+S4	grlA|gyrA|grlB	E84G	E	84	G	ciprofloxacin	512-1024	True
+S4	grlA|gyrA|grlB	S84L	S	84	L	ciprofloxacin	512-1024	True
+S4	grlA|gyrA|grlB	S85P	S	85	P	ciprofloxacin	512-1024	True
+S4	grlA|gyrA|grlB	S84A	S	84	A	ciprofloxacin	>512	True
+S4	grlA|gyrA|grlB	E84L	E	84	L	ciprofloxacin		True
+S4	grlA|gyrA|grlB	E84K	E	84	K	ciprofloxacin		True
+S4	grlA|gyrA|grlB	S108N	S	108	N	ciprofloxacin		True
+S4	grlA|gyrA|grlB	E88L	E	88	L	ciprofloxacin	25	True
+S4	grlA|gyrA|grlB	A48T	A	48	T	ciprofloxacin	32-256	True
+S4	grlA|gyrA|grlB	P451S	P	451	S	ciprofloxacin		True
+S4	grlA|gyrA|grlB	Y83N	Y	83	N	ciprofloxacin	>64	True
+S4	grlA|gyrA|grlB	E88G	E	88	G	ciprofloxacin	>64	True
+S4	grlA|gyrA|grlB	D432V	D	432	V	ciprofloxacin	64	True
+S4	grlA|gyrA|grlB	D432N	D	432	N	ciprofloxacin		True
+S4	grlA|gyrA|grlB	A116E	A	116	E	ciprofloxacin	32	True
+S4	grlA|gyrA|grlB	P585S	P	585	S	ciprofloxacin	32	True
+S4	grlA|gyrA|grlB	D432G	D	432	G	ciprofloxacin	16	True
+S4	grlA|gyrA|grlB	D79V	D	79	V	ciprofloxacin		True
+S4	grlA|gyrA|grlB	V41G	V	41	G	ciprofloxacin	16	True
+S4	grlA|gyrA|grlB	I45M	I	45	M	ciprofloxacin	16	True
+S4	grlA|gyrA|grlB	E422D	E	422	D	ciprofloxacin	16	True
+S4	grlA|gyrA|grlB	G106D	G	106	D	ciprofloxacin	16	True
+S4	grlA|gyrA|grlB	D443E	D	443	E	ciprofloxacin	25	True
+S4	grlA|gyrA|grlB	R444S	R	444	S	ciprofloxacin	25	True
+S4	grlA|gyrA|grlB	R470D	R	470	D	ciprofloxacin	4	True

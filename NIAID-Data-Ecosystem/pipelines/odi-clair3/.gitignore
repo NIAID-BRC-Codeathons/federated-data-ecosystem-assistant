@@ -1,0 +1,12 @@
+# Scratch: FASTQ, BAM, VCF, logs, per-base depth. Regenerable, and large.
+work/
+
+# Reference FASTAs are fetched by 00_fetch_refs.sh, which verifies their
+# lengths against the values in config.sh. Not committed: they are ~2.8 MB
+# each, unchanging, and the fetch is the integrity check.
+refs/*.fasta
+refs/*.fai
+
+__pycache__/
+*.py[cod]
+.DS_Store

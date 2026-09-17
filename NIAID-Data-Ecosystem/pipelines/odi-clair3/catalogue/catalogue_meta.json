@@ -1,0 +1,24 @@
+{
+  "source": {
+    "citation": "Gordon NC, et al. J Clin Microbiol 2014;52(4):1182-91",
+    "pmid": "24501024",
+    "pmcid": "PMC3993491",
+    "doi": "10.1128/jcm.03117-13",
+    "tables": "S1 (fusA), S2 (dfrB), S3 (rpoB), S4 (grlA/gyrA/grlB)"
+  },
+  "coordinate_system": "amino acid substitution in protein sequence",
+  "reference_for_translation": "BX571856.1 (MRSA252)",
+  "n_entries": 122,
+  "by_drug": {
+    "fusidic acid": 60,
+    "trimethoprim": 8,
+    "rifampicin": 25,
+    "ciprofloxacin": 29
+  },
+  "caveats": [
+    "Amino-acid coordinates, NOT genome coordinates. A VCF position must be translated through the relevant CDS before lookup.",
+    "Table S4 entries cannot be attributed to grlA vs gyrA vs grlB from flattened PDF text; they are marked gene_ambiguous and must be resolved against the source PDF before use in a call.",
+    "Covers 4 chromosomal loci only. Mobile-element genes (mecA, ermA/C, tetK/M, aacA-aphD) are NOT here -- Street's Table S2 covers those and is not in the deposited workbook.",
+    "MIC values are as reported in the primary literature Gordon et al. cite, not measured by them."
+  ]
+}

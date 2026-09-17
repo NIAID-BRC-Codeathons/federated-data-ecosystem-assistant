@@ -1,0 +1,7 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Staphylococcus lugdunensis	28035	S	57	368	425	0.01582
+Staphylococcus aureus	1280	S	34	26106	26140	0.97276
+Veillonella parvula	29466	S	19	3	22	0.00082
+Cutibacterium acnes	1747	S	13	7	20	0.00074
+Acinetobacter septicus	465797	S	18	182	200	0.00744
+Acinetobacter lwoffii	28090	S	10	52	62	0.00231

@@ -1,0 +1,4 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Staphylococcus aureus	1280	S	40164	230710	270874	0.98396
+Staphylococcus epidermidis	1282	S	17	3	20	0.00007
+Enterococcus faecium	1352	S	2192	2204	4396	0.01597

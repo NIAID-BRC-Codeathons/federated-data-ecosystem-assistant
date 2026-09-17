@@ -1,0 +1,69 @@
+## AMR cohort -- S. aureus specimens callable at the paper's >=20x threshold
+##
+## Selected from Street et al. Table S3 (catalogue/street2022_table_s3.tsv),
+## not from raw sequencing yield. Yield turned out to be a poor proxy for
+## S. aureus content: of the six highest-yield saponin runs, only two
+## (patients 103 and 119) are S. aureus.
+##
+## Inclusion: sequencing_species == Staphylococcus aureus AND the authors'
+## own mean reference depth >= 20x, which is the threshold they required for
+## a resistance-SNP call. Their depth is a good predictor of ours since we
+## map the same reads to the same reference, but it is not identical --
+## re-derive depth from our own BAMs before calling, do not trust this column.
+##
+## ENA patient_N == Table S3 sample N. Verified on six specimens by matching
+## total non-human base counts to within 0.01% (e.g. sample 119: S3
+## 7,350,065,534 vs ENA 7,349,284,900 -- the gap is reads dropped at deposit).
+##
+## Where a patient has several saponin runs, the highest-yield one is marked
+## primary and the others replicate. Replicates are a free check on
+## variant-call stability: same specimen, same prep, independent library.
+##
+## Sample 41 is the regression test. Street et al. missed a resistant rpoB
+## A477V present in ~20% of reads there, because their pipeline took consensus
+## calls and did not model mixed populations. A477V IS in our Gordon catalogue
+## (rifampicin, MIC 1). Clair3 reports allele fractions, so if our arm is
+## working it should see what theirs could not. If we also miss it, the
+## reproduction has inherited the flaw rather than fixed it.
+##
+## Columns: run  patient  prep  reads  bases  s3_depth  s3_cov1x  role
+run	patient	prep	reads	bases	s3_depth	s3_cov1x	role
+ERR5260785	119	sap	2735794	7349284900	2336.13	94.46	primary
+ERR5260958	103	sap	1310249	3821628038	1190.12	94.89	primary
+ERR5261047	38	sap	1054896	3609824341	1237.52	92.57	primary
+ERR5260515	79	sap	779187	3142695045	988.39	92.83	primary
+ERR5260611	79	sap	899325	3113343943	988.39	92.83	replicate
+ERR5260768	27	sap	519253	1939968037	605.67	97.00	primary
+ERR5260745	46	sap	491836	1686094552	559.43	94.60	primary
+ERR5260606	6	sap	330692	1297600753	337.93	93.91	primary
+ERR5260555	41	sap	306367	992968209	289.40	94.47	primary,regression
+ERR5260503	39	sap	287847	902474953	295.97	94.83	primary
+ERR5260724	39	sap	287176	948796394	295.97	94.83	replicate
+ERR5260574	54	sap	334544	1189721298	265.62	91.44	primary
+ERR5260531	54	sap	203483	780948618	265.62	91.44	replicate
+ERR5260783	54	sap	173286	629498693	265.62	91.44	replicate
+ERR5260720	10	sap	126632	525189036	151.33	97.02	primary
+ERR5260782	20	sap	324976	1114050198	20.66	79.95	primary,marginal
+ERR5260461	20	sap	167462	552757143	20.66	79.95	replicate
+ERR5247011	20	sap	49767	194628906	20.66	79.95	replicate
+ERR5260474	117	sap	22146	81044133	36.78	43.38	primary,marginal
+ERR5260468	13	sap	27713	91676722	30.30	81.97	primary,marginal
+##
+## marginal = depth near the 20x floor (samples 20, 13) or poor breadth
+## (sample 117 at 43% 1x coverage). Expect many drug-organism combinations
+## here to land in "insufficient coverage" rather than a call. That is the
+## correct outcome, not a failure -- 60 of the paper's 152 combinations did
+## the same. Do NOT collapse insufficient-coverage into susceptible.
+##
+## Filtration partners, for the depletion contrast on S. aureus specimens:
+##   patient_6   fil  ERR5260528   422282672
+##   patient_10  fil  ERR5260527     4230451
+##   patient_20  fil  ERR5260532   297404036
+##   patient_38  fil  ERR5261040    26557294
+##   patient_39  fil  ERR5260715     3932497
+##   patient_41  fil  ERR5260773    50953425
+##   patient_46  fil  ERR5260717    23091977
+##   patient_54  fil  ERR5260522    32921420
+##   patient_79  fil  ERR5260759   268673428
+##   patient_103 fil  ERR5260976    15919385
+##   patient_117 fil  ERR5260525    32455420

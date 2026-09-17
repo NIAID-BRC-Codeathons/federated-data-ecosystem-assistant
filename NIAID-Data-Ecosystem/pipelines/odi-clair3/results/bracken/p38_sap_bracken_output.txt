@@ -1,0 +1,5 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Staphylococcus aureus	1280	S	241066	786237	1027303	0.99983
+Staphylococcus saprophyticus	29385	S	17	1	18	0.00002
+Finegoldia magna	1260	S	132	6	138	0.00013
+Homo sapiens	9606	S	19	0	19	0.00002

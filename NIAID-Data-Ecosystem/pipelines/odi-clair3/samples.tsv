@@ -1,0 +1,54 @@
+## ODI nanopore cohort -- ENA PRJEB42910 / ERP126837 (Street et al. 2022, JCM)
+##
+## This is the DEPLETION cohort, selected on sequencing yield. For the AMR
+## cohort -- S. aureus specimens selected from the paper's own ground truth --
+## see amr_cohort.tsv. Yield turned out to be a poor proxy for S. aureus
+## content: only patients 119 and 103 below are S. aureus.
+##
+## Pulled from the ENA run report, confirmed via BV-BRC SRA metadata.
+## All rows are Oxford Nanopore GridION, WGS, SINGLE layout, taxon 256318.
+##
+## prep: sap = 5% saponin differential lysis
+##       fil = 5-micrometre filtration
+##
+## Three of the six high-yield saponin runs have a filtration partner from the
+## SAME patient specimen. The raw yield gap is dramatic before any mapping:
+##
+##   patient_22    4.16 Gb sap  vs  0.034 Gb fil   -- 121x
+##   patient_103   3.82 Gb sap  vs  0.016 Gb fil   -- 240x
+##   patient_72    5.37 Gb sap  vs  0.144 Gb fil   --  37x
+##
+## Yield alone is not the paper's claim, though -- the claim is about the
+## HUMAN FRACTION. Two aliquots can differ in total yield for ordinary
+## library reasons. The test that matters is the microbial yield and pathogen
+## breadth after mapping, which is what 05_depletion_summary.py computes.
+##
+## CAVEAT: these are the deposited NON-HUMAN reads. Street et al. state only
+## reads "classified as nonhuman" were submitted. So the absolute human
+## fraction is NOT recoverable from this deposit -- host depletion already
+## happened, then host reads were stripped again before upload. Do not report
+## a "% human" figure from these files and call it a reproduction of Table 1.
+##
+## Columns: run_accession  patient  prep  reads  bases  role
+run_accession	patient	prep	reads	bases	role
+ERR5260785	119	sap	2735794	7349284900	yield
+ERR5260607	25	sap	1667686	5564146077	yield
+ERR5260520	16	sap	1739475	5532460287	yield
+ERR5260530	72	sap	1291114	5365957886	yield,paired
+ERR5260738	22	sap	1169326	4164101831	yield,paired
+ERR5260958	103	sap	1310249	3821628038	yield,paired
+ERR5260516	72	fil	35068	143708893	paired
+ERR5260755	22	fil	7977	34314662	paired
+ERR5260976	103	fil	6198	15919385	paired
+##
+## Not in the cohort above, but present in the deposit:
+##   ERR5260515  patient_79 sap  779187 reads  3142695045 bases
+##   ERR5260611  patient_79 sap  899325 reads  3113343943 bases   (2nd sap run)
+##   ERR5260759  patient_79 fil   66162 reads   268673428 bases
+##   ERR5260478  patient_22 sap  384822 reads  1314720923 bases   (2nd sap run)
+## Patients 79 and 22 each have two saponin runs -- technical replicates,
+## useful as a stability check on whatever variant calls come out.
+##
+## Ground truth for every specimen is in catalogue/street2022_table_s3.tsv.
+## ENA patient_N == Table S3 sample N, verified by matching non-human base
+## counts to within 0.01%.

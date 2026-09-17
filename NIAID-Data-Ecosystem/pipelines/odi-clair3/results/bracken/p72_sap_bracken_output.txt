@@ -1,0 +1,7 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Streptococcus dysgalactiae	1334	S	65956	1159050	1225006	0.98815
+Streptococcus pyogenes	1314	S	59	302	361	0.00029
+Streptococcus agalactiae	1311	S	46	5718	5764	0.00465
+Streptococcus canis	1329	S	45	68	113	0.00009
+Streptococcus sp. NCTC 11567	2583584	S	37	8171	8208	0.00662
+Homo sapiens	9606	S	32	206	238	0.00019

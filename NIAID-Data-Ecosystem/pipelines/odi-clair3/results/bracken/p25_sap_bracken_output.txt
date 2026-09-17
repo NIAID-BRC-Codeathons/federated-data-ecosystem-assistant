@@ -1,0 +1,13 @@
+name	taxonomy_id	taxonomy_lvl	kraken_assigned_reads	added_reads	new_est_reads	fraction_total_reads
+Enterobacter hormaechei	158836	S	16460	1391493	1407953	0.88985
+Enterobacter roggenkampii	1812935	S	421	2204	2625	0.00166
+Enterobacter cloacae	550	S	13	101	114	0.00007
+Enterobacter sp. SGAir0187	2836161	S	1189	10873	12062	0.00762
+Enterobacter sp. AN-K1	2894203	S	352	47657	48009	0.03034
+Enterobacter mori	539813	S	176	1045	1221	0.00077
+Klebsiella pneumoniae	573	S	3837	39646	43483	0.02748
+Escherichia coli	562	S	1551	52764	54315	0.03433
+Acinetobacter johnsonii	40214	S	83	52	135	0.00009
+Methylorubrum extorquens	408	S	71	21	92	0.00006
+Cutibacterium acnes	1747	S	11043	1086	12129	0.00767
+Homo sapiens	9606	S	99	2	101	0.00006
