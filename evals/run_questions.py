@@ -173,14 +173,23 @@ def run_conditions(args, models: list[str], questions: list[tuple[str, str]]) ->
         "driver_sha256_8": hashlib.sha256(
             pathlib.Path(__file__).read_bytes()).hexdigest()[:8],
         "models": models,
-        "questions_file": str(QUESTIONS_MD.relative_to(REPO)),
+        "questions_file": QUESTIONS_MD.relative_to(REPO).as_posix(),
         "question_ids": [n for n, _ in questions],
         "prompt_variants": list(args.prompt),
         "repeats": args.repeat,
+        # NAMES only, never values -- and a name is listed only when its value is
+        # non-empty. `.env` carried NCBI_API_KEY= with nothing after it on 17 Sep,
+        # so a presence test alone would have recorded the key as available for
+        # every run made without one. Present-but-empty is the failure this whole
+        # project keeps meeting; it must not be reintroduced by the record of it.
         "env_names_present": sorted(
-            k for k in os.environ
-            if k in {"LLM_MODEL", "ARGO_USER", "ARGO_BASE_URL", "ANTHROPIC_API_KEY",
-                     "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY", "NCBI_API_KEY"}),
+            k for k in ("LLM_MODEL", "ARGO_USER", "ARGO_BASE_URL", "ANTHROPIC_API_KEY",
+                        "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY", "NCBI_API_KEY")
+            if os.environ.get(k, "").strip()),
+        "env_names_empty": sorted(
+            k for k in ("LLM_MODEL", "ARGO_USER", "ARGO_BASE_URL", "ANTHROPIC_API_KEY",
+                        "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY", "NCBI_API_KEY")
+            if k in os.environ and not os.environ.get(k, "").strip()),
         "servers": {n: c.get("url", "") for n, c in chatbot.MCP_SERVERS.items()},
         "prices_verified": PRICES_VERIFIED,
         "note": args.note or "",
@@ -399,7 +408,7 @@ async def run_one(agent, model: str, number: str, question: str) -> dict:
         # carrying a different SHA from q01.
         "run_id": _RUN_ID[0],
         "code_sha": _CODE_SHA[0],
-        "questions_file": str(QUESTIONS_MD.relative_to(REPO)),
+        "questions_file": QUESTIONS_MD.relative_to(REPO).as_posix(),
         "retries": 0,
         "attempts_discarded": [],
         "steps": steps,
@@ -424,7 +433,7 @@ def _error_record(model: str, number: str, question: str, exc: Exception) -> dic
             "tool_seconds": 0.0, "model_seconds": 0.0, "tool_timings": [],
             "list_cost_note": "run failed before any usage was reported",
             "run_id": _RUN_ID[0], "code_sha": _CODE_SHA[0],
-            "questions_file": str(QUESTIONS_MD.relative_to(REPO)),
+            "questions_file": QUESTIONS_MD.relative_to(REPO).as_posix(),
             "retries": 0, "attempts_discarded": []}
 
 
