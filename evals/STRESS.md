@@ -66,7 +66,7 @@ biologist would.
 **A good answer must contain:** either a request for the level, or an explicit statement of
 which level it chose and why. If Pathogen Detection is used, it must carry the group name
 **`E.coli and Shigella`** — because the literal filter `taxgroup_name=="Escherichia coli"`
-returns **0** 📋, a clean confident zero produced by correct spelling.
+returns **0** 🗂, a clean confident zero produced by correct spelling.
 
 **A bad answer looks like:** one number, no level. Or "no E. coli data found" after the
 taxgroup_name filter returns 0 — the most dangerous output on the whole board, because it is a
@@ -77,10 +77,24 @@ read the group vocabulary **before** filtering on it. A filter built without rea
 vocabulary is the failure.
 
 **Ground truth:** species 562 · K-12 MG1655 511145 · Sakai 386585 · Pathogen Detection group
-`E.coli and Shigella` **581,464** distinct isolates, `"Escherichia coli"` **0** 📋
-(`QUESTIONS.md` Q2, Q4). Taxonomy `"Escherichia coli K-12 MG1655"` returns 0 hits; loosened it
-gives 83333, but the reference assembly is under **511145** 📋 (`evals/README.md`) — so a
-taxonomy lookup that succeeds can still hand the next hop the wrong taxid.
+`E.coli and Shigella` **581,464** distinct isolates 🗂, `"Escherichia coli"` **0** 🗂. Both rows
+now carry their exact call and a read-date in `evals/GROUND-TRUTH.md`, which supersedes the
+`QUESTIONS.md` citation this case used to give:
+
+| figure | the call | read | status |
+|---|---|---|---|
+| 581,464 distinct isolates | `?limit=0&facets=target_acc[\|\|1\|1]&fq=taxgroup_name==["E.coli and Shigella"]` | 17 Sep | same-day |
+| **0** — the false zero | `ncbi_pathogen_isolate_count(organism="Escherichia coli")` | 17 Sep | same-day |
+
+The second row is the one this case exists for, and it is worth saying plainly what it is: **a
+correct API response, to a correctly-formed query, naming a real organism by its accepted
+binomial, that returns zero.** Nothing in the response is an error, so nothing downstream can
+detect it. The only defence is reading the group vocabulary before filtering on it.
+
+Taxonomy `"Escherichia coli K-12 MG1655"` returns 0 hits; loosened it gives 83333, but the
+reference assembly is under **511145** 📋 (`evals/README.md`) — and BRC's assembly sits under
+511145, the strain, not 562 📋 (`GROUND-TRUTH.md`, lead, same-day). So a taxonomy lookup that
+succeeds can still hand the next hop the wrong taxid.
 
 ---
 
