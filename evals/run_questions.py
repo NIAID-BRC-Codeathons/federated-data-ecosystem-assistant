@@ -660,7 +660,20 @@ async def main() -> int:
     if args.questions:
         global QUESTIONS_MD
         cand = pathlib.Path(args.questions)
-        QUESTIONS_MD = cand if cand.is_absolute() else (REPO / "evals" / cand)
+        # Resolve against several roots rather than one. `--questions ROUTING.md`
+        # and `--questions evals/ROUTING.md` are both natural to type, and joining
+        # every relative path to evals/ turned the second into evals/evals/ROUTING.md
+        # and failed at launch. Found by runner after every queued job in
+        # run-queue.md had been written with the repo-root spelling.
+        if cand.is_absolute():
+            QUESTIONS_MD = cand
+        else:
+            for root in (REPO / "evals", REPO, pathlib.Path.cwd()):
+                if (root / cand).exists():
+                    QUESTIONS_MD = root / cand
+                    break
+            else:
+                QUESTIONS_MD = REPO / "evals" / cand
         if not QUESTIONS_MD.exists():
             print(f"no such questions file: {QUESTIONS_MD}", file=sys.stderr)
             return 2
