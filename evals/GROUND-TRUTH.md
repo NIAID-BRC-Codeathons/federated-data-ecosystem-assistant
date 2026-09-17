@@ -223,8 +223,11 @@ These are asserted on slides and in `_reports/`, so they belong here too.
 | 66 | `@*.tool()` **definitions in source** across the nine ported servers on `main`; 66 unique, no collisions. **Excludes** the four remote `MCP_SERVERS` entries (`string`, `expasy`, `brc-analytics`, `bv-brc`) | `_reports/sentinel.md:155` | 17 Sep | same-day | sentinel |
 | 99 | tools that **load at runtime** across 12 of 13 servers with `bv-brc` forced to fail. **Includes** the remote servers — `string` alone advertises 17 | runner, against a forced BV-BRC failure | 17 Sep | same-day | runner |
 | 7.5 / 3 | req/s our three NCBI servers **target in sum** vs the per-IP ceiling | FINDING V5, from the source constants | 15:13 | live | verifier |
-| 25.8 / 10 | req/s the same three servers would target in sum **once an API key is set**, vs the keyed ceiling | FINDING V8, from the source constants | 16:12 | live | verifier |
-| 5.5 / 3 | req/s in sum with runner's `NCBI_MAX_RPS=1`; only `ncbi_lib` reads that variable | FINDING V8 | 16:12 | live | verifier |
+| ~~25.8 / 10~~ | **superseded at 16:03** — see the three rows below. Kept because I escalated it | FINDING V8 | 16:12 | **stale within 9 min** | verifier |
+| 6.5 / 3 | req/s the three NCBI servers target in sum **at current HEAD**, vs the per-IP ceiling | `geo.py` 1.0 + `pubmed.py` 2.5 + `ncbi_lib` 3.0 | 16:31 | **live** | verifier |
+| 22.4 / 10 | the same sum **once an API key is set** (3.33 + 9.09 + 10.0), vs the keyed ceiling | source constants at HEAD | 16:31 | **live** | verifier |
+| 4.5 / 3 | the same sum with `NCBI_MAX_RPS=1`; `pubmed.py` ignores it, so 2.5 of that is unreachable | source constants at HEAD | 16:31 | **live** | verifier |
+| 3.0 / 3 | req/s `ncbi_lib` claims **on its own** — the entire keyless ceiling, one server | `limiter.py:28` | 16:31 | **live** | verifier |
 | 7200 s | BV-BRC token lifetime the token itself **declares** (`expires_in`) | `.bvbrc_oauth_tokens.json`, key present, value read | 16:20 | live | verifier |
 | ~21 min | interval after which a re-auth was observed. **This is not a lifetime.** See FINDING V9 | `chatbot.py:112-120` comment, 14:20 to 14:41 | 16:20 | **WRONG as stated** | verifier |
 | 10 | local commits not on `origin/bobby/ncbi-and-brc-analytics` (`d5429ca`) | `_reports/STATUS.md` | 14:52 | same-day | lead |
@@ -316,6 +319,27 @@ Full write-up and a suggested rewrite in `_reports/verifier.md`. Escalated to th
 ---
 
 ## FINDING V8 — the NCBI API key does not fix the rate problem, it scales it
+
+> **Corrected 16:31, and the correction is against myself.** I escalated this at 16:08–16:12
+> quoting `geo.py` at a 0.5 s gap. Commit `38110ac` had already fixed `geo.py` at **16:03:05**
+> — five minutes before I sent it. My read was accurate when I took it and stale when I used
+> it, which is the exact failure this file exists to catch. The conclusion survives; the
+> numbers below are restated at HEAD. `geo.py` is no longer part of the problem.
+>
+> | limiter | keyless | keyed | honours `NCBI_MAX_RPS` |
+> |---|---:|---:|---|
+> | `geo.py` — fixed 16:03, divides by `NCBI_SERVER_SHARE` (default 3) | 1.00/s | 3.33/s | yes |
+> | `pubmed.py` — untouched since 12:24 | 2.50/s | 9.09/s | **no** |
+> | `ncbi_lib/limiter.py` — untouched since 09:12 | 3.00/s | 10.00/s | yes |
+> | **sum vs ceiling** | **6.5 vs 3** (2.17×) | **22.4 vs 10** (2.24×) | |
+>
+> So: still over on both, the key still makes the absolute overshoot worse, and the two
+> remaining offenders are `pubmed.py` — which reads neither `NCBI_MAX_RPS` nor
+> `NCBI_SERVER_SHARE` — and `ncbi_lib`, which claims the **whole** 3/s keyless ceiling by
+> itself. Applying `geo.py`'s own divide-by-share to both would land the sum at exactly 3.0/s.
+
+The original finding, as escalated, follows.
+
 
 `_reports/STATUS.md` item 1 asks Bobby for an NCBI API key on the reasoning that it triples
 our limit. That is true of the ceiling and not of what we emit, because all three limiters
