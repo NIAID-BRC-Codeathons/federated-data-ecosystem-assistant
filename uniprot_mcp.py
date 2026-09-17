@@ -46,6 +46,23 @@ ENTRY_FIELDS = (
     SUMMARY_FIELDS + ",cc_disease,cc_subcellular_location,cc_ptm,go"
 )
 
+
+def _comment_texts(entry: dict, comment_type: str) -> list[str]:
+    """Collect every text that one comment type carries.
+
+    An entry can hold several blocks of one type, one per chain. The SARS-CoV-2
+    replicase (P0DTD1) holds 16 function blocks. Two thirds of the reviewed
+    viral entries hold more than one, so reading only the first loses most of
+    the annotation.
+    """
+    return [
+        text.get("value", "")
+        for comment in entry.get("comments", [])
+        if comment.get("commentType") == comment_type
+        for text in comment.get("texts", [])
+    ]
+
+
 # UNIPROT TOOLS
 
 @mcp.tool()
@@ -113,22 +130,24 @@ def uniprot_search(
 
 @mcp.tool()
 def uniprot_get_entry(accession: str) -> dict:
-    """Fetch the full UniProt entry for a protein by its accession number.
+    """Fetch the curated annotation for one protein by its accession.
 
-    Retrieves curated annotation including: function, subcellular location,
-    tissue expression, disease involvement, post-translational modifications,
-    active/binding sites, and associated GO terms.
+    This tool covers one protein per call, and it costs about twice what
+    uniprot_get_protein_info costs. Call it when you need the diseases, the
+    subcellular locations, the PTMs, or the GO terms. Call
+    uniprot_get_protein_info instead when the name, the organism, and the
+    function answer the question, or when you hold several accessions.
 
     Args:
         accession: UniProt accession (e.g. "P04637" for human TP53,
             "P01308" for human insulin, "P38398" for BRCA1).
 
     Returns:
-        Rich annotation dict: function, location, diseases, PTMs, interactions,
-        GO terms, sequence length, and AlphaFold structure URL.
+        Dict with the accession, the gene, the protein name, the organism, the
+        length, the review status, the function texts, the subcellular
+        locations, the diseases, the PTM texts, and up to 10 GO terms.
 
     Example questions:
-        "What is the function of P04637?"
         "What diseases is BRCA1 (P38398) involved in?"
         "Where is human insulin localized in the cell?"
     """
@@ -140,14 +159,7 @@ def uniprot_get_entry(accession: str) -> dict:
     )
     resp.raise_for_status()
     e = resp.json()
-    # Extract function comments
     comments = e.get("comments", [])
-    def get_comment(ctype):
-        for c in comments:
-            if c.get("commentType") == ctype:
-                texts = c.get("texts", [])
-                return " ".join(t.get("value", "") for t in texts)
-        return None
     # Diseases
     diseases = []
     for c in comments:
@@ -193,10 +205,10 @@ def uniprot_get_entry(accession: str) -> dict:
         "organism": e.get("organism", {}).get("scientificName"),
         "length_aa": e.get("sequence", {}).get("length"),
         "reviewed": e.get("entryType") == "UniProtKB reviewed (Swiss-Prot)",
-        "function": get_comment("FUNCTION"),
+        "function": _comment_texts(e, "FUNCTION"),
         "subcellular_locations": list(set(locations)),
         "diseases": diseases,
-        "ptm_processing": get_comment("PTM"),
+        "ptm_processing": _comment_texts(e, "PTM"),
         "go_terms": go_terms[:10],
     }
 
@@ -209,14 +221,7 @@ def _clean_accession(value: str) -> str:
 def _summarize(entry: dict, include_sequence: bool) -> dict:
     """Reduce a UniProt entry to the summary fields."""
     genes = entry.get("genes") or [{}]
-    # An entry can carry several FUNCTION comments. A viral polyprotein such as
-    # the SARS-CoV-2 spike (P0DTC2) carries three, one per chain. Keep them all.
-    functions = [
-        text.get("value", "")
-        for comment in entry.get("comments", [])
-        if comment.get("commentType") == "FUNCTION"
-        for text in comment.get("texts", [])
-    ]
+    functions = _comment_texts(entry, "FUNCTION")
     sequence = entry.get("sequence", {})
     summary = {
         "accession": entry.get("primaryAccession"),
