@@ -32,6 +32,31 @@ Argo returns HTTP 200 with "ACCESS DENIED" as the assistant's *content* when the
 username is not authorised -- there is no auth error to catch. A model whose
 first reply says that is marked denied and skipped for the rest of the run,
 rather than recording fifteen nonsense answers.
+
+IF YOU IMPORT THIS MODULE TO PROBE IT, REASSIGN `RUNS` FIRST.
+
+    import run_questions as rq
+    rq.RUNS = pathlib.Path(tempfile.mkdtemp())     # <-- before calling anything
+
+run_model() and run_one() write into `RUNS` unconditionally. A probe that stubs
+out the model and calls the real loop still writes real files into
+evals/runs/<model>/, so a test of the FAILURE path can destroy a completed run
+without any model being involved and without spending a token.
+
+That is not hypothetical. On 17 Sep an audit agent did exactly this: it stubbed
+run_one, called the real run_model with synthetic questions "question 1".."question
+15", and wrote fifteen error stubs over a complete argo/claudesonnet45 run --
+about 31.8k output tokens over 2.29M input tokens of gateway spend, including the
+six silent empties that were the raw evidence for an afternoon's analysis.
+
+The part worth remembering is how it verified itself. It restored the scorecard
+with `git checkout --`, ran `git status --porcelain`, saw CLEAN, and reported no
+other file touched. The status was clean *because* the destroyed transcripts were
+gitignored at the time. Its check could not see the damage it had done.
+
+Two things changed as a result: transcripts are tracked, and the failure path
+refuses to overwrite a transcript whose summary shows success. Neither removes
+the need to reassign RUNS.
 """
 
 from __future__ import annotations
