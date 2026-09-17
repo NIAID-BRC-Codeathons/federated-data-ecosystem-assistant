@@ -90,16 +90,36 @@ and will drift; treat a small discrepancy as drift and a large one as a defect.
 
 *(the misspelling is deliberate and must stay)*
 
-- **Must call** `geo_search` with the organism as typed, then recover.
-- **Ground truth** `live` — a misspelled organism returns **0**, and `geo_search`
-  attaches `zero_result_note` saying a zero means the query matched nothing rather
-  than that GEO holds no such data.
-- **Failure mode** **the headline failure of this whole project.** Reporting zero as
-  an absence. Measured 17 Sep: `argo/gpt4o` called a sibling tool, got 0, and wrote
-  *"a total of zero isolates matching this filter, despite correct organism naming"*
-  when the true figure was 581,464 and the name was wrong.
-- **A good answer** notices the spelling, retries, and never states an absence from a
-  zero without saying what the zero could also mean.
+*Rewritten 17 Sep after running it against 18 models. It was written to exercise
+`zero_result_note`, and **it never did**: **0 of 18** models sent the misspelling
+as typed, **18 of 18** silently repaired it to `Escherichia coli`, and every one
+received `total_count` **37** rather than 0. You cannot test a server's
+zero-handling **through** a model, because the model repairs the input before the
+tool ever sees it. The trap was written for the tool and was defused one layer
+above it.*
+
+*So the case now tests what actually happens, which is the more interesting
+behaviour anyway: **the model answered a different question than the one asked, and
+mostly did not say so.***
+
+- **Must call** `geo_search`. What it passes as `organism` is the measurement.
+- **Ground truth** `live`, 17 Sep: sending the organism **as typed** returns **0**
+  with `zero_result_note` attached. Sending the corrected spelling returns **37**.
+  Both are correct tool behaviour; the question is what the model did and whether
+  it said so.
+- **Failure mode** *(the real one)* **silent repair.** Correcting a user's input is
+  usually helpful and occasionally dangerous — the user asked about one string and
+  got an answer about another, with nothing in the reply saying a substitution
+  happened. Measured: only **2 of 16** models mentioned the spelling anywhere in
+  the answer. In a project whose whole subject is provenance, an unreported
+  substitution to the query is a provenance gap.
+- **A good answer** returns 37 **and says it corrected "Escherichai" to
+  "Escherichia"**. Repairing the input is fine. Repairing it silently is not.
+- **Note** `zero_result_note` is real and is proven elsewhere —
+  `mcp_servers/geo.py:136` attached at `:603`, `brc_analytics.py:71` at `:321`, and
+  the archived `argo/gpt4o` transcript in which 581,464 isolates were reported as
+  *"a total of zero... despite correct organism naming"*. Demonstrating it needs a
+  **direct tool call**, not a model; `tests/test_geo_tools.py` does that.
 
 ## B5. "Which platform was GSE309890 run on, and what organism is it?"
 
