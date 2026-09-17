@@ -1,0 +1,49 @@
+{
+  "success":true,
+  "ngout": {
+    "status": [
+     {
+        "statusreturn": 0
+      }],
+  "data": {
+      "content": 
+[
+  {
+    "biosample_acc":"SAMEA1033436",
+    "isolation_source":"blood",
+    "scientific_name":"Staphylococcus aureus",
+    "target_acc":"PDT000079411.2",
+    "AMR_genotypes":[
+      "blaR1=HMM",
+      "blaZ=COMPLETE",
+      "glpT_A100V=POINT",
+      "mecC=COMPLETE",
+      "mecI=COMPLETE",
+      "mepA=COMPLETE",
+      "murA_E291D=POINT",
+      "murA_T396N=POINT",
+      "tet(38)=COMPLETE"
+    ]
+  },
+  {
+    "biosample_acc":"SAMEA1033436",
+    "isolation_source":"blood",
+    "scientific_name":"Staphylococcus aureus",
+    "target_acc":"PDT000079411.2",
+    "AMR_genotypes":[
+      "blaR1=HMM",
+      "blaZ=COMPLETE",
+      "glpT_A100V=POINT",
+      "mecC=COMPLETE",
+      "mecI=COMPLETE",
+      "mepA=COMPLETE",
+      "murA_E291D=POINT",
+      "murA_T396N=POINT",
+      "tet(38)=COMPLETE"
+    ]
+  }
+], "totalCount": 2
+  }
+
+ }
+}

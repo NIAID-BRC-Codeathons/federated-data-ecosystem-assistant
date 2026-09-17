@@ -25,6 +25,10 @@ MCP_SERVERS = {
             "url": "https://chat.expasy.org/mcp/",
             "transport": "streamable_http",
         },
+        "brc-analytics": {
+            "url": "https://brc-analytics.org/api/v1/mcp/",
+            "transport": "streamable_http",
+        },
         "pdn": {
             "url": "http://127.0.0.1:8001/mcp-pdn",
             "transport": "streamable_http",
@@ -39,6 +43,14 @@ MCP_SERVERS = {
         },
         "myvariant": {
             "url": "http://127.0.0.1:8004/mcp-myvariant",
+            "transport": "streamable_http",
+        },
+        "ncbi": {
+            "url": "http://127.0.0.1:8005/mcp-ncbi",
+            "transport": "streamable_http",
+        },
+        "pubmed": {
+            "url": "http://127.0.0.1:8006/mcp-pubmed",
             "transport": "streamable_http",
         },
     }
