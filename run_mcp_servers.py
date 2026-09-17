@@ -12,8 +12,9 @@ SERVERS = [
     "uniprot.py",        # 8003
     "myvariant.py",      # 8004
     "ncbi.py",           # 8005
-    "brc_analytics.py",  # 8006
+    "pubmed.py",         # 8006
     "geo.py",            # 8007
+    "brc_analytics.py",  # 8008
 ]
 
 procs = [subprocess.Popen(["uv", "run", f"mcp_servers/{name}"]) for name in SERVERS]

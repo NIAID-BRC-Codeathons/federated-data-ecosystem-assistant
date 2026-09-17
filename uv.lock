@@ -421,6 +421,7 @@ dependencies = [
     { name = "langchain-ollama" },
     { name = "langchain-openai" },
     { name = "mcp" },
+    { name = "python-dotenv" },
     { name = "requests" },
     { name = "sqlalchemy" },
 ]
@@ -444,6 +445,7 @@ requires-dist = [
     { name = "langchain-ollama", specifier = ">=1.1.0" },
     { name = "langchain-openai", specifier = ">=1.2.1" },
     { name = "mcp", specifier = ">=1.15.0,<2" },
+    { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "sqlalchemy", specifier = ">=2.0.40" },
 ]

@@ -25,6 +25,10 @@ MCP_SERVERS = {
             "url": "https://chat.expasy.org/mcp/",
             "transport": "streamable_http",
         },
+        "brc-analytics": {
+            "url": "https://brc-analytics.org/api/v1/mcp/",
+            "transport": "streamable_http",
+        },
         "pdn": {
             "url": "http://127.0.0.1:8001/mcp-pdn",
             "transport": "streamable_http",
@@ -45,25 +49,22 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8005/mcp-ncbi",
             "transport": "streamable_http",
         },
+        "pubmed": {
+            "url": "http://127.0.0.1:8006/mcp-pubmed",
+            "transport": "streamable_http",
+        },
         "geo": {
-            # GEO is the only source here with processed gene expression.
+            # GEO is the only source registered here with processed gene
+            # expression: what genes changed, under what treatment.
             "url": "http://127.0.0.1:8007/mcp-geo",
             "transport": "streamable_http",
         },
-        "brc_analytics": {
-            # Federated, not reimplemented: BRC Analytics publishes this server
-            # themselves and it is read-only and anonymous. 12 tools.
-            # The trailing slash is mandatory. Without it the server answers 307
-            # to a plain http:// URL, and the MCP client refuses to follow an
-            # https to http downgrade, so the call surfaces as an HTTP error.
-            "url": "https://brc-analytics.org/api/v1/mcp/",
-            "transport": "streamable_http",
-        },
         "brc_analytics_local": {
-            # The complement to the line above, covering what their server does
-            # not: ENA paging past its hard 50-row cap, a working keyword search
-            # (theirs returns HTTP 400), and study lookup (theirs returns 500).
-            "url": "http://127.0.0.1:8006/mcp-brc-analytics",
+            # Complements "brc-analytics" above, which is BRC's own public
+            # server. This covers only what that server cannot do: ENA paging
+            # past its hard 50-row cap and the real total, a working keyword
+            # search (theirs answers HTTP 400), and study lookup (theirs 500s).
+            "url": "http://127.0.0.1:8008/mcp-brc-analytics",
             "transport": "streamable_http",
         },
     }

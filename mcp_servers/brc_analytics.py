@@ -23,7 +23,7 @@ plain-http link rather than handing it back silently. The BRC catalog does publi
 
 Read and execute stay in different servers. Nothing here can start a Galaxy job.
 
-Run over HTTP:  uv run mcp_servers/brc_analytics.py --port 8006
+Run over HTTP:  uv run mcp_servers/brc_analytics.py --port 8008
 Run over stdio: uv run mcp_servers/brc_analytics.py --stdio
 """
 
@@ -42,7 +42,7 @@ mcp = FastMCP(
         "sequencing runs in ENA: real totals, paging past 50 results, keyword "
         "search, and study lookup."
     ),
-    port=8006,
+    port=8008,
     streamable_http_path="/mcp-brc-analytics",
 )
 
@@ -465,7 +465,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="BRC Analytics complement MCP server")
     parser.add_argument("--stdio", action="store_true", help="run over stdio")
-    parser.add_argument("--port", type=int, default=8006, help="HTTP port")
+    parser.add_argument("--port", type=int, default=8008, help="HTTP port")
     args = parser.parse_args()
 
     if args.stdio:

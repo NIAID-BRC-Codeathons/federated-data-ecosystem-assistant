@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: fdea-ncbi-mcp
+Version: 0.1.0
+Summary: MCP server exposing NCBI E-utilities (SRA, BioSample, BioProject, PubMed, Taxonomy, Gene, Assembly, sequences) to an agent.
+Requires-Python: >=3.10
+Requires-Dist: fastmcp>=4.0
+Requires-Dist: httpx2>=2.5
+Requires-Dist: typing-extensions>=4.0
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"

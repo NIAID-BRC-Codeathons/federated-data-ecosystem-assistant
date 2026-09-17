@@ -1,0 +1,7 @@
+fastmcp>=4.0
+httpx2>=2.5
+typing-extensions>=4.0
+
+[dev]
+pytest
+pytest-asyncio
