@@ -63,12 +63,24 @@ from langchain_core.messages import AIMessageChunk, HumanMessage, ToolMessage  #
 
 QUESTIONS_MD = REPO / "evals" / "QUESTIONS.md"
 RUNS = REPO / "evals" / "runs"
+RUN_TAG = ""   # "-minimal", "-r2", set per run by run_model
 COMPARISON = REPO / "evals" / "model-comparison.md"
 
 # `## Q7. "Which E. coli ..." — NCBI ↔ BRC`  ->  (7, 'Which E. coli ...')
 _Q = re.compile(r'^## Q(\d+)\.\s+"(.+?)"')
 
 DENIAL = "ACCESS DENIED"
+
+# Prompt ablation. "paper" is whatever chatbot.py ships (the 57-line research-paper
+# prompt on main); "minimal" is the three-line prompt the repo started with; "none"
+# is no system prompt at all. Comparing the three per model measures what the
+# prompt actually buys -- tool selection, refusal quality, answer shape -- rather
+# than assuming it.
+MINIMAL_PROMPT = """You are a bioinformatics assistant with access to several databases.
+Always use tools to retrieve real data, never invent accessions or sequences.
+For multi-step questions, chain tools: search -> get entry -> get interactions.
+"""
+PROMPTS = {"paper": None, "minimal": MINIMAL_PROMPT, "none": ""}
 RESULT_EXCERPT = 600
 
 
@@ -84,7 +96,7 @@ def load_questions() -> list[tuple[int, str]]:
 
 def _safe(model: str) -> str:
     """argo/claudesonnet45 -> argo_claudesonnet45, usable as a directory name."""
-    return re.sub(r"[^A-Za-z0-9._-]+", "_", model)
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", model) + RUN_TAG
 
 
 def _tool_calls(msg) -> list[dict]:
@@ -260,8 +272,13 @@ def write_comparison(by_model: dict[str, list[dict]], questions: list[tuple[int,
     COMPARISON.write_text("\n".join(L), encoding="utf-8")
 
 
-async def run_model(model: str, questions: list[tuple[int, str]]) -> list[dict]:
+async def run_model(model: str, questions: list[tuple[int, str]],
+                    prompt: str = "paper", rep: int = 0) -> list[dict]:
     chatbot.LLM_MODEL = model            # load_chat_model reads this at init_agent()
+    if PROMPTS.get(prompt) is not None:  # "paper" leaves chatbot.SYSTEM_PROMPT alone
+        chatbot.SYSTEM_PROMPT = PROMPTS[prompt]
+    global RUN_TAG
+    RUN_TAG = (f"-{prompt}" if prompt != "paper" else "") + (f"-r{rep}" if rep else "")
     print(f"\n===== {model} =====\nconnecting to MCP servers ...")
     try:
         agent = await chatbot.init_agent()
@@ -300,6 +317,10 @@ async def main() -> int:
     ap.add_argument("--model", nargs="*",
                     help="one or more LLM_MODEL values, e.g. argo/gpt4o argo/claudesonnet45; "
                          "default is LLM_MODEL from .env")
+    ap.add_argument("--prompt", nargs="*", choices=list(PROMPTS), default=["paper"],
+                    help="system-prompt variants to run: paper (as shipped), minimal, none")
+    ap.add_argument("--repeat", type=int, default=1,
+                    help="run each model/prompt N times to measure tool-selection variance")
     ap.add_argument("--dry-run", action="store_true", help="list questions and exit")
     args = ap.parse_args()
 
@@ -318,7 +339,11 @@ async def main() -> int:
 
     by_model: dict[str, list[dict]] = {}
     for model in models:
-        by_model[model] = await run_model(model, questions)
+        for prompt in args.prompt:
+            for rep in range(args.repeat):
+                label = model + ("" if prompt == "paper" else f" [{prompt}]") + \
+                        ("" if args.repeat == 1 else f" #{rep + 1}")
+                by_model[label] = await run_model(model, questions, prompt=prompt, rep=rep)
 
     if args.model:
         write_comparison(by_model, questions)
