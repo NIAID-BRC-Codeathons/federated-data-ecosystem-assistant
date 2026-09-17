@@ -140,6 +140,29 @@ MAX_EMPTY_RETRIES = 2
 MAX_DENIAL_RETRIES = 1
 DENIAL_STREAK_TO_ABANDON = 3
 
+# Stop retrying silent empties for a model that has never recovered from one.
+#
+# Measured 17 Sep, argo/claudesonnet45 over the 15-question set: 6 questions came
+# back silent-empty and **0 of 6 recovered** across two retries each at a 2s/4s
+# backoff. Each attempt still billed its full input, so every unrecovered cell
+# cost about 113,000 input tokens for zero output.
+#
+# It is not question content -- argo/claudeopus5 answered the identical Q1 with 13
+# tool calls -- and it is not context size: the same model earlier answered fine at
+# 100,864, 170,257 and 224,806 input tokens while failing at 33,028. So retrying is
+# the right default for a fault whose rate is unknown, and the wrong one once a
+# model has shown it does not recover.
+#
+# The breaker keeps the first few retries, because that is the evidence that the
+# fault does not recover, and then stops spending on the same answer. Every cell is
+# still recorded as a fault, so the RATE is unaffected -- only the bill is.
+EMPTY_FAILURES_BEFORE_GIVING_UP = 3
+
+# Backoff between retries, seconds, indexed by attempt number. Longer than the
+# original 2s/4s because 2s/4s recovered nothing, and a transport that needs more
+# than eight seconds is worth distinguishing from one that is simply broken.
+EMPTY_BACKOFF = (4.0, 10.0)
+
 
 def is_silent_empty(rec: dict) -> bool:
     """The model returned nothing and gave no reason for it."""
@@ -444,12 +467,57 @@ async def run_one(agent, model: str, number: str, question: str) -> dict:
     out_dir = RUNS / _safe(model)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{_filename_id(number)}.jsonl"
+    # The path goes ON the record so the retry loop can come back and correct
+    # this file. run_one() writes the transcript on every attempt, so a retried
+    # question is overwritten by its own final attempt, and any annotation the
+    # caller adds afterwards lives only in memory unless it is written back.
+    record["_jsonl_path"] = str(path)
+    _write_transcript(path, steps, record)
+    return record
+
+
+def _summary_of(record: dict) -> dict:
+    """The summary line as written: everything except the bulky internal fields."""
+    return {k: v for k, v in record.items() if k not in ("steps", "_jsonl_path")}
+
+
+def _write_transcript(path: pathlib.Path, steps: list[dict], record: dict) -> None:
     with path.open("w", encoding="utf-8") as f:
         for step in steps:
             f.write(json.dumps(step, ensure_ascii=False) + "\n")
-        f.write(json.dumps({"summary": {k: v for k, v in record.items() if k != "steps"}},
-                           ensure_ascii=False) + "\n")
-    return record
+        f.write(json.dumps({"summary": _summary_of(record)}, ensure_ascii=False) + "\n")
+
+
+def rewrite_summary(record: dict) -> bool:
+    """Replace the summary line of a record's transcript with the current one.
+
+    Without this the per-question .jsonl disagrees with the scorecard about the
+    same cell. run_one() writes the file; the retry loop then annotates the
+    in-memory record with `retries`, `attempts_discarded` and the
+    "silent empty after N retries" error. write_scorecard() and
+    model-comparison.md are built from those in-memory records and were right,
+    but the .jsonl kept the untouched final attempt: error null, retries 0,
+    attempts_discarded empty.
+
+    The .jsonl is what the scoring chats read, so judge was reading every
+    silent-empty cell as a model that had chosen to answer nothing. A transport
+    fault scored as a capability is the exact mistake the retry exists to
+    prevent, so the fix for it must not reintroduce it one file over.
+
+    Found by the runner chat, 17 Sep, from a live matrix cell.
+    """
+    raw = record.get("_jsonl_path")
+    if not raw:
+        return False
+    path = pathlib.Path(raw)
+    if not path.exists():
+        return False
+    lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if lines and '"summary"' in lines[-1]:
+        lines = lines[:-1]
+    lines.append(json.dumps({"summary": _summary_of(record)}, ensure_ascii=False))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
 
 
 def _error_record(model: str, number: str, question: str, exc: Exception) -> dict:
@@ -574,17 +642,29 @@ async def run_model(model: str, questions: list[tuple[int, str]],
 
     records: list[dict] = []
     denial_streak = 0
+    empty_unrecovered = 0      # silent empties this model never came back from
+    empty_recovered = 0        # ... and ones it did
     for n, q in questions:
         print(f"--- {n}: {q[:80]}")
         try:
             rec = await run_one(agent, model, n, q)
             discarded: list[dict] = []
             attempts = 0
+            # Once a model has failed to recover from several silent empties in a
+            # row, retrying it again buys nothing and costs a full input charge
+            # per attempt. Recording the fault is what matters; paying three times
+            # to record it is not. A single recovery re-earns the retries, because
+            # it proves the fault is transient for this model after all.
+            retry_empties = (empty_recovered > 0
+                             or empty_unrecovered < EMPTY_FAILURES_BEFORE_GIVING_UP)
             # Retry ONLY the two transport faults. A real error, or a genuine
             # no-tool answer, stands as measured -- those are results.
             while True:
                 fault = fault_kind(rec)
-                cap = MAX_EMPTY_RETRIES if fault == "silent_empty" else MAX_DENIAL_RETRIES
+                if fault == "silent_empty":
+                    cap = MAX_EMPTY_RETRIES if retry_empties else 0
+                else:
+                    cap = MAX_DENIAL_RETRIES
                 if fault is None or attempts >= cap:
                     break
                 attempts += 1
@@ -601,10 +681,26 @@ async def run_model(model: str, questions: list[tuple[int, str]],
                           f"input tokens billed" if fault == "silent_empty"
                           else "Argo returned ACCESS DENIED as content (intermittent)")
                 print(f"    {fault.upper()} ({detail}) -- retry {attempts}/{cap}")
-                await asyncio.sleep(2.0 * attempts)
+                await asyncio.sleep(EMPTY_BACKOFF[min(attempts - 1, len(EMPTY_BACKOFF) - 1)]
+                                    if fault == "silent_empty" else 2.0 * attempts)
                 rec = await run_one(agent, model, n, q)
             rec["retries"] = attempts
             rec["attempts_discarded"] = discarded
+            rec["retries_suppressed"] = not retry_empties
+            if is_silent_empty(rec):
+                empty_unrecovered += 1
+                if not retry_empties:
+                    # Say it every time. A silent empty that was never retried
+                    # must not be mistaken later for one that was.
+                    rec["error"] = (
+                        f"silent empty, not retried: this model failed to recover "
+                        f"from {EMPTY_FAILURES_BEFORE_GIVING_UP} silent empties in a "
+                        f"row, so retries were suppressed to stop billing input "
+                        f"tokens for an answer that does not arrive")
+                    print(f"    SILENT EMPTY, retries suppressed "
+                          f"({empty_unrecovered} unrecovered so far for this model)")
+            elif attempts:
+                empty_recovered += 1
             if attempts and is_silent_empty(rec):
                 # Still empty after retries, so now it IS a finding. Say so in the
                 # record; a blank answer must never be left to speak for itself.
@@ -613,6 +709,13 @@ async def run_model(model: str, questions: list[tuple[int, str]],
                 print(f"    still empty after {attempts} retries -- recorded as an error")
             elif attempts and not fault_kind(rec):
                 print(f"    recovered on retry {attempts}")
+            if attempts:
+                # Push the annotation back into the transcript, or the file the
+                # scoring chats read disagrees with the scorecard about the same
+                # cell -- and the .jsonl is the one they read.
+                if not rewrite_summary(rec):
+                    print("    WARNING: could not rewrite the transcript summary; "
+                          "this question's .jsonl understates its retries")
         except Exception as exc:  # one bad question must not lose the run
             print(f"    FAILED: {type(exc).__name__}: {str(exc)[:160]}")
             records.append(_error_record(model, n, q, exc))
