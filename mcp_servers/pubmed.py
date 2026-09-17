@@ -221,10 +221,10 @@ def _esummary(pmids: list[str]) -> dict[str, dict]:
 def _efetch_xml(pmids: list[str]) -> list[ET.Element]:
     """Fetch full records as XML. Returns the <PubmedArticle> elements found.
 
-    An id efetch cannot resolve does not raise or come back empty in an
-    obvious way -- it returns a near-blank text stub with no error, verified
-    live against a made-up PMID. Parsed as XML, that id is simply missing
-    from the elements returned, which the caller checks for explicitly.
+    An id efetch cannot resolve does not raise -- it answers HTTP 200 with a
+    well-formed but empty <PubmedArticleSet></PubmedArticleSet>, verified
+    live against a made-up PMID. findall then returns an empty list rather
+    than raising a parse error, which the caller checks for explicitly.
     """
     if not pmids:
         return []
@@ -599,8 +599,8 @@ def pubmed_get_article(pmid: str, sections: str = "core,abstract") -> dict:
 
     articles = _efetch_xml([pmid])
     if not articles:
-        # Verified live: efetch on an id it cannot resolve returns a
-        # near-blank stub with HTTP 200, not an error, so this is the only
+        # Verified live: efetch on an id it cannot resolve answers HTTP 200
+        # with an empty PubmedArticleSet, not an error, so this is the only
         # place that failure surfaces.
         raise ToolError(f"No PubMed record found for pmid '{pmid}'. Check the id with pubmed_get_summaries first.")
     article = articles[0]
