@@ -239,18 +239,32 @@ async def _oauth_callback_handler() -> tuple[str, str | None]:
     return result.get("code", ""), result.get("state")
 
 
-def _bvbrc_auth() -> OAuthClientProvider:
-    """Build an OAuthClientProvider for the BV-BRC MCP server."""
-    return OAuthClientProvider(
-        server_url="https://dev-9.bv-brc.org",
-        client_metadata=OAuthClientMetadata(
-            redirect_uris=[f"http://localhost:{OAUTH_CALLBACK_PORT}/callback"],
-            client_name="BV-BRC Chatbot",
-        ),
-        storage=_FileTokenStorage(OAUTH_TOKEN_FILE),
-        redirect_handler=_oauth_redirect_handler,
-        callback_handler=_oauth_callback_handler,
-    )
+def _bvbrc_connection() -> dict:
+    """Build the MCP connection config for the BV-BRC server.
+
+    If P3_AUTH_TOKEN is set, use it directly as a bearer token header.
+    Otherwise, fall back to the full OAuth browser flow.
+    """
+    conn: dict = {
+        "url": "https://dev-9.bv-brc.org",
+        "transport": "streamable_http",
+    }
+    token = os.environ.get("P3_AUTH_TOKEN")
+    if token:
+        print("[bv-brc] Using P3_AUTH_TOKEN for authentication")
+        conn["headers"] = {"Authorization": f"Bearer {token}"}
+    else:
+        conn["auth"] = OAuthClientProvider(
+            server_url="https://dev-9.bv-brc.org",
+            client_metadata=OAuthClientMetadata(
+                redirect_uris=[f"http://localhost:{OAUTH_CALLBACK_PORT}/callback"],
+                client_name="BV-BRC Chatbot",
+            ),
+            storage=_FileTokenStorage(OAUTH_TOKEN_FILE),
+            redirect_handler=_oauth_redirect_handler,
+            callback_handler=_oauth_callback_handler,
+        )
+    return conn
 
 
 # Existing MCP servers or local ones running on localhost. The local servers are started by the `mcp_servers` scripts.
@@ -295,11 +309,7 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8007/mcp-nde",
             "transport": "streamable_http",
         },
-        "bv-brc": {
-            "url": "https://dev-9.bv-brc.org",
-            "transport": "streamable_http",
-            "auth": _bvbrc_auth(),
-        },
+        "bv-brc": _bvbrc_connection(),
         "geo": {
             # GEO is the only source registered here with processed gene
             # expression: what genes changed, under what treatment.
