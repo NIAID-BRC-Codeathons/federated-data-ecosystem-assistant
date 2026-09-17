@@ -38,7 +38,7 @@ costs you its tools and nothing else. It refuses to start only if nothing answer
 
 ## The two BRC entries, and why there are two
 
-`brc_analytics` is BRC's own public MCP server, federated as-is — 12 read-only tools,
+`brc-analytics` is BRC's own public MCP server, federated as-is (registered on main by PR #7) — 12 read-only tools,
 no auth, not reimplemented here.
 
 `brc_analytics_local` is `mcp_servers/brc_analytics.py`, and it adds only what that
