@@ -75,7 +75,10 @@ DATABASES: dict[str, DatabaseInfo] = {
             "rettype=abstract is ~1.6 KB/record. Required for abstract text: "
             "the esummary record has no abstract field at all."
         ),
-        tool="ncbi_pubmed_search / ncbi_pubmed_abstracts",
+        # This server no longer reaches PubMed: ncbi_pubmed_search and
+        # ncbi_pubmed_abstracts are unregistered in favour of the standalone
+        # pubmed server, so name that rather than a tool the model cannot call.
+        tool="the standalone pubmed server (pubmed_* tools), not this one",
     ),
     "taxonomy": DatabaseInfo(
         name="taxonomy",

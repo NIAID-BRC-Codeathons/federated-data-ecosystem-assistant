@@ -367,7 +367,9 @@ def _history_params(history: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-@server.tool()
+# Unregistered as a tool: ncbi_describe_database covers the same ground, and
+# the curated list it returned is still reachable through databases.py. The
+# function stays; unregistering is one decorator to put back.
 async def ncbi_list_databases() -> dict[str, Any]:
     """List the NCBI Entrez databases this server has curated tools for.
 
@@ -423,7 +425,7 @@ async def ncbi_describe_database(
         if not infos:
             raise _fail(
                 f"NCBI returned no description for db={db!r}. "
-                "Call ncbi_list_databases to see valid names."
+                f"Curated databases: {', '.join(sorted(DATABASES))}."
             )
         info = infos[0]
         fields = [
@@ -780,9 +782,12 @@ async def ncbi_sra_run_metadata(
 # --------------------------------------------------------------------------
 # literature
 # --------------------------------------------------------------------------
+# Unregistered as tools: the standalone pubmed server covers PubMed, and two
+# routes to the same database only gave the model a choice it got wrong. The
+# functions stay because databases.py and the error hints below still name
+# them, and because unregistering is one decorator to put back.
 
 
-@server.tool()
 async def ncbi_pubmed_search(
     query: Annotated[
         str,
@@ -849,7 +854,6 @@ async def ncbi_pubmed_search(
     return await _run(body, "ncbi_pubmed_search")
 
 
-@server.tool()
 async def ncbi_pubmed_abstracts(
     pmids: Annotated[
         str | list[str],

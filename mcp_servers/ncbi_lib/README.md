@@ -169,15 +169,21 @@ one request per database ever.
 
 ## Tools
 
-**Discovery** — `ncbi_list_databases`, `ncbi_describe_database`
+**Discovery** — `ncbi_describe_database`
 
 **SRA** — `ncbi_sra_search` (typed organism/strategy/platform/layout parameters,
 so no Entrez syntax needed), `ncbi_sra_runs_for_project` (everything in a PRJNA
 accession), `ncbi_sra_run_metadata`
 
-**Other databases** — `ncbi_pubmed_search`, `ncbi_pubmed_abstracts`,
-`ncbi_biosample_metadata`, `ncbi_bioproject_summary`, `ncbi_taxonomy_lookup`,
-`ncbi_gene_info`, `ncbi_assembly_info`, `ncbi_sequence_fetch`
+**Other databases** — `ncbi_biosample_metadata`, `ncbi_bioproject_summary`,
+`ncbi_taxonomy_lookup`, `ncbi_gene_info`, `ncbi_assembly_info`,
+`ncbi_sequence_fetch`
+
+PubMed is not in that list. `ncbi_pubmed_search` and `ncbi_pubmed_abstracts`
+still exist in `server.py` but are no longer registered as tools: the
+standalone pubmed server covers PubMed, and two routes to one database only
+gave the model a choice it got wrong. `ncbi_list_databases` is unregistered for
+the same reason, against `ncbi_describe_database`.
 
 **Navigation** — `ncbi_find_uids` (accessions → the numeric UIDs most tools
 need), `ncbi_linked_records` (cross-database links), `ncbi_entrez_raw` (escape
