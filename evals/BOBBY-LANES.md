@@ -220,15 +220,31 @@ identical to absence.
   making it obvious.
 - **A good answer** names both units and says what each database is *for*.
 
-## B16. "Neither of these is about influenza. Which one would tell me so faster?"
+## B16. "Is there any influenza data in the E. coli records here?"
 
-- **Must call** both with an influenza term and read the two zeros.
-- **Ground truth** `unverified`; the *behaviour* is the answer.
-- **Failure mode** *(the trap)* treating two zeros as one fact. They mean different
-  things: GEO's zero came through an NCBI query translation that may have rewritten
-  the term, ENA's came from an exact `scientific_name` match. Both servers now say so
-  in `zero_result_note`, so a model that reads the notes can distinguish them.
-- **A good answer** reports both zeros *and* the reasons they are not the same zero.
+*Rewritten 17 Sep after this case was measured and found to be wrong. It
+originally asked the model to "read the two zeros", on my assumption that an
+influenza term against E. coli would return nothing on both sides. **Neither side
+returns zero**, and a model correctly reporting the real numbers would have scored
+as failing. What actually happens is a better test than the zero I invented.*
+
+- **Must call** `geo_search(organism="Escherichia coli", term="influenza",
+  entry_type="gse")` and `brc_ena_search(organism="Escherichia coli",
+  title_contains="influenza")`.
+- **Ground truth** `live`, read 17 Sep: **GEO 4**, **ENA 5**. For scale,
+  `title_contains="influenza"` alone across ENA is **131,403**. `zero_result_note`
+  fires on **neither** side, because neither result is zero.
+- **Failure mode** *(the trap)* reporting 4 and 5 as "influenza data in E. coli
+  records". Three of GEO's four are one human autoantibody study
+  (GSE222765 / GSE222764 / GSE222760) in which E. coli is **1 of 7 tagged taxa**.
+  GEO tags a Series with *every* organism that appears in it, so `[Organism]` is a
+  membership filter and **not a subject filter** — a Series is not "about" the
+  organism you filtered on. Only GSE122286 genuinely combines Influenza A virus
+  with E. coli.
+- **A good answer** gives both counts, then says what the counts are counting: that
+  a GEO organism tag means "this organism appears somewhere in this Series", not
+  "this Series studies this organism". A small non-zero number that does not mean
+  what it looks like is harder, and more honest, than a zero.
 
 ---
 
