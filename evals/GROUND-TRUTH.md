@@ -57,25 +57,25 @@ The unit trap on this host is the **result grain**. `read_run` counts runs,
 
 | figure | what it counts | exact call | read | status | who |
 |---:|---|---|---|---|---|
-| 551,679 | ENA **runs** whose tax_id is exactly 562 | `count?result=read_run&query=tax_eq(562)` | 15:05, 15:20 | live | verifier |
-| 606,048 | ENA runs for 562 **and its descendants** | `count?result=read_run&query=tax_tree(562)` | 15:05 | live | verifier |
-| 54,369 | runs `tax_eq(562)` **excludes** that `tax_tree(562)` holds | 606,048 − 551,679 | 15:05 | derived | verifier |
-| 20,925 | ENA runs for tax_id exactly 511145 (K-12 MG1655) | `count?result=read_run&query=tax_eq(511145)` | 15:05 | live | verifier |
-| 6,917 | ENA **studies**, tax_id exactly 562 | `count?result=study&query=tax_eq(562)` | 15:20 | live | verifier |
-| 10,616 | ENA studies, 562 and descendants | `count?result=study&query=tax_tree(562)` | 15:20 | live | verifier |
-| 497,414 | ENA runs, tax_eq(562), `library_strategy=WGS` | `brc_ena_search(taxonomy_id="562", library_strategy="WGS")` | 15:05 | live | verifier (lead 17 Sep) |
-| 13,838 | ENA runs, tax_eq(562), `library_strategy=RNA-Seq` | same, `library_strategy="RNA-Seq"` | 15:05 | live | verifier (lead 17 Sep) |
-| 511,252 | WGS + RNA-Seq | 497,414 + 13,838 | 15:05 | derived | verifier |
-| 40,427 | runs in **neither** WGS nor RNA-Seq | 551,679 − 511,252 | 15:05 | derived | verifier |
-| 181,408 | ENA runs, tax_eq(1280) *S. aureus* | `count?result=read_run&query=tax_eq(1280)` | 15:05 | live | verifier (lead 17 Sep) |
-| 195,638 | ENA runs, tax_tree(1280) | `count?result=read_run&query=tax_tree(1280)` | 15:05 | live | verifier |
-| 48,421 | ENA **runs** — E. coli, study title matches `*resistance*` | `brc_ena_search(organism="Escherichia coli", title_contains="resistance")` | 15:22 | live | verifier |
-| 94 | ENA **studies** for that same query | `count?result=study&query=scientific_name="Escherichia coli" AND study_title="*resistance*"` | 15:22 | live | verifier |
-| 916 | runs in study PRJEB1234 (= ERP002070) | `brc_ena_study("PRJEB1234")` | 15:10 | live | verifier |
+| 551,679 | ENA **runs** whose tax_id is exactly 562 | `count?result=read_run&query=tax_eq(562)` | 17 Sep 15:05, 15:20 | live | verifier |
+| 606,048 | ENA runs for 562 **and its descendants** | `count?result=read_run&query=tax_tree(562)` | 17 Sep 15:05 | live | verifier |
+| 54,369 | runs `tax_eq(562)` **excludes** that `tax_tree(562)` holds | 606,048 − 551,679 | 17 Sep 15:05 | derived | verifier |
+| 20,925 | ENA runs for tax_id exactly 511145 (K-12 MG1655) | `count?result=read_run&query=tax_eq(511145)` | 17 Sep 15:05 | live | verifier |
+| 6,917 | ENA **studies**, tax_id exactly 562 | `count?result=study&query=tax_eq(562)` | 17 Sep 15:20 | live | verifier |
+| 10,616 | ENA studies, 562 and descendants | `count?result=study&query=tax_tree(562)` | 17 Sep 15:20 | live | verifier |
+| 497,414 | ENA runs, tax_eq(562), `library_strategy=WGS` | `brc_ena_search(taxonomy_id="562", library_strategy="WGS")` | 17 Sep 15:05 | live | verifier (lead 17 Sep) |
+| 13,838 | ENA runs, tax_eq(562), `library_strategy=RNA-Seq` | same, `library_strategy="RNA-Seq"` | 17 Sep 15:05 | live | verifier (lead 17 Sep) |
+| 511,252 | WGS + RNA-Seq | 497,414 + 13,838 | 17 Sep 15:05 | derived | verifier |
+| 40,427 | runs in **neither** WGS nor RNA-Seq | 551,679 − 511,252 | 17 Sep 15:05 | derived | verifier |
+| 181,408 | ENA runs, tax_eq(1280) *S. aureus* | `count?result=read_run&query=tax_eq(1280)` | 17 Sep 15:05 | live | verifier (lead 17 Sep) |
+| 195,638 | ENA runs, tax_tree(1280) | `count?result=read_run&query=tax_tree(1280)` | 17 Sep 15:05 | live | verifier |
+| 48,421 | ENA **runs** — E. coli, study title matches `*resistance*` | `brc_ena_search(organism="Escherichia coli", title_contains="resistance")` | 17 Sep 15:22 | live | verifier |
+| 94 | ENA **studies** for that same query | `count?result=study&query=scientific_name="Escherichia coli" AND study_title="*resistance*"` | 17 Sep 15:22 | live | verifier |
+| 916 | runs in study PRJEB1234 (= ERP002070) | `brc_ena_study("PRJEB1234")` | 17 Sep 15:10 | live | verifier |
 | 0 | runs for a misspelled `scientific_name`; `zero_result_note` fires | `brc_ena_search(organism="Escherichia colli")` | 17 Sep | same-day | lead |
 | 369 / 13 | runs / distinct organisms in PRJNA715470 | `brc_ena_study("PRJNA715470")` | 17 Sep | same-day | README.md |
 | 50 | **page size** of BRC's federated `search_ena`, with `has_more: true` | federated `search_ena` | 17 Sep | same-day | REPORT.md |
-| 200 / 1000 | rows returned / ceiling of `/ena/taxonomy/562?limit=N`; HTTP 422 above 1000 | `GET brc-analytics.org/api/v1/ena/taxonomy/562?limit=N` | 15:12 | live | verifier |
+| 200 / 1000 | rows returned / ceiling of `/ena/taxonomy/562?limit=N`; HTTP 422 above 1000 | `GET brc-analytics.org/api/v1/ena/taxonomy/562?limit=N` | 17 Sep 15:12 | live | verifier |
 | 1,764,464 | **nothing.** The sum of three overlapping counts; the S6 decoy | 551,679 + 631,321 + 581,464 | — | derived | adversary |
 | 0.29.0 | BRC Analytics API version, production, healthy | `brc_federation_status()` | 17 Sep | same-day | lead |
 
@@ -162,27 +162,27 @@ ceiling. The four rows still marked `stale-risk` are the ones I did not re-run.
 
 | figure | what it counts | exact call | read | status | who |
 |---:|---|---|---|---|---|
-| 37 | GEO **Series** for E. coli + ciprofloxacin | `geo_search(organism="Escherichia coli", term="ciprofloxacin", entry_type="gse")` | 15:41 | **live** | verifier |
-| 513 | **all four `db=gds` record types**, same query, no `[Filter]` clause | `esearch db=gds term='"Escherichia coli"[Organism] AND (ciprofloxacin)'` | 15:41 | **live** | verifier |
-| 1.92% | 37 / 1,929 coverage | derived from two live rows | 15:41 | derived | verifier |
-| 50 | GEO **Series** for E. coli + heat shock (B6) | `geo_search(organism="Escherichia coli", term="heat shock", entry_type="gse")` | 15:44 | **live** | verifier |
-| 1,929 | E. coli **Series** — the coverage denominator | `"Escherichia coli"[Organism] AND "gse"[Filter]` | 15:44 | **live** | verifier |
-| 500 | S. aureus **Series** (B15 GEO side) | `"Staphylococcus aureus"[Organism] AND "gse"[Filter]` | 15:45 | **live** | verifier |
-| 4 | E. coli **Series** for influenza (B16 GEO side) — **the file says 0** | `geo_search(organism="Escherichia coli", term="influenza", entry_type="gse")` | 15:47 | **live, and it breaks B16** | verifier |
-| 449 | E. coli **Platforms** | `..."gpl"[Filter]` | 15:45 | **live** | verifier |
-| 51 | E. coli **curated DataSets** | `..."gds"[Filter]` | 15:45 | **live** | verifier |
-| 29,029 | E. coli **Samples** | `..."gsm"[Filter]` | 15:45 | **live** | verifier |
-| 5,464 | S. aureus **Samples** — measured only to prove 500 is not a ceiling | `"Staphylococcus aureus"[Organism] AND "gsm"[Filter]` | 15:45 | **live** | verifier |
-| 9,881 | **Series** for `antibiotic`, no organism, after MeSH rewrite | `(antibiotic) AND "gse"[Filter]` | 15:45 | **live** | verifier |
-| 1 | supplementary **files** on GSE309890 (B2) | `geo_series("GSE309890", list_files=True)` | 15:52 | **live** | verifier |
-| 510 KB | size of `GSE309890_FPKMs_allSamples.csv.gz`, modified 2025-11-14 11:10 | same call | 15:52 | **live** (GEO's own listing; I did not download it) | verifier |
-| GPL24659 | platform of GSE309890 (B5); taxon `E. coli str. K-12 substr. MG1655`, 6 samples | same call | 15:52 | **live** | verifier |
-| PRJNA1363958 | BioProject of GSE309890 — the B14 hand-off to ENA | same call | 15:52 | **live** | verifier |
-| 139,839 | `db=gds` records for `antibiotic`, **all four types**, after MeSH rewrite | `esearch db=gds term=antibiotic` | 10:15 | stale-risk | lead |
-| 8 | `db=gds` hits for the literal string `GSE309890` — Series + Platform + 6 Samples | `esearch db=gds term=GSE309890` | 10:15 | stale-risk | lead |
-| 3 | `db=gds` hits for `GSM9284462`; **first hit is the Series, not the Sample** | `esearch db=gds term=GSM9284462` | 10:15 | stale-risk | lead |
-| 491 | Series ever run on platform GPL24659 | `esearch db=gds term=GPL24659` | 10:15 | stale-risk | lead |
-| 275 | sibling samples in the `GSM9284nnn` FTP directory | GEO FTP listing | 10:15 | stale-risk | lead |
+| 37 | GEO **Series** for E. coli + ciprofloxacin | `geo_search(organism="Escherichia coli", term="ciprofloxacin", entry_type="gse")` | 17 Sep 15:41 | **live** | verifier |
+| 513 | **all four `db=gds` record types**, same query, no `[Filter]` clause | `esearch db=gds term='"Escherichia coli"[Organism] AND (ciprofloxacin)'` | 17 Sep 15:41 | **live** | verifier |
+| 1.92% | 37 / 1,929 coverage | derived from two live rows | 17 Sep 15:41 | derived | verifier |
+| 50 | GEO **Series** for E. coli + heat shock (B6) | `geo_search(organism="Escherichia coli", term="heat shock", entry_type="gse")` | 17 Sep 15:44 | **live** | verifier |
+| 1,929 | E. coli **Series** — the coverage denominator | `"Escherichia coli"[Organism] AND "gse"[Filter]` | 17 Sep 15:44 | **live** | verifier |
+| 500 | S. aureus **Series** (B15 GEO side) | `"Staphylococcus aureus"[Organism] AND "gse"[Filter]` | 17 Sep 15:45 | **live** | verifier |
+| 4 | E. coli **Series** for influenza (B16 GEO side) — **the file says 0** | `geo_search(organism="Escherichia coli", term="influenza", entry_type="gse")` | 17 Sep 15:47 | **live, and it breaks B16** | verifier |
+| 449 | E. coli **Platforms** | `..."gpl"[Filter]` | 17 Sep 15:45 | **live** | verifier |
+| 51 | E. coli **curated DataSets** | `..."gds"[Filter]` | 17 Sep 15:45 | **live** | verifier |
+| 29,029 | E. coli **Samples** | `..."gsm"[Filter]` | 17 Sep 15:45 | **live** | verifier |
+| 5,464 | S. aureus **Samples** — measured only to prove 500 is not a ceiling | `"Staphylococcus aureus"[Organism] AND "gsm"[Filter]` | 17 Sep 15:45 | **live** | verifier |
+| 9,881 | **Series** for `antibiotic`, no organism, after MeSH rewrite | `(antibiotic) AND "gse"[Filter]` | 17 Sep 15:45 | **live** | verifier |
+| 1 | supplementary **files** on GSE309890 (B2) | `geo_series("GSE309890", list_files=True)` | 17 Sep 15:52 | **live** | verifier |
+| 510 KB | size of `GSE309890_FPKMs_allSamples.csv.gz`, modified 2025-11-14 11:10 | same call | 17 Sep 15:52 | **live** (GEO's own listing; I did not download it) | verifier |
+| GPL24659 | platform of GSE309890 (B5); taxon `E. coli str. K-12 substr. MG1655`, 6 samples | same call | 17 Sep 15:52 | **live** | verifier |
+| PRJNA1363958 | BioProject of GSE309890 — the B14 hand-off to ENA | same call | 17 Sep 15:52 | **live** | verifier |
+| 139,839 | `db=gds` records for `antibiotic`, **all four types**, after MeSH rewrite | `esearch db=gds term=antibiotic` | 17 Sep 10:15 | stale-risk | lead |
+| 8 | `db=gds` hits for the literal string `GSE309890` — Series + Platform + 6 Samples | `esearch db=gds term=GSE309890` | 17 Sep 10:15 | stale-risk | lead |
+| 3 | `db=gds` hits for `GSM9284462`; **first hit is the Series, not the Sample** | `esearch db=gds term=GSM9284462` | 17 Sep 10:15 | stale-risk | lead |
+| 491 | Series ever run on platform GPL24659 | `esearch db=gds term=GPL24659` | 17 Sep 10:15 | stale-risk | lead |
+| 275 | sibling samples in the `GSM9284nnn` FTP directory | GEO FTP listing | 17 Sep 10:15 | stale-risk | lead |
 | 631,321 | NCBI **SRA experiments** for txid562 — a third unit for "E. coli data" | `esearch db=sra term=txid562[Organism:exp]` | 17 Sep | same-day | adversary |
 | 382 | SRA experiments in PRJNA715470 | `esearch db=sra` | 17 Sep | same-day | lead |
 
@@ -247,20 +247,20 @@ These are asserted on slides and in `_reports/`, so they belong here too.
 |---:|---|---|---|---|---|
 | 1 / 14 | eval cases the **documented API call** gets right | `evals/run_eval.py` → `REPORT.md` | 17 Sep | same-day | lead |
 | 13 / 14 | eval cases **our MCP tools** get right | same | 17 Sep | same-day | lead |
-| 8 / 13 | of the 13 baseline failures, how many are **genuinely silent** (HTTP 200, no flag) | my recount of `REPORT.md` rows | 15:00 | live | verifier |
+| 8 / 13 | of the 13 baseline failures, how many are **genuinely silent** (HTTP 200, no flag) | my recount of `REPORT.md` rows | 17 Sep 15:00 | live | verifier |
 | 574 | tests in the full suite, all passing while the demo was dead | `_reports/STATUS.md` | 17 Sep | same-day | lead |
 | 13 / 3 s | offline tests in `test_chatbot_wiring.py` / their runtime | `_reports/STATUS.md` | 17 Sep | same-day | lead |
 | 66 | `@*.tool()` **definitions in source** across the nine ported servers on `main`; 66 unique, no collisions. **Excludes** the four remote `MCP_SERVERS` entries (`string`, `expasy`, `brc-analytics`, `bv-brc`) | `_reports/sentinel.md:155` | 17 Sep | same-day | sentinel |
 | 99 | tools that **load at runtime** across 12 of 13 servers with `bv-brc` forced to fail. **Includes** the remote servers — `string` alone advertises 17 | runner, against a forced BV-BRC failure | 17 Sep | same-day | runner |
-| 7.5 / 3 | req/s our three NCBI servers **target in sum** vs the per-IP ceiling | FINDING V5, from the source constants | 15:13 | live | verifier |
-| ~~25.8 / 10~~ | **superseded at 16:03** — see the three rows below. Kept because I escalated it | FINDING V8 | 16:12 | **stale within 9 min** | verifier |
-| 6.5 / 3 | req/s the three NCBI servers target in sum **at current HEAD**, vs the per-IP ceiling | `geo.py` 1.0 + `pubmed.py` 2.5 + `ncbi_lib` 3.0 | 16:31 | **live** | verifier |
-| 22.4 / 10 | the same sum **once an API key is set** (3.33 + 9.09 + 10.0), vs the keyed ceiling | source constants at HEAD | 16:31 | **live** | verifier |
-| 4.5 / 3 | the same sum with `NCBI_MAX_RPS=1`; `pubmed.py` ignores it, so 2.5 of that is unreachable | source constants at HEAD | 16:31 | **live** | verifier |
-| 3.0 / 3 | req/s `ncbi_lib` claims **on its own** — the entire keyless ceiling, one server | `limiter.py:28` | 16:31 | **live** | verifier |
-| 7200 s | BV-BRC token lifetime the token itself **declares** (`expires_in`) | `.bvbrc_oauth_tokens.json`, key present, value read | 16:20 | live | verifier |
-| ~21 min | interval after which a re-auth was observed. **This is not a lifetime.** See FINDING V9 | `chatbot.py:112-120` comment, 14:20 to 14:41 | 16:20 | **WRONG as stated** | verifier |
-| 10 | local commits not on `origin/bobby/ncbi-and-brc-analytics` (`d5429ca`) | `_reports/STATUS.md` | 14:52 | same-day | lead |
+| 7.5 / 3 | req/s our three NCBI servers **target in sum** vs the per-IP ceiling | FINDING V5, from the source constants | 17 Sep 15:13 | live | verifier |
+| ~~25.8 / 10~~ | **superseded at 16:03** — see the three rows below. Kept because I escalated it | FINDING V8 | 17 Sep 16:12 | **stale within 9 min** | verifier |
+| 6.5 / 3 | req/s the three NCBI servers target in sum **at current HEAD**, vs the per-IP ceiling | `geo.py` 1.0 + `pubmed.py` 2.5 + `ncbi_lib` 3.0 | 17 Sep 16:31 | **live** | verifier |
+| 22.4 / 10 | the same sum **once an API key is set** (3.33 + 9.09 + 10.0), vs the keyed ceiling | source constants at HEAD | 17 Sep 16:31 | **live** | verifier |
+| 4.5 / 3 | the same sum with `NCBI_MAX_RPS=1`; `pubmed.py` ignores it, so 2.5 of that is unreachable | source constants at HEAD | 17 Sep 16:31 | **live** | verifier |
+| 3.0 / 3 | req/s `ncbi_lib` claims **on its own** — the entire keyless ceiling, one server | `limiter.py:28` | 17 Sep 16:31 | **live** | verifier |
+| 7200 s | BV-BRC token lifetime the token itself **declares** (`expires_in`) | `.bvbrc_oauth_tokens.json`, key present, value read | 17 Sep 16:20 | live | verifier |
+| ~21 min | interval after which a re-auth was observed. **This is not a lifetime.** See FINDING V9 | `chatbot.py:112-120` comment, 14:20 to 14:41 | 17 Sep 16:20 | **WRONG as stated** | verifier |
+| 10 | local commits not on `origin/bobby/ncbi-and-brc-analytics` (`d5429ca`) | `_reports/STATUS.md` | 17 Sep 14:52 | same-day | lead |
 
 ---
 
