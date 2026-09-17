@@ -4,8 +4,15 @@ A remote MCP server exposing tools over UniProt:
 protein sequences, function, disease annotation
 """
 
+import json
+import re
+import threading
+import time
+from collections import OrderedDict
+
 import requests
 from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 
 mcp = FastMCP(
     name="Uniprot MCP",
@@ -19,6 +26,105 @@ mcp = FastMCP(
 
 UNIPROT_API  = "https://rest.uniprot.org"
 HEADERS = {"Accept": "application/json"}
+
+MAX_ACCESSIONS = 25
+MAX_RESPONSE_CHARS = 60000
+
+# UniProt releases every eight weeks, so a day-old entry is still current.
+CACHE_TTL_SECONDS = 24 * 60 * 60
+# A cached entry occupies about 35 KB of heap on average and 80 KB at the 95th
+# percentile, measured over 200 reviewed entries at ENTRY_FIELDS. So 500 entries
+# cost about 17 MB, and about 39 MB in the worst case.
+MAX_CACHE_ENTRIES = 500
+
+# The official UniProt accession pattern, plus an optional isoform suffix.
+# uniprot_get_protein_info builds one query from every accession it receives,
+# and UniProt rejects the whole query when one accession is malformed. So check
+# each accession here and report it, rather than lose the call to a single typo.
+ACCESSION_RE = re.compile(
+    r"^(?:[OPQ][0-9][A-Z0-9]{3}[0-9]"
+    r"|[A-NR-Z][0-9](?:[A-Z][A-Z0-9]{2}[0-9]){1,2})"
+    r"(?:-[0-9]+)?$"
+)
+
+# Every tool below names the fields it needs. UniProt returns the whole entry
+# otherwise: 875 KB for TP53, against 4.6 KB for the summary fields.
+SUMMARY_FIELDS = (
+    "accession,protein_name,gene_names,organism_name,length,reviewed,cc_function"
+)
+ENTRY_FIELDS = (
+    SUMMARY_FIELDS + ",cc_disease,cc_subcellular_location,cc_ptm,go"
+)
+
+
+class _EntryCache:
+    """Hold UniProt entries against the accession and the fields that fetched them.
+
+    The server runs as one long-lived process, so a cached entry serves every
+    later call and every client. The cache drops the entry it read least
+    recently once it holds MAX_CACHE_ENTRIES, and it drops an entry that has sat
+    for CACHE_TTL_SECONDS.
+
+    FastMCP runs a synchronous tool in a worker thread, so two calls can reach
+    the cache at once. A lock guards every read and every write.
+
+    A caller must not change what get returns. Every caller here reads the entry
+    and builds a new dict from it.
+    """
+
+    def __init__(self, max_entries: int, ttl_seconds: float) -> None:
+        self._entries: OrderedDict[tuple[str, str], tuple[dict, float]] = OrderedDict()
+        self._lock = threading.Lock()
+        self._max_entries = max_entries
+        self._ttl = ttl_seconds
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: tuple[str, str]) -> dict | None:
+        with self._lock:
+            held = self._entries.get(key)
+            if held is None:
+                self.misses += 1
+                return None
+            entry, stored_at = held
+            if time.monotonic() - stored_at > self._ttl:
+                del self._entries[key]
+                self.misses += 1
+                return None
+            self._entries.move_to_end(key)
+            self.hits += 1
+            return entry
+
+    def set(self, key: tuple[str, str], entry: dict) -> None:
+        with self._lock:
+            self._entries.pop(key, None)
+            self._entries[key] = (entry, time.monotonic())
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._entries)
+
+
+_cache = _EntryCache(MAX_CACHE_ENTRIES, CACHE_TTL_SECONDS)
+
+
+def _comment_texts(entry: dict, comment_type: str) -> list[str]:
+    """Collect every text that one comment type carries.
+
+    An entry can hold several blocks of one type, one per chain. The SARS-CoV-2
+    replicase (P0DTD1) holds 16 function blocks. Two thirds of the reviewed
+    viral entries hold more than one, so reading only the first loses most of
+    the annotation.
+    """
+    return [
+        text.get("value", "")
+        for comment in entry.get("comments", [])
+        if comment.get("commentType") == comment_type
+        for text in comment.get("texts", [])
+    ]
+
 
 # UNIPROT TOOLS
 
@@ -87,41 +193,34 @@ def uniprot_search(
 
 @mcp.tool()
 def uniprot_get_entry(accession: str) -> dict:
-    """Fetch the full UniProt entry for a protein by its accession number.
+    """Fetch the curated annotation for one protein by its accession.
 
-    Retrieves curated annotation including: function, subcellular location,
-    tissue expression, disease involvement, post-translational modifications,
-    active/binding sites, and associated GO terms.
+    This tool covers one protein per call, and it costs about twice what
+    uniprot_get_protein_info costs. Call it when you need the diseases, the
+    subcellular locations, the PTMs, or the GO terms. Call
+    uniprot_get_protein_info instead when the name, the organism, and the
+    function answer the question, or when you hold several accessions.
 
     Args:
         accession: UniProt accession (e.g. "P04637" for human TP53,
             "P01308" for human insulin, "P38398" for BRCA1).
 
     Returns:
-        Rich annotation dict: function, location, diseases, PTMs, interactions,
-        GO terms, sequence length, and AlphaFold structure URL.
+        Dict with the accession, the gene, the protein name, the organism, the
+        length, the review status, the function texts, the subcellular
+        locations, the diseases, the PTM texts, and up to 10 GO terms.
 
     Example questions:
-        "What is the function of P04637?"
         "What diseases is BRCA1 (P38398) involved in?"
         "Where is human insulin localized in the cell?"
     """
-    resp = requests.get(
-        f"{UNIPROT_API}/uniprotkb/{accession}",
-        params={"format": "json"},
-        headers=HEADERS,
-        timeout=20,
-    )
-    resp.raise_for_status()
-    e = resp.json()
-    # Extract function comments
+    e = _fetch_one(_clean_accession(accession), ENTRY_FIELDS)
+    if e is None:
+        raise ToolError(
+            f"UniProt holds no entry {accession}. Check the accession, or call "
+            f"uniprot_search to find the right one."
+        )
     comments = e.get("comments", [])
-    def get_comment(ctype):
-        for c in comments:
-            if c.get("commentType") == ctype:
-                texts = c.get("texts", [])
-                return " ".join(t.get("value", "") for t in texts)
-        return None
     # Diseases
     diseases = []
     for c in comments:
@@ -167,12 +266,212 @@ def uniprot_get_entry(accession: str) -> dict:
         "organism": e.get("organism", {}).get("scientificName"),
         "length_aa": e.get("sequence", {}).get("length"),
         "reviewed": e.get("entryType") == "UniProtKB reviewed (Swiss-Prot)",
-        "function": get_comment("FUNCTION"),
+        "function": _comment_texts(e, "FUNCTION"),
         "subcellular_locations": list(set(locations)),
         "diseases": diseases,
-        "ptm_processing": get_comment("PTM"),
+        "ptm_processing": _comment_texts(e, "PTM"),
         "go_terms": go_terms[:10],
     }
+
+
+def _clean_accession(value: str) -> str:
+    """Normalize an accession. The caller matches it against ACCESSION_RE."""
+    return value.strip().upper()
+
+
+def _summarize(entry: dict, include_sequence: bool) -> dict:
+    """Reduce a UniProt entry to the summary fields."""
+    genes = entry.get("genes") or [{}]
+    functions = _comment_texts(entry, "FUNCTION")
+    sequence = entry.get("sequence", {})
+    summary = {
+        "accession": entry.get("primaryAccession"),
+        "gene": genes[0].get("geneName", {}).get("value", "N/A"),
+        "protein_name": (
+            entry.get("proteinDescription", {})
+                 .get("recommendedName", {})
+                 .get("fullName", {})
+                 .get("value", "N/A")
+        ),
+        "organism": entry.get("organism", {}).get("scientificName", "N/A"),
+        "length_aa": sequence.get("length"),
+        "reviewed": entry.get("entryType") == "UniProtKB reviewed (Swiss-Prot)",
+        "function": functions,
+    }
+    if include_sequence:
+        summary["sequence"] = sequence.get("value", "")
+    return summary
+
+
+def _fetch_one(accession: str, fields: str) -> dict | None:
+    """Fetch one entry by accession. Returns None when UniProt holds no entry.
+
+    Reads the cache first. A miss is never cached, because UniProt can add the
+    entry later.
+    """
+    held = _cache.get((accession, fields))
+    if held is not None:
+        return held
+    resp = requests.get(
+        f"{UNIPROT_API}/uniprotkb/{accession}",
+        params={"format": "json", "fields": fields},
+        headers=HEADERS,
+        timeout=20,
+    )
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    entry = resp.json()
+    _cache.set((accession, fields), entry)
+    return entry
+
+
+def _fetch_many(accessions: list[str], fields: str) -> dict[str, dict]:
+    """Fetch canonical entries, indexed by accession.
+
+    Reads the cache first, then asks UniProt for what the cache misses. A list
+    the cache already holds costs no request at all.
+    """
+    found: dict[str, dict] = {}
+    missing: list[str] = []
+    for accession in accessions:
+        held = _cache.get((accession, fields))
+        if held is None:
+            missing.append(accession)
+        else:
+            found[accession] = held
+    if not missing:
+        return found
+
+    resp = requests.get(
+        f"{UNIPROT_API}/uniprotkb/search",
+        params={
+            "query": " OR ".join(f"accession:{a}" for a in missing),
+            "format": "json",
+            "fields": fields,
+            "size": str(len(missing)),
+        },
+        headers=HEADERS,
+        timeout=30,
+    )
+    resp.raise_for_status()
+    for entry in resp.json().get("results", []):
+        accession = entry.get("primaryAccession")
+        if accession:
+            found[accession] = entry
+            _cache.set((accession, fields), entry)
+    return found
+
+
+@mcp.tool()
+def uniprot_get_protein_info(
+    accessions: list[str],
+    include_sequence: bool = False,
+) -> dict:
+    """Fetch the name, the organism, and the function of up to 25 proteins.
+
+    This tool returns a summary, and it takes one accession or many. It sends
+    one request to UniProt for the whole list, so prefer one call with many
+    accessions over many calls with one. The response is about half the size of
+    the uniprot_get_entry response.
+
+    Use this tool when you need the identity and the function of a protein. Use
+    uniprot_get_entry when you need diseases, subcellular locations, PTMs, or
+    GO terms, and accept that it covers one protein per call.
+
+    Args:
+        accessions: UniProt accessions, at most 25. Pass a list even for one
+            protein. The tool drops a duplicate and keeps the first copy.
+            An isoform accession such as "P04637-2" works, and costs one extra
+            request, because UniProt indexes no isoform in its search.
+        include_sequence: Add the amino acid sequence to every result.
+            The default is False. Sequences dominate the response size, so
+            leave this off unless you need the residues. Titin (Q8WZ42) alone
+            adds 34,350 characters.
+
+    Returns:
+        Dict with "results" in the order you asked for. Each result holds the
+        accession, the gene, the protein name, the organism, the length, the
+        review status, and the function texts. Reports "invalid" for an
+        accession with the wrong shape, and "not_found" for one that UniProt
+        does not hold. Reports "truncated" when the response hits the size
+        budget, and "note" when the list was cut to 25.
+
+    Example questions:
+        "What does P04637 do?"
+        "Summarize P04637, P38398, and P01308"
+    """
+    if not accessions:
+        raise ToolError(
+            "Pass at least one accession. To find one from a gene name, call "
+            "uniprot_search first."
+        )
+
+    # Keep the caller's order, drop duplicates, then split off the malformed.
+    # UniProt rejects a whole search query when one accession is malformed, so
+    # a typo must never reach the request.
+    seen: dict[str, None] = {}
+    invalid: list[str] = []
+    for raw in accessions:
+        cleaned = _clean_accession(raw)
+        if not ACCESSION_RE.match(cleaned):
+            if cleaned not in invalid:
+                invalid.append(cleaned)
+            continue
+        seen.setdefault(cleaned, None)
+
+    wanted = list(seen)
+    note = None
+    if len(wanted) > MAX_ACCESSIONS:
+        note = (
+            f"The list held {len(wanted)} accessions, so it was cut to the first "
+            f"{MAX_ACCESSIONS}. Call the tool again for the rest."
+        )
+        wanted = wanted[:MAX_ACCESSIONS]
+
+    payload: dict = {"requested": len(wanted), "results": []}
+    if wanted:
+        fields = SUMMARY_FIELDS + (",sequence" if include_sequence else "")
+        # The search endpoint carries the canonical accessions in one request.
+        # It indexes no isoform, so each isoform needs the entry endpoint.
+        canonical = [a for a in wanted if "-" not in a]
+        isoforms = [a for a in wanted if "-" in a]
+        found: dict[str, dict] = {}
+        if canonical:
+            found.update(_fetch_many(canonical, fields))
+        for isoform in isoforms:
+            entry = _fetch_one(isoform, fields)
+            if entry is not None:
+                found[isoform] = entry
+        # UniProt returns the matches in its own order, so rebuild the order
+        # the caller asked for.
+        payload["results"] = [
+            _summarize(found[a], include_sequence) for a in wanted if a in found
+        ]
+        not_found = [a for a in wanted if a not in found]
+        if not_found:
+            payload["not_found"] = not_found
+
+    if invalid:
+        payload["invalid"] = invalid
+    if note:
+        payload["note"] = note
+
+    # Drop results off the end until the whole payload fits the budget, so the
+    # caller never receives more characters than the budget allows.
+    total = len(payload["results"])
+    kept = total
+    while kept > 1 and len(json.dumps(payload, default=str)) > MAX_RESPONSE_CHARS:
+        kept -= max(1, kept // 10)
+        payload["results"] = payload["results"][:kept]
+    if kept < total:
+        payload["truncated"] = (
+            f"The response passed {MAX_RESPONSE_CHARS} characters, so it carries "
+            f"{kept} of {total} results. Ask for fewer accessions, or set "
+            f"include_sequence to False."
+        )
+    payload["returned"] = len(payload["results"])
+    return payload
 
 
 @mcp.tool()

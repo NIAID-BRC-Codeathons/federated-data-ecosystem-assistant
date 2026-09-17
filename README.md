@@ -39,10 +39,11 @@ TBD
 
 5. Add an existing MCP server or a local one in `chatbot.py`.
 
-6. Run all MCP servers, each on its own port:
+6. Run all MCP servers at once, each on its own port:
+`uv run run_mcp_servers.py`
+
+   Or run a single server manually, for example:
 `uv run mcp_servers/pdn.py --port 8001`
-`uv run mcp_servers/mygene.py --port 8002`
-`uv run mcp_servers/uniprot.py --port 8003`
 
 7. Run chatbot:
 `uv run chainlit run chatbot.py`

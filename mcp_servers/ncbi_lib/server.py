@@ -48,8 +48,9 @@ from .eutils import MAX_ESUMMARY_UIDS, EUtilsClient, Timer, TransportError
 from .pathogens import PathogensClient
 
 # Each MCP server in this repo owns a port and a namespaced path, so they can
-# all run at once behind one host: 8001 pdn, 8002 mygene, 8003 uniprot.
-DEFAULT_PORT = 8004
+# all run at once behind one host: 8001 pdn, 8002 mygene, 8003 uniprot,
+# 8004 myvariant.
+DEFAULT_PORT = 8005
 HTTP_PATH = "/mcp-ncbi"
 
 server = FastMCP(

@@ -37,8 +37,12 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8003/mcp-uniprot",
             "transport": "streamable_http",
         },
+        "myvariant": {
+            "url": "http://127.0.0.1:8004/mcp-myvariant",
+            "transport": "streamable_http",
+        },
         "ncbi": {
-            "url": "http://127.0.0.1:8004/mcp-ncbi",
+            "url": "http://127.0.0.1:8005/mcp-ncbi",
             "transport": "streamable_http",
         },
     }

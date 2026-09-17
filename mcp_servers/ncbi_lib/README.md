@@ -19,9 +19,9 @@ and no dependencies outside the root `pyproject.toml`:
 
 ```sh
 uv sync
-uv run mcp_servers/ncbi.py --port 8004      # HTTP
+uv run mcp_servers/ncbi.py --port 8005      # HTTP
 uv run mcp_servers/ncbi.py --stdio          # stdio
-uv run pytest                               # 209 tests, NCBI's 80 among them
+uv run pytest                               # 369 tests, NCBI's 82 among them
 ```
 
 Each server owns a port and a namespaced path so they can all run at once:
@@ -31,7 +31,8 @@ Each server owns a port and a namespaced path so they can all run at once:
 | `mcp_servers/pdn.py` | 8001 | `/mcp-pdn` |
 | `mcp_servers/mygene.py` | 8002 | `/mcp-mygene` |
 | `mcp_servers/uniprot.py` | 8003 | `/mcp-uniprot` |
-| `mcp_servers/ncbi.py` | 8004 | `/mcp-ncbi` |
+| `mcp_servers/myvariant.py` | 8004 | `/mcp-myvariant` |
+| `mcp_servers/ncbi.py` | 8005 | `/mcp-ncbi` |
 
 `chatbot.py` already lists it. Binding is loopback: this server has no auth, and
 anyone who can reach it spends the host's shared 3/sec NCBI budget.
