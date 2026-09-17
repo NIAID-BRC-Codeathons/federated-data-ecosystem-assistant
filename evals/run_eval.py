@@ -79,6 +79,42 @@ def brc_mcp(name: str, args: dict):
     return {}
 
 
+PATHOGENS = "https://www.ncbi.nlm.nih.gov/pathogens/pathogens-srv/"
+
+
+def pathogen_count(fq: str | None = None) -> int | None:
+    """Distinct isolates from the target_acc facet.
+
+    Never totalCount: that number is 2x the isolate count for E. coli and
+    exactly 1x for S. aureus, so no arithmetic correction on it is safe.
+    """
+    _pace()
+    params = {"action": "retrieve", "collection": "pathogen",
+              "limit": 0, "facets": "target_acc[||1|1]"}
+    if fq:
+        params["fq"] = fq
+    url = PATHOGENS + "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "User-Agent": f"{TOOL} (+codeathon)", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=90) as r:
+        payload = json.loads(r.read().decode())
+
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if "numBuckets" in node:
+                found.append(node["numBuckets"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(payload)
+    return found[0] if found else None
+
+
 # ---------------------------------------------------------------- the cases
 
 
@@ -277,6 +313,66 @@ def case_study_organisms():
             "BRC's study endpoint 500s. The project is labelled E. coli and holds 13 genera-worth of runs.")
 
 
+def case_pathogen_group_name():
+    """The group name is curated, and a wrong one returns a confident zero."""
+    truth = 581464
+
+    def baseline():
+        # The organism is Escherichia coli. Every other source on the board
+        # takes that string, so this is the obvious value to pass.
+        n = pathogen_count('taxgroup_name==["Escherichia coli"]')
+        return n, f'taxgroup_name=="Escherichia coli" -> {n}'
+
+    def tool():
+        n = pathogen_count('taxgroup_name==["E.coli and Shigella"]')
+        return n, f'taxgroup_name=="E.coli and Shigella" -> {n:,}'
+
+    def ok(v):
+        return isinstance(v, int) and v > 100000
+
+    return ("amr-group-name",
+            "How many E. coli isolates has NCBI Pathogen Detection sequenced?",
+            truth, baseline, tool,
+            "Pathogen Detection groups are curated, not taxonomy names. A wrong one "
+            "returns 0, which reads as absence rather than as a bad query.",
+            ok, ok)
+
+
+def case_gap_methicillin():
+    """The board's headline question. The number is the answer, and it is small."""
+    truth = "a number that shows the category is empty, plus a reframing"
+
+    def baseline():
+        # Without the counts, the only honest option is to decline -- and a
+        # decline carries no information about whether the data is missing or
+        # the question is malformed.
+        return None, "no number available; the question can only be declined"
+
+    def tool():
+        ecoli = pathogen_count('taxgroup_name==["E.coli and Shigella"] '
+                               'and AMR_genotypes==["mecA"]')
+        aureus = pathogen_count('taxgroup_name==["Staphylococcus aureus"] '
+                                'and AMR_genotypes==["mecA"]')
+        return (ecoli, aureus),             (f"mecA in E. coli = {ecoli} of 581,464; in S. aureus = {aureus:,} "
+             f"of 171,412 -- the question is malformed, not the data missing")
+
+    def baseline_ok(v):
+        return v is not None
+
+    def tool_ok(v):
+        ecoli, aureus = v
+        # The claim is not "mecA is rare". It is that the contrast carries the
+        # explanation: two in half a million against half of S. aureus.
+        return ecoli is not None and ecoli < 10 and aureus > 10000
+
+    return ("gap-methicillin",
+            "How many methicillin-resistant strains of E. coli are there?",
+            truth, baseline, tool,
+            "The board's own headline question. A refusal carries no information; "
+            "the number does, and it points at the reframing.",
+            baseline_ok, tool_ok)
+
+
 CASES = [
     case_gds_prefix,
     case_gsm_resolution,
@@ -286,6 +382,8 @@ CASES = [
     case_ena_keywords,
     case_ena_total,
     case_study_organisms,
+    case_pathogen_group_name,
+    case_gap_methicillin,
 ]
 
 

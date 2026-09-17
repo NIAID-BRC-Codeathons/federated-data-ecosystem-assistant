@@ -8,9 +8,9 @@ Both are scored against a verified ground truth.
 
 | | correct |
 |---|---|
-| baseline (raw API, written from the docs) | **0/8** |
-| our MCP tools | **8/8** |
-| cases where the tool fixes a wrong answer | **8/8** |
+| baseline (raw API, written from the docs) | **0/10** |
+| our MCP tools | **10/10** |
+| cases where the tool fixes a wrong answer | **10/10** |
 
 The failures below are not API outages. Every one returns HTTP 200 with a
 plausible-looking answer, which is what makes them worth wrapping.
@@ -102,3 +102,25 @@ Expected: `a real total` — fixes a silent wrong answer.
 | tool | `brc_ena_study -> 369 runs, 13 distinct organisms` | yes |
 
 Expected: `13` — fixes a silent wrong answer.
+
+## How many E. coli isolates has NCBI Pathogen Detection sequenced?
+
+*Pathogen Detection groups are curated, not taxonomy names. A wrong one returns 0, which reads as absence rather than as a bad query.*
+
+| | result | correct |
+|---|---|---|
+| baseline | `taxgroup_name=="Escherichia coli" -> 0` | **no** |
+| tool | `taxgroup_name=="E.coli and Shigella" -> 581,464` | yes |
+
+Expected: `581464` — fixes a silent wrong answer.
+
+## How many methicillin-resistant strains of E. coli are there?
+
+*The board's own headline question. A refusal carries no information; the number does, and it points at the reframing.*
+
+| | result | correct |
+|---|---|---|
+| baseline | `no number available; the question can only be declined` | **no** |
+| tool | `mecA in E. coli = 2 of 581,464; in S. aureus = 93,260 of 171,412 -- the question is malformed, not the data missing` | yes |
+
+Expected: `a number that shows the category is empty, plus a reframing` — fixes a silent wrong answer.
