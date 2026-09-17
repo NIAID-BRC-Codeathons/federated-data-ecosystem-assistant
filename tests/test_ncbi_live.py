@@ -13,6 +13,7 @@ to ignore.
 """
 
 import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 from ncbi_lib.server import (
     client,
     ncbi_find_uids,
@@ -90,9 +91,40 @@ async def test_query_translation_is_reported():
     assert result["data"][0]["taxid"]
 
 
-async def test_bad_accession_fails_with_an_actionable_message():
-    from mcp.server.fastmcp.exceptions import ToolError
+async def test_paging_walks_forward_instead_of_re_fetching():
+    """`next` is a cursor, not a bigger page.
 
+    It used to say ``max_results``, which is capped at 1000 --- so on a study
+    larger than that, following the hint returned the same rows forever and the
+    tail was unreachable. Two small pages are enough to pin the contract; the
+    full 891-run walk is not worth the requests at 3/sec.
+    """
+    first = await unwrap(
+        ncbi_sra_runs_for_project, accession=EBOLA_PROJECT, max_results=5
+    )
+    assert first["truncated"] is True
+    cursor = first["next"]["start"]
+    assert cursor == 5
+
+    second = await unwrap(
+        ncbi_sra_runs_for_project,
+        accession=EBOLA_PROJECT,
+        max_results=5,
+        start=cursor,
+    )
+    page_one = [row["Run"] for row in first["data"]]
+    page_two = [row["Run"] for row in second["data"]]
+    assert page_two, "cursor returned an empty page"
+    assert set(page_one).isdisjoint(page_two), "the cursor re-fetched page one"
+
+
+async def test_paging_past_the_end_says_so():
+    with pytest.raises(ToolError) as exc:
+        await unwrap(ncbi_sra_runs_for_project, accession=EBOLA_PROJECT, start=99_999)
+    assert "past the end" in str(exc.value)
+
+
+async def test_bad_accession_fails_with_an_actionable_message():
     with pytest.raises(ToolError) as exc:
         await unwrap(ncbi_sra_runs_for_project, accession="PRJNA000000000")
     assert "ncbi_sra_search" in str(exc.value)

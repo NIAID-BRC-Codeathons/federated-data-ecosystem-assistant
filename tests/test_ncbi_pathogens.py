@@ -183,3 +183,71 @@ def test_solr_query_is_absent_without_facets():
     """Record fetches cannot have it, so callers must tolerate None."""
     ngout = load_json("pathogens_duplicated_rows.json")["ngout"]
     assert solr_query(ngout) is None
+
+
+# --- the coverage denominator ---------------------------------------------
+#
+# Coverage answers "matched out of how many?" by re-running the query with the
+# gene clause dropped. When the organism was the *whole* filter, dropping it
+# leaves the query that was just run --- so the second request spent a call from
+# a 3/sec per-IP budget to rediscover a number already in hand and report 100%.
+
+
+def _ngout_with_distinct(n: int) -> dict:
+    """Minimal ngout carrying just the facet ``distinct_count`` reads."""
+    return {"facets": {"target_acc": {"numBuckets": n}}}
+
+
+async def test_coverage_skips_the_request_that_would_repeat_the_primary_query(
+    monkeypatch,
+):
+    monkeypatch.setenv("NCBI_COVERAGE", "1")
+    from ncbi_lib import server as srv
+
+    # Recorded rather than raised: _pathogen_coverage catches Exception and
+    # degrades to None, so an AssertionError in here would be swallowed and the
+    # test would fail with an unrelated TypeError instead of saying why. The
+    # sentinel denominator distinguishes the two paths in the assertion below.
+    purposes = []
+
+    async def recording(params, **kwargs):
+        purposes.append(kwargs.get("purpose"))
+        return _ngout_with_distinct(-1)
+
+    monkeypatch.setattr(srv.pathogen_client, "retrieve", recording)
+
+    organism = "Salmonella enterica"
+    primary_fq = build_fq({"taxgroup_name": [organism]})
+    block = await srv._pathogen_coverage(organism, 883_266, primary_fq)
+
+    assert purposes == [], "coverage re-ran the query the tool had just run"
+    # Skipping the request must not mean skipping the block: the agent still
+    # gets its denominator, it just costs nothing.
+    assert block["denominator"] == 883_266
+    assert block["percent"] == 100.0
+
+
+async def test_coverage_still_requests_when_the_denominator_is_a_different_query(
+    monkeypatch,
+):
+    """The skip must not swallow the case coverage exists for."""
+    monkeypatch.setenv("NCBI_COVERAGE", "1")
+    from ncbi_lib import server as srv
+
+    purposes = []
+
+    async def fake(params, **kwargs):
+        purposes.append(kwargs.get("purpose"))
+        return _ngout_with_distinct(883_266)
+
+    monkeypatch.setattr(srv.pathogen_client, "retrieve", fake)
+
+    organism = "Salmonella enterica"
+    narrowed = build_fq(
+        {"taxgroup_name": [organism], "AMR_genotypes": ["mecA"]}
+    )
+    block = await srv._pathogen_coverage(organism, 1, narrowed)
+
+    assert purposes == ["coverage"]
+    assert block["denominator"] == 883_266
+    assert block["matched"] == 1

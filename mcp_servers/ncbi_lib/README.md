@@ -154,6 +154,10 @@ claims, and only the basis distinguishes them. Two flavors:
 | search | the same query with its organism filter left and everything else stripped | one extra request |
 | fetch | how many UIDs you asked for | free |
 
+Stripping can leave the query that was just run — an organism-only Pathogen
+Detection count is its own denominator. That case reuses the number instead of
+re-requesting it, so the coverage block is free and reads 100%.
+
 The fetch flavor earns its keep: esummary drops UIDs it cannot resolve **without
 comment**, so 48-of-50 and 50-of-50 look identical. Coverage reports
 `shortfall: 2` and the notes name the UIDs.

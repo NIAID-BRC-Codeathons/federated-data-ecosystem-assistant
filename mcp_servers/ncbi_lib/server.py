@@ -180,7 +180,9 @@ async def _coverage(extra: dict[str, Any], data: Any) -> dict[str, Any] | None:
     """
     if "pathogen_coverage_organism" in extra:
         return await _pathogen_coverage(
-            extra["pathogen_coverage_organism"], extra.get("result_count")
+            extra["pathogen_coverage_organism"],
+            extra.get("result_count"),
+            extra.get("pathogen_coverage_fq"),
         )
 
     db = extra.get("coverage_db")
@@ -197,7 +199,7 @@ async def _coverage(extra: dict[str, Any], data: Any) -> dict[str, Any] | None:
 
 
 async def _pathogen_coverage(
-    organism: str | None, matched: int | None
+    organism: str | None, matched: int | None, primary_fq: str | None = None
 ) -> dict[str, Any] | None:
     """Coverage for a Pathogen Detection count: what share of the organism matched.
 
@@ -213,14 +215,21 @@ async def _pathogen_coverage(
         return None
     if not organism:
         return None
-    try:
-        fq = pathogens.build_fq({"taxgroup_name": [organism]})
-        ngout = await pathogen_client.retrieve(
-            pathogens.count_params(fq), purpose="coverage"
-        )
-        denominator = pathogens.distinct_count(ngout)
-    except Exception:  # noqa: BLE001 -- never turn a good result into an error
-        return None
+    fq = pathogens.build_fq({"taxgroup_name": [organism]})
+    if primary_fq is not None and fq == primary_fq:
+        # Dropping the gene clause left the query the caller already ran, so
+        # the organism was the whole filter. Re-requesting it would spend a
+        # second call from a 3/sec per-IP budget to rediscover `matched` and
+        # report a tautological 100%.
+        denominator: int | None = matched
+    else:
+        try:
+            ngout = await pathogen_client.retrieve(
+                pathogens.count_params(fq), purpose="coverage"
+            )
+            denominator = pathogens.distinct_count(ngout)
+        except Exception:  # noqa: BLE001 -- never turn a good result into an error
+            return None
     if denominator is None:
         return None
     return {
@@ -580,11 +589,24 @@ async def ncbi_sra_runs_for_project(
         int,
         Field(description="Maximum runs to return (1-1000).", ge=1, le=1000),
     ] = 100,
+    start: Annotated[
+        int,
+        Field(
+            description=(
+                "Zero-based offset into the run list, for paging past "
+                "max_results. Pass the value from the result's 'next' block."
+            ),
+            ge=0,
+        ),
+    ] = 0,
 ) -> dict[str, Any]:
     """List the sequencing runs belonging to a BioProject or SRA study.
 
     Use this whenever a paper or record cites a PRJNA/SRP accession. Returns
     one row per run with platform, library, sample, and download path.
+
+    Large studies are paged: a truncated result carries 'next', and passing its
+    'start' back returns the following page.
     """
 
     async def body():
@@ -593,13 +615,23 @@ async def ncbi_sra_runs_for_project(
         # two BioProject UIDs, and following the wrong one returns zero links,
         # which reads as "this project has no sequencing data" rather than as
         # an error.
-        result = await _esearch("sra", accession, retmax=max_results, use_history=True)
+        result = await _esearch(
+            "sra", accession, retmax=max_results, retstart=start, use_history=True
+        )
         count = int(result.get("count", 0))
         translation = result.get("querytranslation")
         if count == 0:
             raise _fail(
                 f"No SRA runs found for {accession!r}. NCBI ran: {translation}. "
                 "Check the accession, or search by organism with ncbi_sra_search."
+            )
+        if start >= count:
+            # Caught before the efetch: paging off the end is a caller mistake,
+            # and spending a second request to return zero rows would not tell
+            # the agent anything this message does not.
+            raise _fail(
+                f"start={start} is past the end of {accession}, which has "
+                f"{count} runs. Valid offsets are 0 to {count - 1}."
             )
 
         # The History server replays the whole result set through a short URL,
@@ -613,9 +645,15 @@ async def ncbi_sra_runs_for_project(
             "retmax": max_results,
         }
         if webenv and query_key:
+            # Measured: retstart on the esearch windows the idlist it returns,
+            # but the History set still holds all `count` UIDs. So the offset
+            # has to be applied again here, or every page returns the first one.
             params["WebEnv"] = webenv
             params["query_key"] = query_key
+            params["retstart"] = start
         else:
+            # No History, so the windowed idlist above *is* the page. Applying
+            # retstart again would offset within it and skip rows.
             params["id"] = ",".join(result.get("idlist") or [])
 
         text, _ = await client.request("efetch", params, db="sra")
@@ -627,11 +665,18 @@ async def ncbi_sra_runs_for_project(
             "coverage_db": "sra",
             "coverage_term": accession,
         }
-        if count > len(rows):
+        shown_through = start + len(rows)
+        if shown_through < count:
             extra["truncated"] = True
-            extra["next"] = {"max_results": min(count, 1000)}
+            # A cursor, not a bigger page. max_results caps at 1000, so on a
+            # study larger than that the old "ask for more at once" hint could
+            # not reach the tail however many times it was followed.
+            extra["next"] = {"start": shown_through, "max_results": max_results}
         return (
-            f"{count} SRA runs in {accession} (showing {len(rows)}).",
+            (
+                f"{count} SRA runs in {accession} "
+                f"(showing {start + 1}-{shown_through})."
+            ),
             rows,
             extra,
         )
@@ -1434,6 +1479,9 @@ async def ncbi_pathogen_isolate_count(
                 "result_count": isolates,
                 "query_translation": pathogens.solr_query(ngout),
                 "pathogen_coverage_organism": organism,
+                # So coverage can tell whether its denominator query is the one
+                # already run here and skip a duplicate request.
+                "pathogen_coverage_fq": fq,
                 "notes": notes,
             },
         )
