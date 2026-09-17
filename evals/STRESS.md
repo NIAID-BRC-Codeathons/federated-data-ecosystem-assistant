@@ -272,28 +272,37 @@ exceeds 15 calls here is ⚠️ **unverified** — that is what the run measures
 
 ---
 
-## S11. "Tell me about the experimental design of GSM9284462."
+## S11. "What can BRC run on GCA_000005845.2?"
 
-A Sample identifier handed to a question that only a Series can answer. Attacks the same
-identifier from the opposite side to `ADVERSARIAL.md` A4, which *searches* for the GSM string;
-here the GSM is the input and the user's question is at Series level.
+The right assembly, named in the wrong accession namespace. GenBank issues `GCA_`, RefSeq
+issues `GCF_`, the numeric part is shared, and BRC's catalogue holds only the RefSeq side 📋.
 
-**A good answer must contain:** the resolution step — GSM9284462 belongs to GSE309890 📋 — and
-then the design from the Series. The answer must say it made that hop.
+**Deliberately not the GSM case.** `ADVERSARIAL.md` A4 already covers a Sample accession handed
+where a Series is needed, on this same GEO accession and with the same `geo_resolve_accession`
+fix. Re-asking it here would measure one trap twice and leave the namespace mismatch untested,
+so this case takes the identifier family from a direction nothing on the board covers.
 
-**A bad answer looks like:** `geo_search(term="GSM9284462")` and taking hit 1, which is the
-**Series** `200309890`, not the Sample — three ids come back and the Sample is at rank 3 📋. The
-answer is then accidentally about the right study, by the wrong route, and the same reflex
-returns the wrong object on any accession where the ranking differs.
+**A good answer must contain:** the recognition that `GCA_` and `GCF_` are different namespaces
+for the same underlying assembly, the mapping to GCF_000005845.2, and then the 17 workflows 📋.
+If the mapping cannot be confirmed with a call, the answer must say the accession was not found
+in BRC's catalogue **and that this does not mean the assembly does not exist** — the catalogue
+holds 2 assemblies against NCBI's 452,563 📋.
 
-**Expected chain:** `geo_resolve_accession` → `geo_series`. Two calls. Using `geo_search` as a
-resolver is the failure, even when it lands on something true.
+**A bad answer looks like:** "no assemblies found for GCA_000005845.2", full stop. True of the
+catalogue, false about the world, and one character away from the accession that works. The
+second failure is silently substituting the GCF record without saying the accession was changed
+— right answer, unstated swap, and the user's own identifier never gets corrected.
 
-**Ground truth:** `esearch db=gds term=GSM9284462` returns 3 ids — `200309890` (Series),
-`100024659` (Platform), `309284462` (Sample) — with the Sample at rank 3 📋 (`ADVERSARIAL.md` A4,
-`evals/README.md`).
+**Expected chain:** `get_assemblies` on the GCA → empty → `ncbi_assembly_info` to establish the
+GCA/GCF pairing → `get_compatible_workflows` on the resolved taxid. Three calls. Stopping at the
+empty result is the failure this case exists to catch.
 
----
+**Ground truth:** BRC holds GCF_000005845.2 (K-12 MG1655, taxid 511145) and GCF_000008865.2
+(Sakai, taxid 386585) — **both `GCF_`** 📋 (`QUESTIONS.md` Q4) · 17 haploid workflows for taxid
+562 📋. That `GCA_000005845.2` is the GenBank counterpart of `GCF_000005845.2`, and what BRC
+returns when handed it, are ⚠️ **unverified** — `get_assemblies(accession="GCA_000005845.2")`
+then `ncbi_assembly_info("GCA_000005845.2")`, queued. The whole case turns on that pairing, so
+if the call comes back otherwise, this case is wrong and should be cut rather than reworded.
 
 ## S12. "Pull up record 100005163 for me."
 
@@ -461,7 +470,7 @@ Three questions with unambiguous answers and short chains. Without them a refusa
 number with no denominator: a model that refuses everything scores perfectly on S16 and S17 and
 is useless. **A refusal on any control is a scored failure.**
 
-### S18. "Which E. coli assemblies does BRC Analytics have?"
+## S18. "Which E. coli assemblies does BRC Analytics have?"
 
 **Must contain:** both, with accessions — GCF_000005845.2 (K-12 MG1655, taxid 511145) and
 GCF_000008865.2 (Sakai, taxid 386585). **Bad:** hedging that there might be more; or 452,563, the
@@ -469,14 +478,14 @@ NCBI number, which answers a different question.
 **Chain:** `search_organisms` → `get_assemblies`. Two calls.
 **Ground truth:** 2 assemblies 📋 (`QUESTIONS.md` Q4).
 
-### S19. "How long is the E. coli GyrA protein?"
+## S19. "How long is the E. coli GyrA protein?"
 
 **Must contain:** **875** amino acids, and P0AES4. **Bad:** a refusal; or hit 1 from
 `uniprot_search` without a gene-symbol check, which can be **ccdB** at 101 aa 📋.
 **Chain:** `uniprot_search` → `uniprot_get_entry`. Two calls.
 **Ground truth:** P0AES4, gyrA, 875 aa, *E. coli* K-12 📋 (`QUESTIONS.md` Q1, `PIPELINES.md` P7).
 
-### S20. "How many GEO Series are there on E. coli and ciprofloxacin?"
+## S20. "How many GEO Series are there on E. coli and ciprofloxacin?"
 
 **Must contain:** **37**, the word Series, and `entry_type="gse"`. **Bad:** 513, or a refusal on
 the grounds that the query is ambiguous — it is not, and treating it as ambiguous is the
