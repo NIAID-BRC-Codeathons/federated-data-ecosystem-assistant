@@ -117,6 +117,14 @@ class TestClampPaging:
         assert (size, offset) == (10, 9990)
         assert note and "10000" in note
 
+    def test_offset_alone_past_the_window_is_capped(self, mygene):
+        # The API rejects "from" above 10000 outright, even with size=0, so
+        # offset has to be capped on its own, not only relative to size.
+        size, offset, note = mygene._clamp_paging(10, 99999)
+        assert offset == mygene.MAX_RESULT_WINDOW
+        assert size == 0
+        assert note and "10000" in note
+
     def test_negative_inputs_are_floored(self, mygene):
         assert mygene._clamp_paging(-5, -5) == (0, 0, None)
 
