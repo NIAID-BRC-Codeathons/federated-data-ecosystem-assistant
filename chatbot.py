@@ -45,6 +45,10 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8005/mcp-ncbi",
             "transport": "streamable_http",
         },
+        "pubmed": {
+            "url": "http://127.0.0.1:8006/mcp-pubmed",
+            "transport": "streamable_http",
+        },
     }
 
 LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
