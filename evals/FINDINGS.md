@@ -396,6 +396,13 @@ board, before any question is asked.
 Each figure is the minimum over that model's rows, so it is an upper bound on the true
 floor, and the bound is loosest for `claudeopus5` where n = 2.
 
+> **Withdrawn in part, 14:58.** Every judge-derived number in this finding (`1 correct, 0 wrong, 5 never stated`; the trap flags; `routed 9/9`) came from the
+> version of `evals/judge-report.md` that existed before commit `9228627` at 14:38.
+> That report has been replaced by one whose only section is `## Nothing scorable`:
+> the judge now declines to score the archive at all, because it *"straddles the 14:08
+> port-move commit"*. Those numbers no longer have a source and are not to be quoted.
+> What survives is stated below the rule; it is what I read from the transcripts myself.
+
 ### Finding 3 — routing is not answering, and that cuts against the plateau hypothesis
 
 `laptop_codeathon`'s hypothesis, on record above: *these questions need tool selection, not
@@ -414,6 +421,8 @@ repeats the zero. The true figure is 581,464. Judge flags the same row twice,
 Q9. My four independent detectors agree with judge on every one of the fifteen
 transcripts.
 
+**What survives the withdrawal.** The Q2 worked example does, entirely: the tool call, its argument, the returned 0 and the 0 in the answer are all read straight from `q02.jsonl`, and the true 581,464 is pinned in `PIPELINES.md`. The replacement `judge-report.md` keeps the same example in its own glossary — *`zero_as_absence` ... observed on argo/gpt4o, 17 Sep, against a true 581,464*. So the mechanism stands on the transcript and on the judge's current text. The **rate** does not: `1 correct, 0 wrong, 5 never stated` has no live source, and until the judge scores a re-run there is no measured ground-truth rate for any model.
+
 So the failure is not tool selection. It is one argument inside a correctly selected tool,
 and then believing the result. **If that is where the difficulty lives, a plateau in
 routing says nothing about a plateau in capability** — which is the trap D8 named in
@@ -422,6 +431,12 @@ model has run, and a cheap model might make the same mistake. But the dimension 
 separate the tiers is now visibly D5-credulity and ground truth, not D1.
 
 ### Finding 4 — a transport failure is sitting in the matrix as a model result
+
+**Half withdrawn, 15:10.** This finding calls the fault *"closed at 14:32 by `39bb6ad`"*.
+Detection and retry did land and do work; the **recording** did not, and the fault is
+still live in the run happening now at a rate of 4 questions in 9. See Finding 8, which
+also says why I got this wrong: I checked a fix against the code that contained it rather
+than against a transcript it produced.
 
 `evals/runs/_archive-pre-matrix/argo_claudesonnet45/q01.jsonl`: 33,028 input tokens, **0 output tokens**, 1
 round trip, 0 tool calls, 2.7 seconds, `"denied": false`, `"error": null`. The input is
@@ -456,7 +471,7 @@ lapis_describe_organism · lapis_get_mutations · lapis_list_organisms
 ```
 
 Six calls, three of them into Pathoplexus on a UniProt question, and `lapis_list_organisms`
-called twice. Judge records this as routed `yes` and first-tool `yes`, both correct — the
+called twice. ~~Judge records this as routed `yes` and first-tool `yes`~~ — that came from the pre-`9228627` judge report and is **withdrawn** with it (see the banner on Finding 3). The routing claim does not depend on it: the first call is `uniprot_search`, which is the documented first step, read from the transcript. Both readings are correct — the
 question was answered and the right source was reached. D2 is what makes the detour
 visible: depth ratio 3.0 against a documented chain of 2, and one off-source server
 touched. **Neither measure is wrong; they answer different questions, which is why the
@@ -502,9 +517,190 @@ with the unused servers unwired — before any further model rows are spent.** T
 recommendation to `laptop_codeathon`, not a change I can make: `chatbot.py` `MCP_SERVERS`
 is a shared integration point and `nde` is someone else's server.
 
-*Limit: the +5,189 is one model. Whether the same schema text costs the same on Claude
+**Confirmed at 14:56, with the sign reversed.** A third run of the same two questions on
+the same model landed after this finding was written:
+`evals/runs/_archive-pre-matrix/smoke-1456-13f49c3/`, `run_id
+20260917-145609-13f49c3-dirty`. Per-turn input tokens, read from the `usage` block of each
+step rather than from the totals:
+
+| run | Q2 turn 1 | Q2 turn 2 | Q3 turn 1 | Q3 turn 2 |
+|---|---|---|---|---|
+| 14:09 / 14:10, pre-merge board | 22,204 | 22,738 | 22,204 | 35,908 |
+| 14:37 / 14:38, 13 servers | 27,393 | 27,927 | 27,393 | 41,097 |
+| 14:56, 13 servers, `13f49c3` | 25,344 | 25,878 | 25,344 | 39,048 |
+
+| step | per-turn delta, Q2 | per-turn delta, Q3 |
+|---|---|---|
+| 14:09 -> 14:37 | **+5,189, +5,189** | **+5,189, +5,189** |
+| 14:37 -> 14:56 | **-2,049, -2,049** | **-2,049, -2,049** |
+
+All three runs called the identical tool — `ncbi_pathogen_isolate_count` for Q2,
+`geo_search` for Q3, one call each — and routed identically. Two things follow.
+
+**The mechanism is now measured twice, in both directions.** Each time the change is a
+single integer repeated on every turn of two unrelated questions. That is a fixed block
+being re-sent, not run-to-run variance, and it is the only claim in this file that has
+been measured more than once.
+
+**Server count is the wrong unit.** The manifest lists the same 13 servers at 14:37 and at
+14:56, and the block still fell by 2,049 tokens a turn (the run note says `MCP_NO_BROWSER
+guard`). A board trim has to be priced by measuring the prompt block, not by counting
+servers off `MCP_SERVERS`.
+
+*A weak side-benefit for D1: the same model gave the same routing decision on these two
+questions three times across three different boards. Two questions on one model is not
+repeatability, but it is the first time anything here has been seen twice.*
+
+*Limit: both integers are one model. Whether the same schema text costs the same on Claude
 rows is untested — Finding 2 says tokenisation differs by model, so expect a different
 integer and the same mechanism.*
+
+### Finding 7 — the archive under-reports its own denial rate, and the proof survives by accident
+
+`argo_claudeopus5` Q1 exists twice, at the same relative path in two archived directories,
+and the two are not the same run:
+
+| transcript | denied | calls | in_tok | out_tok | elapsed | answer |
+|---|---|---|---|---|---|---|
+| `evals/runs/_premerge-1405-0f0101e/argo_claudeopus5/q01.jsonl` | **true** | 2 | 44,015 | 373 | 22.7 s | Argo's `ACCESS DENIED` text, 480 chars |
+| `evals/runs/_archive-pre-matrix/argo_claudeopus5/q01.jsonl` | false | 12 | 395,016 | 5,741 | 87.6 s | a real 8,674-char report |
+
+Same model, same question (`question_number: 1` in both), same opening chain
+`uniprot_search -> string_resolve_proteins`. The first attempt was denied; a later one
+answered.
+
+**Why only one of them is in the matrix.** `run_questions.py` line 447, inside `run_one`,
+opens the transcript with `path.open("w")`. A retry calls `run_one` again with the same
+model and number, so it truncates the very file it is retrying. The denied attempt
+survives only because the whole `runs/` tree was copied by hand at 14:14:58 — all 14 files
+in `_premerge-1405-0f0101e` carry that identical mtime, and 13 of them are byte-identical
+to their `_archive-pre-matrix` twins (`md5sum`). The fourteenth is this one.
+
+**What it does to the numbers.** The archive on its own shows 1 denial in 17 transcripts,
+5.9%. Counting the overwritten attempt it is 2 in 18, 11.1%. Neither is a measurement —
+the first is a floor set by how many overwrites happened to be copied. Any denial rate
+quoted from pre-`39bb6ad` transcripts is a floor and must be labelled one.
+
+**The discarded attempt was not free.** 44,015 input tokens and 373 output, billed and
+logged to `ac.ni`, for an answer that was thrown away — 11.1% on top of the 395,016 the
+successful retry then cost. One question, one model, 439,031 input tokens total.
+
+**This contradicts the obvious explanation.** Argo went live for `ac.ni` at 15:10. Both of
+these runs are before that: the denial no later than 14:14:58, the success at 14:26:52.
+So the denial is intermittent rather than a clean before-and-after on authorization, and a
+model that answers is not proof the gateway is open. The driver's own retry message says
+the same thing — `"Argo returned ACCESS DENIED as content (intermittent)"`.
+
+**Already fixed, at `39bb6ad`.** Lines 585–607 retry only the two transport faults, and
+keep each thrown-away attempt in `attempts_discarded` with its token cost, under the
+comment *"Keep what we are throwing away, or the fault rate disappears along with the
+fault."* Measured across the 31 archived transcripts: 29 have no `retries` field at all,
+and the 2 written by the patched driver carry `retries: 0, attempts_discarded: []`. So the
+fault rate is recoverable from here on and not before.
+
+*Residual limitation, reported to `laptop_codeathon` and not patched — `run_questions.py`
+is not my file.* `attempts_discarded` keeps five scalars per discarded attempt, not its
+transcript, because `run_one` still writes the same path on every attempt. The denied
+answer text is the only thing that distinguishes an Argo denial from the model's own
+refusal, and it does not survive the retry. That lands on D4: a refusal scored from a
+retried row is scored on the retry, and the discarded attempt cannot be re-read.
+
+### Finding 8 - the live matrix loses 6 questions in 15 to a transport fault, and the transcript is structurally unable to say so
+
+Measured on `run_id 20260917-145854-bafed0f-dirty`, `code_sha bafed0f-dirty`, under
+`evals/runs/argo_claudesonnet45/`, which finished all 15 questions at 15:12. This is the
+first data from the fixed tree, and it is the most important thing in this file.
+
+**The fault.** Six of the fifteen questions came back with nothing, and nothing said
+why.
+
+| transcript | input tok | output tok | LLM trips | tool calls | denied | error | elapsed |
+|---|---|---|---|---|---|---|---|
+| `q01.jsonl` | 37,583 | **0** | 1 | 0 | false | null | 1.3s |
+| `q05.jsonl` | 37,571 | **0** | 1 | 0 | false | null | 3.3s |
+| `q07.jsonl` | 37,585 | **0** | 1 | 0 | false | null | 1.4s |
+| `q09.jsonl` | 37,592 | **0** | 1 | 0 | false | null | 1.4s |
+| `q14.jsonl` | 37,582 | **0** | 1 | 0 | false | null | 1.3s |
+| `q15.jsonl` | 37,578 | **0** | 1 | 0 | false | null | 1.3s |
+
+The input spread across the six is 21 tokens - the prompt block plus the question, and
+not one thing more. The model was billed and produced nothing.
+
+**The record cannot report it.** `run_questions.py` detects this case correctly:
+`is_silent_empty` at line 144, `MAX_EMPTY_RETRIES = 2` at line 139, and the retry loop at
+583-615 which keeps every discarded attempt because, in its own comment, *"a retry that
+hides what it retried would erase the transport-fault rate, and that rate is a finding in
+its own right."* The loop is right. It runs too late. `run_one` writes the transcript at
+line 447 with the `"retries": 0` and `"attempts_discarded": []` of lines 440-441 already
+in it, and returns. The loop then sets `retries`, `attempts_discarded` and
+`error = "silent empty after N retries"` on the returned record, in memory. Nothing writes
+the file again. **No transcript this driver produces can ever report a retry.**
+
+**The retry did fire, and here is the proof from outside the file.** Each transcript is
+written when its question ends, so the gap between consecutive mtimes is that question's
+true wall cost. For every answered question that gap equals the recorded `elapsed_s`:
+
+| answered | q02 | q03 | q04 | q06 | q08 | q10 |
+|---|---|---|---|---|---|---|
+| wall gap | 40.1s | 76.9s | 86.0s | 86.5s | 114.4s | 88.5s |
+| recorded `elapsed_s` | 40.0s | 76.9s | 86.0s | 86.5s | 114.4s | 88.5s |
+
+For the silent empties it does not:
+
+| empty | recorded | true wall | unaccounted |
+|---|---|---|---|
+| `q05.jsonl` | 3.3s | 12.0s | **8.7s** |
+| `q07.jsonl` | 1.4s | 12.1s | **10.7s** |
+| `q09.jsonl` | 1.4s | 10.3s | **8.9s** |
+| `q14.jsonl` | 1.3s | 9.8s | **8.5s** |
+| `q15.jsonl` | 1.3s | 9.9s | **8.6s** |
+
+The loop sleeps `2.0 * attempts` between tries, so two retries cost 2.0s + 4.0s = **6.0s**
+of sleep before any model time - a constant that appears nowhere else in the driver. Add
+two discarded calls of roughly 1.4s each and 8.8s is predicted, against 8.5s, 8.6s, 8.7s,
+8.9s and 10.7s measured. `q01.jsonl` has no predecessor to measure a gap against, but its
+five-number signature is identical to the other five.
+
+**What it costs.** Three attempts at about 37.58k input tokens each is roughly 112.7k per
+silent-empty question, of which the transcript reports 37.58k. Across the six: **676,473
+input tokens spent, 225,491 recorded, 450,982 in nobody's total.** The row's whole
+recorded input is 2,293,768 tokens, so the invisible spend is **20% on top of everything
+this model row admits to** - and that row bought six blank answers with it. On a 36-model
+matrix it is not a rounding error.
+
+**What it does to everyone else's numbers.** `judge-report.md` at 15:02 scores Q1 and Q5
+as `routed: no`, `first: no`, `empty answer` - that is, as `argo/claudesonnet45`
+behaviour, and the same happens to every empty it reaches. Six of the fifteen questions
+never reached the model. Any routing or completion rate computed from this run is wrong by
+the empty rate until the driver is fixed, and the empty rate is the one number the
+transcript will not give you.
+
+**It also ate the dimension it could least afford to.** Q14 and Q15 are two of the three
+gap questions, the ones D4 exists to score - can the system say a clean *no*, with a
+reason and a redirection. Both came back empty. D4 has been "no rows yet" all afternoon;
+it is now *no rows because the transport swallowed them*, which is a different sentence
+and a worse one. A blank is not a refusal, and if this reaches a slide as "the system
+declined" it would be the exact failure this project was set up to prevent.
+
+**This contradicts Finding 4, which is mine.** Finding 4 records the silent empty as
+*"closed at 14:32 by `39bb6ad`"*. That was half right and I should not have written it.
+The detection landed, the retry landed, and both work - I have now watched the retry fire
+six times. The *recording* did not land, and I called the defect closed on the commit
+message and the code I had read rather than on a transcript produced by the fixed driver.
+The check I had was one that could not come back dirty: the code plainly contains a retry,
+so reading the code could only ever agree with me. The transcript could have disagreed,
+and when it finally arrived, it did.
+
+**What I changed in my own file because of this.** The `discarded attempts` column in D0
+used to print `0` for any transcript carrying a `retries` field. That zero was a constant
+dressed as a measurement. It now prints `**inert**`, and `hidden_retry_note` in
+`analyze.py` recovers the retry from mtime gaps and prints the table above. Both states
+were proven: the note fires on `evals/runs/` and stays silent on
+`evals/runs/_archive-pre-matrix/`, whose files were hand-copied and share one mtime.
+
+*Limit: one model, one complete run of 15. Whether the empty rate is a property of Argo,
+of `claudesonnet45`, or of this afternoon is not established here - the next model row
+settles it, and nothing about that row's rate should be read off this one. Reported to `laptop_codeathon` as blocking, and to `judge` as a rubric change.*
 
 ### What is still not decidable
 
@@ -515,7 +711,9 @@ integer and the same mechanism.*
 - **D4 refusal quality.** Zero rows scored. Q10, Q11 and Q13–Q15 have not run on any model.
 - **D7 transport.** No `anthropic/` row exists. Until one does, every number in this file
   is a measurement of the models *through Argo*, and Argo's neutrality is assumed, not
-  shown.
+  shown. Finding 7 makes that assumption worse, not better: Argo denied and then
+  answered the same question on the same model twelve minutes apart, so the transport
+  is not even stable against itself.
 - **D8 plateau.** Three models, all frontier or reasoning tier, no small tier, no repeat.
   The registered prediction compares `claudehaiku45` with `claudeopus5`; neither pairing
   exists yet.
@@ -533,7 +731,9 @@ integer and the same mechanism.*
    so far. Needs `laptop_codeathon` to agree the wiring change, since `MCP_SERVERS` is
    shared.
 2. Rerun `argo_claudesonnet45` Q1 and Q4 on the patched driver — Q1 for the silent empty,
-   Q4 because its denial arrived after 14 tool calls were paid for (Finding 4).
+   Q4 because its denial arrived after 14 tool calls were paid for (Finding 4). Add
+   `argo_claudeopus5` Q1: it is the one row with a known discarded attempt (Finding 7),
+   so it is the cheapest way to see `attempts_discarded` populated by the fix.
 3. Any small-tier model through Q1–Q9 — the plateau has no cheap end yet.
 4. Q13–Q15 on any model, to give D4 and D3 something to score.
 5. One `anthropic/` row, to make D7 exist.
@@ -544,19 +744,29 @@ integer and the same mechanism.*
 
 <!-- BEGIN GENERATED -->
 
-*Generated by `evals/analyze.py` from 17 transcripts across 3 model rows under `evals/runs/_archive-pre-matrix/`. Expected chains parsed from `QUESTIONS.md`; fabrication read from `judge-report.md`.*
+*Generated by `evals/analyze.py` from 15 transcripts across 1 run rows (1 distinct models) under `evals/runs/`. Expected chains parsed from `QUESTIONS.md`; fabrication read from `judge-report.md`.*
 
 **Every gap below is unreplicated** — one run per cell. Nothing here is a real difference between models until `--repeat 3` shows it exceeds a model's spread against itself.
 
-**Input notes:** **`argo_gpt4o` Q2 has 2 transcripts** (q02.jsonl, q2.jsonl) — both are counted as rows, so this model's row count exceeds its question count. **`argo_gpt4o` Q3 has 2 transcripts** (q03.jsonl, q3.jsonl) — both are counted as rows, so this model's row count exceeds its question count.
+
+**Input notes:** `_archive-pre-matrix/` holds no `qNN.jsonl` of its own but 19 one level deeper — treated as a snapshot and **not loaded**. `_premerge-1405-0f0101e/` holds no `qNN.jsonl` of its own but 14 one level deeper — treated as a snapshot and **not loaded**. **`judge-report.md` has scored 11 of 15 transcripts.** Every judge-derived cell below (D3, D5, the ground-truth column of D8) is a verdict on that subset only; the rest are unscored, not clean — `argo_claudesonnet45` Q12, Q13, Q14, Q15.
 
 ### D0 · Completion
 
-| model | tier | answered | denied | errors | incomplete rows |
-|---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 2/2 | 0 | 0 | — |
-| `argo_claudesonnet45` | frontier | 2/4 | 1 | 0 | Q1 **silent empty**, Q4 denied |
-| `argo_gpt4o` | frontier | 11/11 | 0 | 0 | — |
+| model | tier | answered | denied | discarded attempts | errors | incomplete rows |
+|---|---|---|---|---|---|---|
+| `argo_claudesonnet45` | frontier | 9/15 | 0 | **inert** | 0 | Q1 **silent empty**, Q5 **silent empty**, Q7 **silent empty**, Q9 **silent empty**, Q14 **silent empty**, Q15 **silent empty** |
+**The `discarded attempts` column is inert, so here is the retry measured from outside the file.** Every silent empty below was retried and stayed empty; the transcript records `retries: 0` for all of them. `unaccounted` is the wall gap between consecutive transcripts minus the run's own `elapsed_s`, and the driver's retry sleeps are 2.0s for one retry and 6.0s for two.
+
+| model | Q | transcript | recorded s | true wall s | unaccounted s | input tok recorded |
+|---|---|---|---|---|---|---|
+| `argo_claudesonnet45` | Q5 | `evals/runs/argo_claudesonnet45/q05.jsonl` | 3.3 | 12.0 | 8.7 | 37,571 |
+| `argo_claudesonnet45` | Q7 | `evals/runs/argo_claudesonnet45/q07.jsonl` | 1.4 | 12.1 | 10.7 | 37,585 |
+| `argo_claudesonnet45` | Q9 | `evals/runs/argo_claudesonnet45/q09.jsonl` | 1.4 | 10.3 | 8.9 | 37,592 |
+| `argo_claudesonnet45` | Q14 | `evals/runs/argo_claudesonnet45/q14.jsonl` | 1.3 | 9.8 | 8.5 | 37,582 |
+| `argo_claudesonnet45` | Q15 | `evals/runs/argo_claudesonnet45/q15.jsonl` | 1.3 | 9.9 | 8.6 | 37,578 |
+So one silent empty really costs about three times what its transcript reports, and the `input_tokens` of the two discarded attempts are in nobody's total. Reported to `laptop_codeathon`; the fix is to write the transcript after the retry loop rather than inside `run_one`.
+
 
 ### D1 · Routing
 
@@ -564,9 +774,7 @@ integer and the same mechanism.*
 
 | model | tier | reached Q1–9,12 | unwired Q10–11 | gap Q13–15 | first ok | off-source servers touched |
 |---|---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 2/2 | — | — | 2/2 | ncbi, pubmed, string |
-| `argo_claudesonnet45` | frontier | 3/4 | — | — | 3/4 | pubmed |
-| `argo_gpt4o` | frontier | 11/11 | — | — | 11/11 | pdn |
+| `argo_claudesonnet45` | frontier | 6/10 | 2/2 | — | 6/12 | geo, pubmed |
 
 **Cross-check against `judge.py`.** Every row agrees.
 
@@ -576,17 +784,13 @@ integer and the same mechanism.*
 
 | model | tier | mean calls | mean LLM trips | median depth ratio | mean servers | ratio ≥ 2 (thrashing) |
 |---|---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 7.0 | 4.0 | 4.00 | 2.5 | Q1 (6.0×), Q3 (2.0×) |
-| `argo_claudesonnet45` | frontier | 5.0 | 3.5 | 2.50 | 1.0 | Q3 (4.0×) |
-| `argo_gpt4o` | frontier | 3.6 | 3.9 | 1.00 | 1.5 | Q1 (3.0×), Q4 (2.67×), Q9 (2.0×) |
+| `argo_claudesonnet45` | frontier | 3.9 | 3.3 | 2.25 | 1.0 | Q3 (4.0×), Q4 (3.33×), Q8 (2.5×), Q10 (2.0×) |
 
 ### D3 · Fabrication (read from `judge-report.md`, not re-implemented)
 
 | model | tier | fabricated | unmatched | judge routed |
 |---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 0 | 2 | 2/2 |
-| `argo_claudesonnet45` | frontier | 0 | 0 | 2/3 |
-| `argo_gpt4o` | frontier | 0 | 2 | 9/9 |
+| `argo_claudesonnet45` | frontier | 0 | 6 | 6/6 |
 **The unmatched column is large, so D3 is not yet decidable.** `run_questions.py` keeps the first 600 characters of each tool result; an unmatched number may have been in the part the transcript does not hold. Raising `RESULT_EXCERPT` converts these into decidable flags.
 
 ### D4 · Refusal quality
@@ -595,9 +799,7 @@ The four parts of a good refusal, from `PIPELINES.md` P8, on Q10, Q11 and Q13–
 
 | model | tier | rows scored | proof number | reason | reframing | named source | mean /4 |
 |---|---|---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | — | — | — | — | — | — |
-| `argo_claudesonnet45` | frontier | — | — | — | — | — | — |
-| `argo_gpt4o` | frontier | — | — | — | — | — | — |
+| `argo_claudesonnet45` | frontier | 3 | 2/3 | 0/3 | 0/3 | 1/3 | 1.00 |
 
 ### D5 · Trap avoidance
 
@@ -605,9 +807,7 @@ Which traps fired is `judge.py`'s call, read from `judge-report.md`. The split i
 
 | model | tier | arg traps | credulity traps | unclassified | which (judge) |
 |---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 0 | 0 | 0 | none |
-| `argo_claudesonnet45` | frontier | 0 | 0 | 0 | none |
-| `argo_gpt4o` | frontier | 4 | 4 | 0 | `pathogen_wrong_group` Q2,Q6,Q9,Q2; `zero_as_absence` Q2,Q6,Q9,Q2 |
+| `argo_claudesonnet45` | frontier | 0 | 2 | 0 | `ena_50` Q10,Q11 |
 
 - `ena_50` — **credulity**
 - `ena_keywords` — **credulity**
@@ -626,23 +826,19 @@ Tokens are measured. **Dollars are not** — `LIST_PRICE_PER_M` in `run_question
 
 | model | tier | rows | mean in tok | mean out tok | in tok / round trip | mean TTFT s | model s | tool s | list $ (unverified) |
 |---|---|---|---|---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 2 | 274,006 | 5,054 | 71,167 | 4.34 | 65.3 | 4.8 | **no price row** |
-| `argo_claudesonnet45` | frontier | 2 | 135,560 | 3,210 | 45,187 | 3.00 | 73.8 | 1.8 | $0.91 |
-| `argo_gpt4o` | frontier | 11 | 100,762 | 894 | 26,291 | 3.51 | 28.7 | 1.4 | $2.87 |
+| `argo_claudesonnet45` | frontier | 9 | 229,809 | 3,539 | 49,092 | 3.53 | 75.3 | 3.6 | $6.68 |
 
 **What the tool board costs before anyone asks anything.** The smallest first-turn input across a model's rows — the system prompt, all ~90 tool schemas and a question of a few dozen tokens. It is an upper bound on the true floor, tighter the more rows a model has.
 
 | model | tier | prompt block (tok) | rows seen | share of all input tokens |
 |---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 55,201 | 2 | 78.0% |
-| `argo_claudesonnet45` | frontier | 32,998 | 4 | 78.1% |
-| `argo_gpt4o` | frontier | 22,204 | 11 | 86.0% |
+| `argo_claudesonnet45` | frontier | 37,553 | 15 | 82.9% |
 
 **Is input cost schema overhead × round trips?** Least squares of `input_tokens` on `llm_round_trips`, per model. The intercept is the fixed cost of one turn — system prompt plus every tool schema. D6 predicted ≈33k ± 15% with R² > 0.8.
 
 | model | intercept (tok) | slope (tok/trip) | R² | n |
 |---|---|---|---|---|
-| `argo_gpt4o` | 6,199 | 24,190 | 0.954 | 11 |
+| `argo_claudesonnet45` | 39,597 | 39,812 | 0.635 | 9 |
 
 ### D7 · Transport
 
@@ -654,9 +850,9 @@ Quality proxies against what they cost. A plateau here is a plateau **on the dim
 
 | model | tier | answered | routed | ground truth (judge) | trap hits | fabricated | total tokens | mean s |
 |---|---|---|---|---|---|---|---|---|
-| `argo_claudeopus5` | reasoning | 2/2 | 2/2 | 1✓ / 0✗ / 0 unstated | 0 | 0 | 558,119 | 70.2 |
-| `argo_claudesonnet45` | frontier | 2/4 | 3/4 | 2✓ / 0✗ / 0 unstated | 0 | 0 | 536,372 | 49.6 |
-| `argo_gpt4o` | frontier | 11/11 | 11/11 | 1✓ / 0✗ / 5 unstated | 4 | 0 | 1,118,212 | 30.1 |
+| `argo_claudesonnet45` | frontier | 9/15 | 8/12 | 3✓ / 0✗ / 1 unstated | 2 | 0 | 2,325,615 | 48.1 |
+
+**Tools this script could not map to a server** (so their off-source status is unknown, not clean) — add them to `SERVER_PREFIX` or `BRC_TOOLS`: `get_organism`
 
 <!-- END GENERATED -->
 

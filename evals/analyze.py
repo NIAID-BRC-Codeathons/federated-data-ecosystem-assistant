@@ -256,6 +256,25 @@ class Run:
         self.answer = self.summary.get("answer") or ""
         self.denied = bool(self.summary.get("denied"))
         self.error = self.summary.get("error")
+        # A denied attempt used to be erased by the attempt that replaced it:
+        # `run_one` writes the transcript with open("w") keyed on model+question,
+        # so a retry truncated the file it was retrying. 39bb6ad keeps the token
+        # cost of each thrown-away attempt in `attempts_discarded`. An absent
+        # field means this transcript predates the fix and cannot say whether it
+        # was a first attempt -- which is not the same as "no retries", and D0
+        # must not print it as if it were.
+        self.retries = self.summary.get("retries")
+        self.discarded = self.summary.get("attempts_discarded")
+        self.retry_recorded = "retries" in self.summary
+
+        # The directory is the run, not the model. `smoke-1456-13f49c3/` holds
+        # `argo/gpt4o` on a different tool board; grouping by directory keeps the
+        # two boards comparable, but the tier has to come from the weights that
+        # actually ran, or every run-tagged directory scores `unclassified` and a
+        # run tag reads as a model name in the leftmost column of every table.
+        self.model_id = self.summary.get("model") or None
+        if self.model_id:
+            self.tier = tier_of(self.model_id)
 
         self.expected = set(chains.get(self.q, []))
         self.chain_len = len(chains.get(self.q, []))
@@ -287,6 +306,14 @@ class Run:
         if not (self.summary.get("answer_chars") or 0):
             return ("**silent empty**" if not self.tools else "empty after tools")
         return "ok"
+
+    @property
+    def silent_empty(self) -> bool:
+        """Nothing came back and nothing said why: a transport fault, not an answer."""
+        return (not self.error and not self.denied
+                and not (self.summary.get("output_tokens") or 0)
+                and not self.tools
+                and not (self.summary.get("answer_chars") or 0))
 
     # --- D1 ---------------------------------------------------------------
     @property
@@ -478,8 +505,24 @@ def read_judge(path: pathlib.Path):
     notes = []
     blank = [m for m, v in per_model.items() if "fabricated" not in v]
     if not per_model:
-        notes.append(f"`{path.name}` exists but no ``## `model` `` section matched. "
-                     "**D3 is unread, not clean** — do not read the blanks as zero.")
+        # Two situations produce no model sections, and reporting them the same
+        # way would be the exact bug this guard exists to prevent. A judge that
+        # DECLARED it scored nothing is telling us something true; a parser that
+        # quietly stopped matching is telling us nothing at all. Say which.
+        declared = [l.strip() for l in text.splitlines()
+                    if l.startswith("## ") and "scorable" in l.lower()]
+        if declared:
+            head = declared[0].lstrip("# ")
+            after = text.split(declared[0], 1)[1].split(chr(10) + "## ", 1)[0]
+            why = " ".join(after.split())[:420]
+            notes.append(f"**`{path.name}` reports `{head}` and scored no "
+                         "transcript.** That is the judge" + chr(39) + "s own verdict, "
+                         "not a parse failure, so no blank cell below may be read as a "
+                         "zero. Its stated reason: " + (why or "none given"))
+        else:
+            notes.append(f"`{path.name}` exists but no ``## `model` `` section "
+                         "matched. **D3 is unread, not clean** " + chr(8212) + " do not "
+                         "read the blanks as zero.")
     elif blank:
         notes.append("No `fabrication flags` line found for " +
                      ", ".join(f"`{m}`" for m in blank) + "; those cells are unread, not clean.")
@@ -526,6 +569,53 @@ def table(rows: list[list[str]], head: list[str]) -> str:
     return "\n".join(out)
 
 
+def _norm_model(name: str) -> str:
+    out = name.lower()
+    for ch in "/-. ":
+        out = out.replace(ch, "_")
+    return out.strip("_")
+
+
+def mtier(rs) -> str:
+    """Tier of the weights that ran, not of the directory they were written to."""
+    ids = {r.model_id for r in rs if r.model_id}
+    if len(ids) == 1:
+        return tier_of(ids.pop())
+    if len(ids) > 1:
+        return "**mixed**"
+    return tier_of(rs[0].model)
+
+
+def mlabel(m: str, rs) -> str:
+    """The directory, plus the model it actually ran when the two differ."""
+    ids = sorted({r.model_id for r in rs if r.model_id})
+    if len(ids) == 1 and _norm_model(m) != _norm_model(ids[0]):
+        return "`" + m + "`<br>(`" + ids[0] + "`)"
+    if len(ids) > 1:
+        return ("`" + m + "`<br>(**" + str(len(ids)) + " models**: "
+                + ", ".join("`" + i + "`" for i in ids) + ")")
+    return "`" + m + "`"
+
+
+def alias_note(runs) -> str:
+    """Say it out loud when one model wears several row labels."""
+    seen = defaultdict(set)
+    for r in runs:
+        if r.model_id:
+            seen[r.model_id].add(r.model)
+    dup = {k: sorted(v) for k, v in seen.items() if len(v) > 1}
+    if not dup:
+        return ""
+    parts = ["`" + mid + "` under " + ", ".join("`" + d + "`" for d in dirs)
+             for mid, dirs in sorted(dup.items())]
+    return (chr(10) + "**One model, several rows: " + "; ".join(parts) + ".** Every row "
+            "below is a *run* -- the same weights on a different tool board or code "
+            "state -- not a distinct model, so a table with N rows is not a comparison "
+            "of N models. The rows are kept apart on purpose: Finding 6 is the "
+            "difference between two of them, and merging them would erase the only cost "
+            "measurement in this file." + chr(10))
+
+
 def by_model(runs):
     d = defaultdict(list)
     for r in runs:
@@ -533,14 +623,94 @@ def by_model(runs):
     return dict(sorted(d.items()))
 
 
+def hidden_retry_note(runs) -> str:
+    """Recover the retry count the transcript is structurally unable to report.
+
+    `run_questions.py` line 447 writes the transcript inside `run_one`, with the
+    `retries: 0` and `attempts_discarded: []` of lines 440-441 baked in, and then
+    returns. The retry loop at 583-615 sets `retries`, `attempts_discarded` and
+    `error` on the returned record -- in memory. Nothing writes the file again, so
+    no transcript can ever report a retry, and every silent empty reaches the judge
+    looking like a clean model result with a blank answer.
+
+    The retry is still visible from outside the file. Each transcript is written
+    when its question ends, so the gap between consecutive mtimes is that
+    question's true wall cost. For an answered question that gap equals the
+    recorded `elapsed_s`; for a retried one it exceeds it by the discarded calls
+    plus the loop's own `asyncio.sleep(2.0 * attempts)` -- 2.0s for one retry and
+    6.0s for two, a constant that appears nowhere else in the driver.
+    """
+    found = []
+    for m, rs in by_model(runs).items():
+        prev = None
+        for r in sorted(rs, key=lambda x: x.path.stat().st_mtime):
+            mt = r.path.stat().st_mtime
+            gap = (mt - prev) if prev is not None else None
+            prev = mt
+            el = r.summary.get("elapsed_s")
+            if gap is not None and el is not None and r.silent_empty and gap - el >= 1.5:
+                found.append((m, r, gap - el))
+    if not found:
+        return ""
+    rows = [[mlabel(m, [r]), f"Q{r.q}", f"`{_rel(r.path)}`",
+             fmt(r.summary.get("elapsed_s"), 1),
+             fmt(un + r.summary.get("elapsed_s"), 1), fmt(un, 1),
+             f"{r.summary.get('input_tokens', 0):,}"]
+            for m, r, un in found]
+    APOS = chr(39)
+    head = (chr(10) + "**The `discarded attempts` column is inert, so here is the retry "
+            "measured from outside the file.** Every silent empty below was retried and "
+            "stayed empty; the transcript records `retries: 0` for all of them. "
+            "`unaccounted` is the wall gap between consecutive transcripts minus the "
+            "run" + APOS + "s own `elapsed_s`, and the driver" + APOS + "s retry sleeps are 2.0s "
+            "for one retry and 6.0s for two." + chr(10) + chr(10))
+    tailtext = (chr(10) + "So one silent empty really costs about three times what its "
+                "transcript reports, and the `input_tokens` of the two discarded "
+                "attempts are in nobody" + APOS + "s total. Reported to `laptop_codeathon`; "
+                "the fix is to write the transcript after the retry loop rather than "
+                "inside `run_one`." + chr(10))
+    return head + table(rows, ["model", "Q", "transcript", "recorded s", "true wall s",
+                               "unaccounted s", "input tok recorded"]) + tailtext
+
+
 def d0_completion(runs):
     rows = []
     for m, rs in by_model(runs).items():
         bad = [r for r in rs if not r.complete]
-        rows.append([f"`{m}`", tier_of(m), f"{len(rs) - len(bad)}/{len(rs)}",
-                     sum(1 for r in rs if r.denied), sum(1 for r in rs if r.error),
+        # Discarded attempts are denials and silent empties that a retry replaced.
+        # They are faults that happened and were paid for, so they belong beside
+        # the denial count, not folded into a row that now reads as a clean success.
+        disc = [a for r in rs for a in (r.discarded or [])]
+        # A zero here is not a measurement. `run_one` writes the transcript with
+        # `retries: 0` and `attempts_discarded: []` already in it and then returns;
+        # the retry loop sets those fields on the in-memory record afterwards and
+        # nothing rewrites the file. So the field is a constant, and a column that
+        # cannot come back dirty must not print a clean number.
+        dcell = (f"{len(disc)} ({sum(a.get('input_tokens', 0) for a in disc):,} tok)"
+                 if disc else ("**inert**" if all(r.retry_recorded for r in rs)
+                               else "**not recorded**"))
+        rows.append([mlabel(m, rs), mtier(rs), f"{len(rs) - len(bad)}/{len(rs)}",
+                     sum(1 for r in rs if r.denied), dcell,
+                     sum(1 for r in rs if r.error),
                      ", ".join(f"Q{r.q} {r.completion_note}" for r in bad) or "—"])
-    body = table(rows, ["model", "tier", "answered", "denied", "errors", "incomplete rows"])
+    body = table(rows, ["model", "tier", "answered", "denied", "discarded attempts",
+                        "errors", "incomplete rows"])
+    # A denial count read off transcripts that cannot record a retry is a floor.
+    # Saying so is the whole point: "1 of 17" and "1 of 17 or more" are different
+    # claims, and only the second one is true of the archive.
+    blind = sorted({r.model for r in runs if not r.retry_recorded})
+    if blind:
+        body += ("\n**The `denied` column is a floor, not a rate, for "
+                 + ", ".join(f"`{m}`" for m in blind)
+                 + ".** Those transcripts carry no `retries` field, so they predate "
+                 "`39bb6ad`, when a retry overwrote the transcript it was retrying "
+                 "(`run_questions.py`, `run_one`, `path.open('w')`). A denial "
+                 "that was then retried successfully left no record at all. Measured "
+                 "instance: `evals/runs/_premerge-1405-0f0101e/argo_claudeopus5/"
+                 "q01.jsonl` is a denial at 44,015 input tokens whose replacement at "
+                 "the same relative path under `_archive-pre-matrix/` answers in "
+                 "full -- see Finding 7.\n")
+    body += hidden_retry_note(runs)
     return "### D0 · Completion\n\n" + body + "\n"
 
 
@@ -553,7 +723,7 @@ def d1_routing(runs, judge_rows):
             cell[klass] = (f"{sum(1 for r in sub if r.reached)}/{len(sub)}" if sub else "—")
         firsts = [r for r in rs if r.first_ok is not None]
         offs = sorted({s for r in rs for s in r.off_source} - {"unknown"})
-        rows.append([f"`{m}`", tier_of(m), cell["answerable"], cell["unwired"], cell["gap"],
+        rows.append([mlabel(m, rs), mtier(rs), cell["answerable"], cell["unwired"], cell["gap"],
                      f"{sum(1 for r in firsts if r.first_ok)}/{len(firsts)}" if firsts else "—",
                      ", ".join(offs) or "—"])
         for r in rs:
@@ -584,7 +754,7 @@ def d2_depth(runs):
         ok = [r for r in rs if r.complete and r.depth_ratio is not None]
         ratios = [r.depth_ratio for r in ok]
         over = [f"Q{r.q} ({r.depth_ratio}×)" for r in ok if r.depth_ratio and r.depth_ratio >= 2]
-        rows.append([f"`{m}`", tier_of(m),
+        rows.append([mlabel(m, rs), mtier(rs),
                      fmt(mean([r.summary.get("tool_call_count") for r in rs])),
                      fmt(mean([r.summary.get("llm_round_trips") for r in rs])),
                      fmt(statistics.median(ratios), 2) if ratios else "—",
@@ -625,13 +795,13 @@ def d4_refusal(runs):
         parts = [(r, r.refusal_parts()) for r in rs]
         parts = [(r, p) for r, p in parts if p]
         if not parts:
-            rows.append([f"`{m}`", tier_of(m), "—", "—", "—", "—", "—", "—"])
+            rows.append([mlabel(m, rs), mtier(rs), "—", "—", "—", "—", "—", "—"])
             continue
         def share(key):
             vals = [p[key] for _, p in parts if p[key] is not None]
             return f"{sum(vals)}/{len(vals)}" if vals else "n/a"
         scores = [sum(1 for v in p.values() if v) for _, p in parts]
-        rows.append([f"`{m}`", tier_of(m), len(parts), share("proof"), share("reason"),
+        rows.append([mlabel(m, rs), mtier(rs), len(parts), share("proof"), share("reason"),
                      share("reframe"), share("alt_source"), fmt(mean(scores), 2)])
     return ("### D4 · Refusal quality\n\n"
             "The four parts of a good refusal, from `PIPELINES.md` P8, on Q10, Q11 and "
@@ -664,7 +834,7 @@ def d5_traps(runs, judge_rows):
         unknown |= {k for k in hits if k not in TRAP_CLASS}
         arg = sum(len(v) for k, v in hits.items() if TRAP_CLASS.get(k) == "arg")
         cred = sum(len(v) for k, v in hits.items() if TRAP_CLASS.get(k) == "credulity")
-        rows.append([f"`{m}`", tier_of(m), arg, cred,
+        rows.append([mlabel(m, rs), mtier(rs), arg, cred,
                      sum(len(v) for k, v in hits.items() if k not in TRAP_CLASS),
                      "; ".join(f"`{k}` {','.join(v)}" for k, v in sorted(hits.items())) or "none"])
     out = ["### D5 · Trap avoidance\n",
@@ -701,13 +871,13 @@ def d6_cost(runs):
         priced = [c for c in costs if c is not None]
         floors = [r.first_turn_in for r in rs if r.first_turn_in]
         floor = min(floors) if floors else None
-        blocks.append([f"`{m}`", tier_of(m), fmt(floor, 0) if floor else "—", len(floors),
+        blocks.append([mlabel(m, rs), mtier(rs), fmt(floor, 0) if floor else "—", len(floors),
                        fmt(mean([100 * floor * (r.summary.get("llm_round_trips") or 0)
                                  / r.summary["input_tokens"]
                                  for r in ok if r.summary.get("input_tokens")]), 1) + "%"
                        if floor else "—"])
         rows.append([
-            f"`{m}`", tier_of(m), len(ok),
+            mlabel(m, rs), mtier(rs), len(ok),
             fmt(mean(tin), 0), fmt(mean([r.summary.get("output_tokens") for r in ok]), 0),
             fmt(mean(per_trip), 0),
             fmt(mean([r.summary.get("ttft_s") for r in ok]), 2),
@@ -793,7 +963,7 @@ def d8_plateau(runs, judge):
         fab = jt.get("fabricated")
         truth = (f"{jt['correct']}✓ / {jt['wrong']}✗ / {jt['never_stated']} unstated"
                  if "correct" in jt else "—")
-        rows.append([f"`{m}`", tier_of(m), f"{len(ok)}/{len(rs)}",
+        rows.append([mlabel(m, rs), mtier(rs), f"{len(ok)}/{len(rs)}",
                      f"{sum(1 for r in routed if r.reached)}/{len(routed)}" if routed else "—",
                      truth, traps, "**unread**" if fab is None else fab, fmt(tok, 0),
                      fmt(mean([r.summary.get("elapsed_s") for r in rs]))])
@@ -823,11 +993,12 @@ def build(runs, judge, judge_rows, notes, root: pathlib.Path = RUNS) -> str:
     models = sorted({r.model for r in runs})
     head = [
         f"*Generated by `evals/analyze.py` from {len(runs)} transcripts across "
-        f"{len(models)} model rows under `{_rel(root)}/`. Expected chains parsed from "
+        f"{len(models)} run rows ({len({r.model_id or r.model for r in runs})} distinct models) under `{_rel(root)}/`. Expected chains parsed from "
         f"`QUESTIONS.md`; fabrication read from `judge-report.md`.*\n",
         "**Every gap below is unreplicated** — one run per cell. Nothing here is a real "
         "difference between models until `--repeat 3` shows it exceeds a model's spread "
         "against itself.\n",
+        alias_note(runs),
     ]
     # `judge-report.md` is written by another chat against whatever had landed when it
     # ran. If it has scored fewer transcripts than exist, every judge-derived cell is a
@@ -899,7 +1070,8 @@ def main() -> int:
     if args.write:
         splice(args.findings, block)
         print(f"wrote {len(block):,} chars into {_rel(args.findings)} "
-              f"({len(runs)} transcripts, {len({r.model for r in runs})} models)")
+              f"({len(runs)} transcripts, {len(by_model(runs))} run rows, "
+              f"{len({r.model_id or r.model for r in runs})} models)")
     else:
         print(block)
     return 0
