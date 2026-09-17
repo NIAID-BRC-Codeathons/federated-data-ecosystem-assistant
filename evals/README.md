@@ -22,7 +22,7 @@ That is a falsifiable claim, so `run_eval.py` tries to falsify it.
 uv run evals/run_eval.py --markdown evals/REPORT.md
 ```
 
-Ten cases, each run twice against the live services:
+Fourteen cases, each run twice against the live services:
 
 - **baseline** — the obvious call, written from the API docs, with no guards
 - **tool** — our MCP tool
@@ -35,8 +35,8 @@ are reported too, and honestly: those are convenience, not correctness.
 
 | | correct |
 |---|---|
-| baseline (raw API, written from the docs) | **0/10** |
-| our MCP tools | **10/10** |
+| baseline (raw API, written from the docs) | **1/14** |
+| our MCP tools | **13/14** |
 
 Full detail, with the real output of every call, is in [`REPORT.md`](REPORT.md).
 
@@ -57,9 +57,19 @@ baseline call at all because without the counts the only option is to decline.
 | BRC `/api/v1/ena/study/{acc}` | HTTP 500 | 369 runs across 13 organisms |
 | Pathogen Detection `taxgroup_name=="Escherichia coli"` | `0` | the curated group is `"E.coli and Shigella"`, and it holds 581,464 |
 | "how many methicillin-resistant E. coli" | nothing to say but "I don't know" | `mecA` = **2** of 581,464, vs 93,260 of 171,412 in *S. aureus* |
+| `esummary db=bioproject id=PRJNA715470` | HTTP 200, `Invalid uid` inside the body | resolve the accession to UID 715470 first; then `submitter_organization` = University of Pennsylvania |
+| taxonomy `"Escherichia coli K-12 MG1655"` | 0 hits; loosened to `"K-12"` gives 83333 | the reference assembly is taxid **511145**, a different strain |
+| PubMed `sort="Publication Date"`, no `datetype` | 274, not newest-first | `datetype=pdat&sort=pub_date` gives 283, newest-first. Omitting `datetype` silently windows on the index date instead |
+| **UniProt `GET /uniprotkb/P0AES4`** | **20 PDB cross-references** | **the baseline is right and our tool is wrong**: `uniprot_get_entry` trims them because `ENTRY_FIELDS` never names `xref_pdb` |
 
 A model given only the API documentation writes the left column. That is the baseline
 this project is worth measuring against.
+
+**The one baseline pass is a gap in our own code, and it is reported rather than
+excluded.** The board's "structural implications" branch needs PDB cross-references; UniProt
+returns them by default; `uniprot_get_entry` drops them. That is a one-word fix in a file
+this branch does not own, so it goes to that file's author as a finding. A harness that can
+only find fault in other people's APIs is not a harness.
 
 ## What the eval found in our own code
 
@@ -89,6 +99,6 @@ answered. Six need more than one server; three cannot be answered at all, and sa
 - **These numbers move.** They are live counts from live services; BRC's workflow
   catalogue changed between 16 and 17 Sep while this was being built. Re-run the harness
   before quoting any figure.
-- **Ten cases is not coverage.** It is the ten traps that were measured. Offline
+- **Fourteen cases is not coverage.** It is the fourteen traps that were measured. Offline
   regression tests live in `tests/test_geo_tools.py` (52) and
   `tests/test_brc_analytics_tools.py` (26).
