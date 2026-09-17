@@ -240,7 +240,7 @@ def mv_schema(myvariant):
 
 
 @pytest.fixture(autouse=True)
-def block_network(mygene, myvariant, pubmed, geo, monkeypatch):
+def block_network(mygene, myvariant, pubmed, geo, brc, monkeypatch):
     """Fail any request a test did not arrange, so the suite stays offline."""
 
     def refuse(method: str, url: str, **kwargs: Any):
@@ -260,6 +260,8 @@ def block_network(mygene, myvariant, pubmed, geo, monkeypatch):
     # geo.py holds one module-level Session and calls .get on it, so the refusal
     # goes on the session rather than on the requests module.
     monkeypatch.setattr(geo._session, "get", refuse_get)
+    # brc_analytics.py calls requests.get at module level.
+    monkeypatch.setattr(brc.requests, "get", refuse_get)
 
 
 @pytest.fixture
@@ -491,3 +493,47 @@ def geo_esummary(uid: str, **fields: Any) -> dict:
 def geo_esearch(count: int, ids: list[str], translation: str = "") -> dict:
     return {"esearchresult": {"count": str(count), "idlist": ids,
                               "querytranslation": translation}}
+
+
+# ---------------------------------------------------------------------------
+# brc_analytics.py calls requests.get(url, params=..., headers=..., timeout=...)
+# and reads resp.json() and resp.text. It reuses GeoFakeResponse, whose shape
+# matches, but installs on the requests module rather than on a Session.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def brc():
+    """The BRC Analytics complement server module."""
+    import brc_analytics as module
+
+    return module
+
+
+@pytest.fixture
+def brc_record(brc, block_network, monkeypatch) -> Callable[..., GeoRecorder]:
+    """Install a recorder in place of brc_analytics.requests.get."""
+
+    def install(responses: Any = None) -> GeoRecorder:
+        recorder = GeoRecorder(responses)
+        monkeypatch.setattr(brc.requests, "get", recorder)
+        return recorder
+
+    return install
+
+
+def ena_row(run: str = "ERR1", **fields: Any) -> dict:
+    """One ENA read_run row, in the shape the portal API returns."""
+    row = {
+        "run_accession": run,
+        "study_accession": "PRJEB8667",
+        "sample_accession": "SAMEA1",
+        "scientific_name": "Escherichia coli",
+        "library_strategy": "WGS",
+        "read_count": "1000",
+        # ENA returns these with no scheme at all, which no client can follow.
+        "fastq_ftp": f"ftp.sra.ebi.ac.uk/vol1/fastq/{run}/{run}_1.fastq.gz;"
+                     f"ftp.sra.ebi.ac.uk/vol1/fastq/{run}/{run}_2.fastq.gz",
+    }
+    row.update(fields)
+    return row
