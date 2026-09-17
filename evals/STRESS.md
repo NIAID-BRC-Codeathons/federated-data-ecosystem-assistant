@@ -650,10 +650,17 @@ Four checks beyond the demo set:
    mid-sentence, `refusal_parts` must return *unscoreable*, not a miss. The four parts of a
    refusal — the number, the wrong premise, the nearest question, who to ask — are what an answer
    ends on, so truncation removes exactly the thing being measured. Observed 17 Sep 🗂: **all 15**
-   `argo/claudeopus5` answers end mid-sentence, `q08` on a table header with zero rows at
-   `output_tokens` exactly 5000. The control that makes this a finding: `argo/claudesonnet45`, same
-   driver and same `code_sha`, ends 8 of its 9 non-empty answers in a full stop, and is cut only
-   on its longest. Nothing in those records says truncated — the summary schema at `code_sha
+   `argo/claudeopus5` answers end mid-sentence, `q08` on a table header with zero rows.
+   Corrected 16:31 🗂: the control I first cited here was `argo/claudesonnet45` in the base
+   matrix, and a later run overwrote that directory with 15 empty stubs, so it is no longer on
+   disk. The stronger control is the BOBBY-LANES matrix in
+   `evals/runs/_archive-lanes-truncated/` — 13 models, one driver, one afternoon, 171 non-empty
+   answers: `gpt41` 16/16, `gpt41mini` 16/16, `gpto3` 15/15 and `claudehaiku45` 14/14 end
+   cleanly, while `claudeopus5` is cut on 10 of 14. Do not read a token cap into this. Cut
+   answers span 0–9,904 `output_tokens` and clean ones span 53–5,190; the bands overlap, and
+   `output_tokens` is not answer length in any case — median chars per token runs 1.72 for
+   `gpt5` to 4.59 for `gpt41mini`, because reasoning tokens sit inside the counter.
+   Nothing in those records says truncated — the summary schema at `code_sha
    bafed0f-dirty` carries no `finish_reason` key, though `run_questions.py:512-515` records one
    now. Q15 is the case: opus5 made 15 tool calls on a decline-and-route question, wrote a
    structural report, and mentions `PDB`, `AlphaFold`, `RCSB` and `cannot` zero times — at 1,577
