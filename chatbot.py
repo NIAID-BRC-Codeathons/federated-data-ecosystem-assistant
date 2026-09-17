@@ -225,9 +225,26 @@ MCP_SERVERS = {
             "transport": "streamable_http",
             "auth": _bvbrc_auth(),
         },
+        "geo": {
+            # GEO is the only source registered here with processed gene
+            # expression: what genes changed, under what treatment.
+            # 8009, not 8007: NDE landed on 8007 first (PR #12).
+            "url": "http://127.0.0.1:8009/mcp-geo",
+            "transport": "streamable_http",
+        },
+        "brc_analytics_local": {
+            # Complements "brc-analytics" above, which is BRC's own public
+            # server. This covers only what that server cannot do: ENA paging
+            # past its hard 50-row cap and the real total, a working keyword
+            # search (theirs answers HTTP 400), and study lookup (theirs 500s).
+            "url": "http://127.0.0.1:8008/mcp-brc-analytics",
+            "transport": "streamable_http",
+        },
     }
 
-#LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
+# Overridable from .env so nobody has to commit a model switch. The default is
+# unchanged; the commented lines below are the other providers that are wired.
+LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/google/gemma-4-26b-a4b-it")
 # LLM_MODEL="openrouter/mistralai/mistral-small-2603"
 # LLM_MODEL="cesnet/qwen3-coder"
 # LLM_MODEL="ollama/qwen3.5:9b"
@@ -272,7 +289,18 @@ def load_chat_model(model: str) -> BaseChatModel:
             model=model_name,
             base_url=ARGO_BASE_URL,
             api_key=SecretStr(os.environ["ARGO_USER"]),
-            max_completion_tokens=2048,
+            # The Argo shim ignores max_completion_tokens -- which is what LangChain
+            # renames max_tokens to -- and honours max_tokens only. Without it the
+            # model runs to its maximum output length, and on the Claude models a
+            # non-streaming call then trips the upstream ten-minute guard with
+            # HTTP 500 "Streaming is required". extra_body bypasses the rename.
+            # Measured by laptop_system_improvement, 17 Sep 2026. 4096 rather than
+            # 2048 because the reasoning tiers spend part of the cap on reasoning
+            # tokens and return empty at 2048.
+            extra_body={"max_tokens": 4096},
+            # Ask for usage on the final streamed chunk, so token counts are
+            # recorded even on the streaming path chatbot.py and the evals use.
+            stream_usage=True,
         )
     if provider == "ollama":
         from langchain_ollama import ChatOllama
@@ -288,19 +316,53 @@ def load_chat_model(model: str) -> BaseChatModel:
     raise ValueError(f"Unknown provider: {provider}")
 
 
-async def init_agent():
-    # Connect to each MCP server individually so that one failure (e.g. a 401
-    # from an OAuth-protected server) doesn't take down all the others.
-    all_tools = []
-    for name in MCP_SERVERS:
+def _root_cause(exc: BaseException) -> str:
+    """The innermost real error.
+
+    A failed MCP connection surfaces as an ExceptionGroup wrapping a TaskGroup,
+    whose str() is "unhandled errors in a TaskGroup" and says nothing about what
+    went wrong. Unwrap it so the startup line names the actual cause.
+    """
+    seen = 0
+    while seen < 10:
+        inner = getattr(exc, "exceptions", None)
+        if not inner:
+            break
+        exc = inner[0]
+        seen += 1
+    return f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+
+
+async def load_tools(servers: dict) -> tuple[list, dict]:
+    """Collect tools from every server, skipping the ones that are down.
+
+    MultiServerMCPClient.get_tools() fans out across all servers and raises if
+    any one of them is unreachable, which took the whole chat down at startup
+    whenever a single local server was not running. Asking each server
+    separately costs a missing one its tools and nothing else.
+    """
+    tools: list = []
+    report: dict = {}
+    for name, config in servers.items():
         try:
-            client = MultiServerMCPClient({name: MCP_SERVERS[name]})
-            tools = await client.get_tools()
-            all_tools.extend(tools)
-        except Exception as exc:
-            print(f"[warn] MCP server '{name}' unavailable, skipping: {exc}")
-    llm = load_chat_model(LLM_MODEL)
-    return create_agent(model=llm, tools=all_tools, system_prompt=SYSTEM_PROMPT)
+            server_tools = await MultiServerMCPClient({name: config}).get_tools()
+        except Exception as exc:  # unreachable, refused, timed out, bad protocol
+            report[name] = f"unavailable: {_root_cause(exc)}"
+            continue
+        tools.extend(server_tools)
+        report[name] = f"{len(server_tools)} tools"
+    return tools, report
+
+
+async def init_agent():
+    tools, report = await load_tools(MCP_SERVERS)
+    for name, status in report.items():
+        print(f"  {name:22s} {status}")
+    if not tools:
+        raise RuntimeError(
+            "No MCP server answered. Start them with run_mcp_servers.py, or trim "
+            "MCP_SERVERS to the ones you are running."
+        )
 
 
 @cl.on_chat_start
@@ -370,5 +432,27 @@ async def set_starters(user: cl.User | None = None, language: str | None = None)
         cl.Starter(
             label="STRING interactions TP53",
             message="What are the interaction partners of TP53 with high confidence?",
+        ),
+        cl.Starter(
+            label="GEO expression under ciprofloxacin",
+            message=(
+                "Which E. coli gene expression studies involve ciprofloxacin, and "
+                "where are the actual expression values for the top one?"
+            ),
+        ),
+        cl.Starter(
+            label="BRC what can I run on E. coli",
+            message=(
+                "Which genome assemblies does BRC Analytics hold for Escherichia "
+                "coli, and which analysis workflows can I run on them?"
+            ),
+        ),
+        cl.Starter(
+            label="Expression study to runnable workflow",
+            message=(
+                "Find an E. coli antibiotic resistance expression study in GEO, "
+                "then tell me whether AMR Gene Detection can run on the E. coli "
+                "reference genome."
+            ),
         ),
     ]
