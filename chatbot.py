@@ -78,6 +78,10 @@ MCP_SERVERS = {
             "url": "https://chat.expasy.org/mcp/",
             "transport": "streamable_http",
         },
+        "brc-analytics": {
+            "url": "https://brc-analytics.org/api/v1/mcp/",
+            "transport": "streamable_http",
+        },
         "pdn": {
             "url": "http://127.0.0.1:8001/mcp-pdn",
             "transport": "streamable_http",
@@ -98,6 +102,10 @@ MCP_SERVERS = {
             "url": "http://127.0.0.1:8005/mcp-ncbi",
             "transport": "streamable_http",
         },
+        "pubmed": {
+            "url": "http://127.0.0.1:8006/mcp-pubmed",
+            "transport": "streamable_http",
+        },
     }
 
 LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
@@ -106,6 +114,22 @@ LLM_MODEL="openrouter/google/gemma-4-26b-a4b-it"
 # LLM_MODEL="ollama/gemma4"
 # LLM_MODEL="mistralai/mistral-small-latest"
 # LLM_MODEL="anthropic/claude-opus-5"
+# LLM_MODEL="argo/claudesonnet5"   # Argonne Argo gateway; see load_chat_model
+
+# Argo exposes an OpenAI-compatible surface, so it needs no new SDK -- only a
+# base_url override. Two things differ from a normal OpenAI-compatible host:
+#
+#   1. There is no API key. The credential is your ANL username ("ac.jdoe"),
+#      passed wherever a key is expected. It is an identifier, not a secret;
+#      the Argonne network boundary is what actually restricts access.
+#   2. Model names are short internal IDs -- "claudesonnet5", "gpt56sol",
+#      "gemini35flash" -- not vendor names. "claude-sonnet-5" is rejected.
+#      GET /v1/models lists them (use the `internal_id` field; the display
+#      `id` such as "Claude Sonnet 5" also works).
+ARGO_BASE_URL = os.environ.get(
+    "ARGO_BASE_URL", "https://apps.inside.anl.gov/argoapi/v1"
+)
+
 
 def load_chat_model(model: str) -> BaseChatModel:
     provider, model_name = model.split("/", maxsplit=1)
@@ -114,6 +138,20 @@ def load_chat_model(model: str) -> BaseChatModel:
             model=model_name,
             base_url="https://openrouter.ai/api/v1",
             api_key=SecretStr(os.environ["OPENROUTER_API_KEY"]),
+            max_completion_tokens=2048,
+        )
+    if provider == "argo":
+        # Requires being on the Argonne network -- otherwise every call hangs
+        # until it times out.
+        #
+        # WARNING: an unrecognised username does NOT raise. Argo returns
+        # HTTP 200 with "ACCESS DENIED" as the assistant's message content, so
+        # a typo in ARGO_USER surfaces as the agent talking nonsense rather
+        # than as an auth error. Check the first reply if results look strange.
+        return ChatOpenAI(
+            model=model_name,
+            base_url=ARGO_BASE_URL,
+            api_key=SecretStr(os.environ["ARGO_USER"]),
             max_completion_tokens=2048,
         )
     if provider == "ollama":

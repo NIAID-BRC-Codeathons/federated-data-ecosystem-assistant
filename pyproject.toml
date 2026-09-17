@@ -23,6 +23,7 @@ dependencies = [
     "SQLAlchemy >=2.0.40",
     "aiosqlite >=0.22.1",
     "greenlet >=3.5.1",
+    "python-dotenv >=1.2.3",
 ]
 
 [dependency-groups]

@@ -7,6 +7,7 @@ generated query as well as on the shaped response.
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 from dataclasses import dataclass, field
@@ -239,7 +240,7 @@ def mv_schema(myvariant):
 
 
 @pytest.fixture(autouse=True)
-def block_network(mygene, myvariant, monkeypatch):
+def block_network(mygene, myvariant, pubmed, monkeypatch):
     """Fail any request a test did not arrange, so the suite stays offline."""
 
     def refuse(method: str, url: str, **kwargs: Any):
@@ -247,8 +248,15 @@ def block_network(mygene, myvariant, monkeypatch):
             f"unmocked network call: {method} {url}. Use the `record` fixture."
         )
 
+    def refuse_get(url: str, **kwargs: Any):
+        raise AssertionError(
+            f"unmocked network call: GET {url}. Use the `pm_record` fixture."
+        )
+
     monkeypatch.setattr(mygene.requests, "request", refuse)
     monkeypatch.setattr(myvariant.requests, "request", refuse)
+    # pubmed.py calls requests.get directly rather than requests.request.
+    monkeypatch.setattr(pubmed.requests, "get", refuse_get)
 
 
 @pytest.fixture
@@ -274,6 +282,111 @@ def mv_record(myvariant, block_network, monkeypatch) -> Callable[..., Recorder]:
     def install(response: Any = None, status: int = 200, *, json_fails: bool = False) -> Recorder:
         recorder = Recorder(response, status, json_fails=json_fails)
         monkeypatch.setattr(myvariant.requests, "request", recorder)
+        return recorder
+
+    return install
+
+
+# ---------------------------------------------------------------------------
+# pubmed.py talks to NCBI E-utilities differently from the two BioThings
+# servers above: it calls requests.get(url, **kwargs) directly rather than
+# requests.request(method, url, **kwargs), and its _request reads resp.text
+# through json.loads(..., strict=False) rather than resp.json(). The mock
+# below matches that shape rather than reusing Recorder/FakeResponse, whose
+# FakeResponse.text is a Python repr, not JSON, and would fail json.loads.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PMCall:
+    """One recorded requests.get call."""
+
+    url: str
+    params: dict = field(default_factory=dict)
+
+    @property
+    def endpoint(self) -> str:
+        # ".../esearch.fcgi" -> "esearch"
+        return self.url.rsplit("/", 1)[-1].removesuffix(".fcgi")
+
+    @property
+    def term(self) -> str:
+        return self.params.get("term", "")
+
+
+class PMFakeResponse:
+    """The parts of a requests.Response that pubmed.py's _request reads.
+
+    Unlike the BioThings servers, _request never calls resp.json(); it reads
+    resp.text and parses it itself, tolerating stray control characters. So
+    a dict payload is serialized to real JSON text here, and a str payload
+    (XML, or a deliberately malformed body) is used exactly as given.
+    """
+
+    def __init__(self, payload: Any, status: int = 200):
+        self.status_code = status
+        self.text = payload if isinstance(payload, str) else json.dumps(payload)
+
+
+class PMRecorder:
+    """Stands in for requests.get: records the call, replays a body.
+
+    `response` is either a body, or a callable taking (url, kwargs, call_number)
+    -- call_number is 1-indexed, so a test can make the first N calls fail and
+    the next one succeed, to exercise the 429-retry path without a real sleep.
+    """
+
+    def __init__(self, response: Any = None, status: int = 200):
+        self.calls: list[PMCall] = []
+        self.response = response if response is not None else {"esearchresult": {"count": "0", "idlist": []}}
+        self.status = status
+
+    def __call__(self, url: str, **kwargs: Any) -> PMFakeResponse:
+        self.calls.append(PMCall(url, dict(kwargs.get("params") or {})))
+        body = self.response
+        if callable(body):
+            body = body(url, kwargs, len(self.calls))
+        status = self.status
+        if isinstance(body, tuple):
+            body, status = body
+        return PMFakeResponse(body, status)
+
+    @property
+    def last(self) -> PMCall:
+        return self.calls[-1]
+
+    @property
+    def endpoints(self) -> list[str]:
+        return [c.endpoint for c in self.calls]
+
+
+@pytest.fixture
+def pubmed(monkeypatch):
+    """The server module, with its module-level state reset between tests.
+
+    Also silences time.sleep, real by default in both the rate-limit
+    throttle and the 429 retry backoff: left alone, a two-call tool test
+    would cost a real ~0.4s, and the suite runs hundreds of these. A test
+    that means to exercise the throttle or the backoff delay itself
+    re-patches time.sleep locally, after this fixture runs.
+    """
+    import pubmed as module
+
+    module._field_cache.clear()
+    module._last_call = 0.0
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: None)
+    yield module
+    module._field_cache.clear()
+    module._last_call = 0.0
+
+
+@pytest.fixture
+def pm_record(pubmed, block_network, monkeypatch) -> Callable[..., PMRecorder]:
+    """Install a PMRecorder in place of requests.get. Returns the installer."""
+
+    def install(response: Any = None, status: int = 200) -> PMRecorder:
+        recorder = PMRecorder(response, status)
+        monkeypatch.setattr(pubmed.requests, "get", recorder)
         return recorder
 
     return install
