@@ -27,6 +27,7 @@ Run over HTTP:  uv run mcp_servers/brc_analytics.py --port 8008
 Run over stdio: uv run mcp_servers/brc_analytics.py --stdio
 """
 
+import json
 import requests
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
@@ -193,6 +194,67 @@ def _ena_count(query: str) -> int | None:
 # ---------------------------------------------------------------- BRC ANALYTICS TOOLS
 
 
+# ---------------------------------------------------------------------------
+# Result size guard
+# ---------------------------------------------------------------------------
+
+# Roughly four characters per token, so 40,000 characters is about 10,000 tokens.
+# A model with a 128,000-token window spends the rest of it on the system prompt,
+# 117 tool schemas and the conversation, so one tool result above this is enough
+# to end the turn in an HTTP 400 rather than an answer.
+#
+# Measured 17 Sep: brc_ena_study returned 1,073,223 characters for PRJEB1234, a
+# study with 916 runs, and geo_search exceeded 20,000 on 19 of 22 calls, peaking
+# at 123,876. Three hard 400s followed on claudehaiku45 and gpt4o.
+MAX_RESULT_CHARS = 40_000
+
+
+def _cap_result(result: dict, list_key: str, total_key: str | None = None,
+                how_to_get_more: str = "") -> dict:
+    """Trim the bulky list in a result until the whole thing fits, and SAY SO.
+
+    A silently trimmed list is the worst possible outcome here: the model reads a
+    short list as the complete answer and reports it as one. So the trim always
+    states the real count, what was returned, and the exact call for the next
+    page. An absence has to say its own name.
+
+    Returns the result unchanged when it already fits, which is the common case.
+    """
+    rows = result.get(list_key)
+    if not isinstance(rows, list) or not rows:
+        return result
+    if len(json.dumps(result, default=str)) <= MAX_RESULT_CHARS:
+        return result
+
+    full = len(rows)
+    # Halve until it fits. Keeping the first N preserves the provider's own
+    # ordering, which is what a caller asking for "the first page" expects.
+    keep = full
+    while keep > 1:
+        keep //= 2
+        result[list_key] = rows[:keep]
+        if len(json.dumps(result, default=str)) <= MAX_RESULT_CHARS:
+            break
+    kept = len(result[list_key])
+    total = result.get(total_key) if total_key else None
+    result["size_capped"] = {
+        "reason": (
+            f"The full result was over {MAX_RESULT_CHARS:,} characters, which is "
+            f"large enough to exhaust a model's context window and end the turn in "
+            f"an API error rather than an answer. It was trimmed by the server."
+        ),
+        "returned": kept,
+        "available_in_this_response_before_trimming": full,
+        "total_matching": total,
+        "IMPORTANT": (
+            f"These {kept} records are NOT the whole answer and must not be "
+            f"described as though they were. "
+            + (how_to_get_more or "Narrow the query or request a smaller page.")
+        ),
+    }
+    return result
+
+
 @mcp.tool()
 def brc_ena_runs(taxonomy_id: str, limit: int = 50, offset: int = 0) -> dict:
     """List raw sequencing runs in ENA for an organism, with real download links.
@@ -250,7 +312,13 @@ def brc_ena_runs(taxonomy_id: str, limit: int = 50, offset: int = 0) -> dict:
     }
     if insecure:
         result["insecure_links"] = insecure
-    return result
+    return _cap_result(
+        result, "results", "run_count",
+        how_to_get_more=(
+            "Use brc_ena_runs(taxonomy_id=..., limit=..., offset=...) to page "
+            "through the runs, or ask about a specific run accession."
+        ),
+    )
 
 
 @mcp.tool()

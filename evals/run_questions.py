@@ -821,7 +821,35 @@ async def run_model(model: str, questions: list[tuple[str, str]],
                         "this question's .jsonl understates its retries")
         except Exception as exc:  # one bad question must not lose the run
             say(f"  FAILED: {type(exc).__name__}: {str(exc)[:160]}")
-            records.append(_error_record(model, n, q, exc))
+            err = _error_record(model, n, q, exc)
+            # Write a stub transcript for the failure too, or the run directory
+            # and the scorecard disagree about what was even ATTEMPTED.
+            #
+            # run_one() writes the .jsonl from inside itself, so an exception
+            # escapes before that write and the question leaves no file. Every
+            # scorer globs the directory, so the denominator silently shrinks: a
+            # model that crashed on four questions and answered twelve well
+            # outscores one that answered all sixteen adequately, and nothing
+            # anywhere says so. Measured 17 Sep -- argo/gemini25pro produced 16
+            # ERROR rows in its scorecard and ONE transcript.
+            #
+            # Control, because a clean check that cannot fail is worth nothing:
+            # 191 transcript summaries across the whole tree carried ZERO non-null
+            # errors while the scorecards for those same runs carried 19. The
+            # transcript error field had never once come back dirty.
+            try:
+                d = RUNS / _safe(model, tag)
+                d.mkdir(parents=True, exist_ok=True)
+                _write_transcript(
+                    d / f"{_filename_id(n)}.jsonl",
+                    [{"role": "user", "text": q},
+                     {"role": "error", "exception": type(exc).__name__,
+                      "message": str(exc)[:4000]}],
+                    err,
+                )
+            except Exception as write_exc:   # never let bookkeeping lose the run
+                say(f"  (could not write the failure stub: {write_exc})")
+            records.append(err)
             continue
         records.append(rec)
         say(f"  {rec['tool_call_count']} tool call(s) in {rec['elapsed_s']}s: "
