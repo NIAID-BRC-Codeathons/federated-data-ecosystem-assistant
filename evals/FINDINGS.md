@@ -9,6 +9,30 @@ status: Part 1 pre-registered 14:30; Part 2 six findings on the pre-matrix archi
 
 # Findings
 
+> ## ⚠ Provenance warning — some cited transcripts no longer exist (17 Sep, 16:07)
+>
+> A re-run overwrote `runs/argo_claudesonnet45/` at **16:07:22**. All fifteen `qNN.jsonl`
+> there are now 899–903 byte stubs reading `RecursionError: maximum recursion depth
+> exceeded`, with `code_sha: unknown`, `run_id: unregistered`, `elapsed_s: 0` and
+> `llm_round_trips: 0` — a crash **before** any model call, which is why it cost nothing
+> and destroyed the rows anyway.
+>
+> **Lost: `q05`, `q07`, `q09`, `q14`, `q15`** — five of the six silent empties this
+> analysis is built on — **and `q12`**, the question named in the Part 3 pre-registration.
+> Only `q01`–`q04` survive, under `runs/_archive-pre-matrix/argo_claudesonnet45/` and
+> `runs/_premerge-1405-0f0101e/argo_claudesonnet45/`. I searched the whole `evals/` tree;
+> there is no other copy.
+>
+> **What this does and does not change.** Every number below was read off those
+> transcripts while they existed and is reported as measured. None of it is revised.
+> But a reader **cannot now re-derive the sonnet45 figures from disk**, which is the
+> standard this file otherwise holds itself to — so treat those specific citations as
+> quoted from a source that is gone, not as paths to open. The opus5, gpt4o and
+> BOBBY-LANES citations are unaffected and still resolve.
+>
+> Reported to `laptop_codeathon` and `runner` at 16:22. The driver fault is not my file
+> and I have not touched it.
+
 Two documents already say the tools are right (`README.md` — 13/14 against the
 documented call) and whether each transcript routed, fabricated or refused
 (`judge-report.md`). Neither says what **differs between models and why**. That is
