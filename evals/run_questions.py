@@ -85,7 +85,7 @@ RUNS = REPO / "evals" / "runs"
 RUN_TAG = ""
 
 
-def run_tag_for(prompt: str, rep: int) -> str:
+def run_tag_for(prompt: str, rep: int, repeats: int = 1) -> str:
     """The suffix that keeps one run's output out of another's directory.
 
     The questions-file stem is part of it: without that, a routing run and the
@@ -94,7 +94,12 @@ def run_tag_for(prompt: str, rep: int) -> str:
     stem = QUESTIONS_MD.stem.lower()
     return ((f"-{stem}" if stem != "questions" else "")
             + (f"-{prompt}" if prompt != "paper" else "")
-            + (f"-r{rep}" if rep else ""))
+            # `if rep` made repetition 0 produce the EMPTY tag, identical to a run
+            # made without --repeat -- so `--repeat 3` against a model that already
+            # had a base run overwrote it with repetition 1 and built the variance
+            # measurement from one clobbered directory and two fresh ones. The tag
+            # now depends on whether repeats were asked for, not on the index.
+            + (f"-r{rep + 1}" if repeats > 1 else ""))
 COMPARISON = REPO / "evals" / "model-comparison.md"
 REGISTRY = REPO / "evals" / "RUNS.md"
 # Filled once conditions are computed, then stamped onto every question record.
@@ -274,12 +279,23 @@ def append_registry(cond: dict, by_model: dict) -> None:
             encoding="utf-8")
     every = [r for v in by_model.values() for r in v]
     # Count the faults that happened, not the ones that survived retry.
-    denied = sum(1 for r in every if r.get("denied")) + sum(
-        1 for r in every for a in r.get("attempts_discarded", [])
-        if a.get("fault") == "denied")
-    empty = sum(1 for r in every if "silent empty after" in str(r.get("error") or "")) + sum(
-        1 for r in every for a in r.get("attempts_discarded", [])
-        if a.get("fault") == "silent_empty")
+    # Count faults from the recorded `fault` field, NEVER by matching the prose of
+    # an error string. The substring test used here before read
+    # "silent empty after", which matched a retried-away empty and MISSED a
+    # suppressed one -- whose message reads "silent empty, not retried". So the
+    # moment the retry breaker fired, the column silently undercounted: a model
+    # emptying on all 15 questions registered 9 rather than 21 attempts, while
+    # the header promised it counted every transport fault including the retried
+    # ones. The breaker exists precisely because a model emptied 6 of 6, so this
+    # would have fired on the scaled run.
+    def _faults(kind: str) -> int:
+        return (sum(1 for r in every if r.get("fault") == kind)
+                + sum(1 for r in every for a in r.get("attempts_discarded", [])
+                      if a.get("fault") == kind))
+
+    denied = _faults("denied") + sum(
+        1 for r in every if r.get("denied") and r.get("fault") != "denied")
+    empty = _faults("silent_empty")
     with REGISTRY.open("a", encoding="utf-8") as f:
         f.write(f"| `{cond['run_id']}` | {cond['started']} | {cond['git_branch']} | "
                 f"`{cond['questions_file']}` | {len(cond['models'])} | "
@@ -747,7 +763,7 @@ def write_comparison(by_model: dict[str, list[dict]], questions: list[tuple[int,
 
 async def run_model(model: str, questions: list[tuple[str, str]],
                     prompt: str = "paper", rep: int = 0,
-                    tools: list | None = None) -> list[dict]:
+                    tools: list | None = None, repeats: int = 1) -> list[dict]:
     """Run one model over the question set. Safe to run concurrently with others.
 
     Nothing here mutates a module global. The model, the system prompt and the
@@ -756,7 +772,7 @@ async def run_model(model: str, questions: list[tuple[str, str]],
     an HTTP endpoint, so sharing them costs nothing and saves 36 connection
     storms against 13 servers.
     """
-    tag = run_tag_for(prompt, rep)
+    tag = run_tag_for(prompt, rep, repeats)
     system_prompt = (chatbot.SYSTEM_PROMPT if PROMPTS.get(prompt) is None
                      else PROMPTS[prompt])
     say = _prefixed(model)
@@ -824,6 +840,8 @@ async def run_model(model: str, questions: list[tuple[str, str]],
             rec["retries"] = attempts
             rec["attempts_discarded"] = discarded
             rec["retries_suppressed"] = not retry_empties
+            # The fault as a VALUE, so no downstream reader has to parse prose.
+            rec["fault"] = fault_kind(rec)
             if is_silent_empty(rec):
                 empty_unrecovered += 1
                 if not retry_empties:
@@ -1037,20 +1055,22 @@ async def main() -> int:
         async def one(model, prompt, rep, label):
             async with gate:
                 return label, await run_model(model, questions, prompt=prompt,
-                                              rep=rep, tools=shared_tools)
+                                              rep=rep, tools=shared_tools,
+                                              repeats=args.repeat)
 
         for label, recs in await asyncio.gather(*(one(*j) for j in jobs)):
             by_model[label] = recs
     else:
         for model, prompt, rep, label in jobs:
             by_model[label] = await run_model(model, questions, prompt=prompt,
-                                              rep=rep, tools=shared_tools)
+                                              rep=rep, tools=shared_tools,
+                                              repeats=args.repeat)
 
     for label in by_model:
         # The first prompt/rep is the right tag here: a label only ever carries a
         # non-default prompt or rep when there is exactly one of each in the run.
         d = RUNS / _safe(label.split(" ")[0],
-                         run_tag_for(args.prompt[0], 0))
+                         run_tag_for(args.prompt[0], 0, args.repeat))
         d.mkdir(parents=True, exist_ok=True)
         (d / "run-manifest.json").write_text(
             json.dumps({**cond, "label": label}, indent=2), encoding="utf-8")

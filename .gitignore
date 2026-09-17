@@ -20,14 +20,23 @@ scratch/
 *.egg-info/
 .pytest_cache/
 
-# Eval transcripts are evidence and they are large: one run of the full matrix is
-# 36 models x 15 questions. What is committed is the SUMMARY of every run -- the
-# routing scorecards, the per-run manifests and RUNS.md -- plus the full
-# transcripts of the run marked `final` in RUNS.md. Exploratory runs stay local;
-# RUNS.md still records that they happened, and why they were superseded.
-# See evals/README.md, "What is committed and what is not".
-evals/runs/**/q*.jsonl
-!evals/runs/final/**
+# Eval transcripts are COMMITTED. This rule used to ignore evals/runs/**/q*.jsonl
+# and it cost us a run.
+#
+# The pattern only matched q*, so the cheap bobby-lanes transcripts (b*) were
+# tracked while the expensive base-matrix ones (q*) were not -- exactly backwards.
+# On 17 Sep a re-run that died during setup overwrote fifteen completed
+# argo/claudesonnet45 transcripts, about 31.8k output tokens over 2.29M input
+# tokens of gateway spend, and there was no copy anywhere: not in git because of
+# this line, and not in any archive. Among them were the six silent empties that
+# were the raw evidence for how that fault was characterised.
+#
+# The whole tree is 7.3 MB over 386 files. That is nothing against losing a run,
+# and these transcripts ARE the evidence for every number we quote -- an eval
+# result with no transcript behind it is an assertion.
+#
+# If the tree ever does get large, archive old runs out of it deliberately rather
+# than ignoring them silently. RUNS.md records every run either way.
 
 # Scratch patch scripts. How a change was made, not what the change is -- the
 # commit message is the durable record. Committed once by accident on 17 Sep,
