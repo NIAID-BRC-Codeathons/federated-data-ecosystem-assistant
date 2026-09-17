@@ -6,7 +6,8 @@ harvested from NCBI GEO/SRA/BioProject, Zenodo, Figshare, PDB, bio.tools, dbGaP,
 ImmPort, and dozens of other repositories. This server puts that search surface
 in front of an agent as a handful of task-shaped tools.
 
-Run with:  python -m nde_mcp.server        (stdio transport)
+Run over HTTP:  python -m nde_mcp.server --port 8007
+Run over stdio: python -m nde_mcp.server --stdio
 """
 
 from __future__ import annotations
@@ -45,6 +46,8 @@ from .query import (
     normalize_sort,
     vocabulary_hint,
 )
+
+DEFAULT_PORT = 8007
 
 mcp = _Server(
     "nde",
@@ -718,4 +721,19 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="NDE MCP server")
+    parser.add_argument("--stdio", action="store_true", help="run over stdio")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="HTTP port")
+    args = parser.parse_args()
+
+    if args.stdio:
+        mcp.run(transport="stdio")
+    else:
+        print(f"NDE MCP Server starting on http://localhost:{args.port}/mcp-nde ...")
+        mcp.run(
+            transport="streamable-http",
+            port=args.port,
+            streamable_http_path="/mcp-nde",
+        )
