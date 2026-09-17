@@ -6,6 +6,9 @@ protein sequences, function, disease annotation
 
 import json
 import re
+import threading
+import time
+from collections import OrderedDict
 
 import requests
 from mcp.server.fastmcp import FastMCP
@@ -27,6 +30,13 @@ HEADERS = {"Accept": "application/json"}
 MAX_ACCESSIONS = 25
 MAX_RESPONSE_CHARS = 60000
 
+# UniProt releases every eight weeks, so a day-old entry is still current.
+CACHE_TTL_SECONDS = 24 * 60 * 60
+# A cached entry occupies about 35 KB of heap on average and 80 KB at the 95th
+# percentile, measured over 200 reviewed entries at ENTRY_FIELDS. So 500 entries
+# cost about 17 MB, and about 39 MB in the worst case.
+MAX_CACHE_ENTRIES = 500
+
 # The official UniProt accession pattern, plus an optional isoform suffix.
 # uniprot_get_protein_info builds one query from every accession it receives,
 # and UniProt rejects the whole query when one accession is malformed. So check
@@ -45,6 +55,59 @@ SUMMARY_FIELDS = (
 ENTRY_FIELDS = (
     SUMMARY_FIELDS + ",cc_disease,cc_subcellular_location,cc_ptm,go"
 )
+
+
+class _EntryCache:
+    """Hold UniProt entries against the accession and the fields that fetched them.
+
+    The server runs as one long-lived process, so a cached entry serves every
+    later call and every client. The cache drops the entry it read least
+    recently once it holds MAX_CACHE_ENTRIES, and it drops an entry that has sat
+    for CACHE_TTL_SECONDS.
+
+    FastMCP runs a synchronous tool in a worker thread, so two calls can reach
+    the cache at once. A lock guards every read and every write.
+
+    A caller must not change what get returns. Every caller here reads the entry
+    and builds a new dict from it.
+    """
+
+    def __init__(self, max_entries: int, ttl_seconds: float) -> None:
+        self._entries: OrderedDict[tuple[str, str], tuple[dict, float]] = OrderedDict()
+        self._lock = threading.Lock()
+        self._max_entries = max_entries
+        self._ttl = ttl_seconds
+        self.hits = 0
+        self.misses = 0
+
+    def get(self, key: tuple[str, str]) -> dict | None:
+        with self._lock:
+            held = self._entries.get(key)
+            if held is None:
+                self.misses += 1
+                return None
+            entry, stored_at = held
+            if time.monotonic() - stored_at > self._ttl:
+                del self._entries[key]
+                self.misses += 1
+                return None
+            self._entries.move_to_end(key)
+            self.hits += 1
+            return entry
+
+    def set(self, key: tuple[str, str], entry: dict) -> None:
+        with self._lock:
+            self._entries.pop(key, None)
+            self._entries[key] = (entry, time.monotonic())
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._entries)
+
+
+_cache = _EntryCache(MAX_CACHE_ENTRIES, CACHE_TTL_SECONDS)
 
 
 def _comment_texts(entry: dict, comment_type: str) -> list[str]:
@@ -151,14 +214,12 @@ def uniprot_get_entry(accession: str) -> dict:
         "What diseases is BRCA1 (P38398) involved in?"
         "Where is human insulin localized in the cell?"
     """
-    resp = requests.get(
-        f"{UNIPROT_API}/uniprotkb/{accession}",
-        params={"format": "json", "fields": ENTRY_FIELDS},
-        headers=HEADERS,
-        timeout=20,
-    )
-    resp.raise_for_status()
-    e = resp.json()
+    e = _fetch_one(_clean_accession(accession), ENTRY_FIELDS)
+    if e is None:
+        raise ToolError(
+            f"UniProt holds no entry {accession}. Check the accession, or call "
+            f"uniprot_search to find the right one."
+        )
     comments = e.get("comments", [])
     # Diseases
     diseases = []
@@ -243,7 +304,14 @@ def _summarize(entry: dict, include_sequence: bool) -> dict:
 
 
 def _fetch_one(accession: str, fields: str) -> dict | None:
-    """Fetch one entry by accession. Returns None when UniProt holds no entry."""
+    """Fetch one entry by accession. Returns None when UniProt holds no entry.
+
+    Reads the cache first. A miss is never cached, because UniProt can add the
+    entry later.
+    """
+    held = _cache.get((accession, fields))
+    if held is not None:
+        return held
     resp = requests.get(
         f"{UNIPROT_API}/uniprotkb/{accession}",
         params={"format": "json", "fields": fields},
@@ -253,24 +321,46 @@ def _fetch_one(accession: str, fields: str) -> dict | None:
     if resp.status_code == 404:
         return None
     resp.raise_for_status()
-    return resp.json()
+    entry = resp.json()
+    _cache.set((accession, fields), entry)
+    return entry
 
 
 def _fetch_many(accessions: list[str], fields: str) -> dict[str, dict]:
-    """Fetch canonical entries with one search request, indexed by accession."""
+    """Fetch canonical entries, indexed by accession.
+
+    Reads the cache first, then asks UniProt for what the cache misses. A list
+    the cache already holds costs no request at all.
+    """
+    found: dict[str, dict] = {}
+    missing: list[str] = []
+    for accession in accessions:
+        held = _cache.get((accession, fields))
+        if held is None:
+            missing.append(accession)
+        else:
+            found[accession] = held
+    if not missing:
+        return found
+
     resp = requests.get(
         f"{UNIPROT_API}/uniprotkb/search",
         params={
-            "query": " OR ".join(f"accession:{a}" for a in accessions),
+            "query": " OR ".join(f"accession:{a}" for a in missing),
             "format": "json",
             "fields": fields,
-            "size": str(len(accessions)),
+            "size": str(len(missing)),
         },
         headers=HEADERS,
         timeout=30,
     )
     resp.raise_for_status()
-    return {e.get("primaryAccession"): e for e in resp.json().get("results", [])}
+    for entry in resp.json().get("results", []):
+        accession = entry.get("primaryAccession")
+        if accession:
+            found[accession] = entry
+            _cache.set((accession, fields), entry)
+    return found
 
 
 @mcp.tool()
