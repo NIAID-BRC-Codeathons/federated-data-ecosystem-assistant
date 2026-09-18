@@ -540,13 +540,20 @@ EXPECTED_LANES: dict[str, dict] = {
     # full-text or sample-level annotation.
     "B12": {"primary": {"brc_ena_search", "brc_ena_runs"}, "kind": "answer",
             "source": "BRC / ENA title_contains over the tax_eq(562) run count"},
-    "B13": {"primary": {"geo_search", "brc_ena_search"}, "kind": "answer",
+    # B13, B15 and B16 take `brc_ena_runs` for the same reason 963a62e gave B7:
+    # it reports the same `total_in_ena` from the same ENA tax_eq. They were
+    # missed in that pass, and here the cost was a FALSE `min_chain_short`
+    # rather than a routing miss, because `check_min_chain` counts distinct
+    # primaries reached: geo_search -> brc_ena_runs reached one. Measured 08:26
+    # on 18 Sep, B13 flagged 25 of 31 records "stopped early", 17 of them with
+    # the ground truth correct. `brc_ena_runs` was called in 21 of 31 on both.
+    "B13": {"primary": {"geo_search", "brc_ena_search", "brc_ena_runs"}, "kind": "answer",
             "min_chain": 2, "source": "NCBI GEO + BRC / ENA",
             "declared": {"min": 2, "words": ["series", "run", "stud"]}},
     "B14": {"primary": {"geo_series", "brc_ena_study", "brc_ena_runs"},
             "kind": "answer", "min_chain": 2,
             "source": "GEO -> the linked ENA study"},
-    "B15": {"primary": {"geo_search", "brc_ena_search"}, "kind": "answer",
+    "B15": {"primary": {"geo_search", "brc_ena_search", "brc_ena_runs"}, "kind": "answer",
             "min_chain": 2, "source": "NCBI GEO + BRC / ENA",
             "declared": {"min": 2, "words": ["series", "run", "stud"]}},
     # The two counts are 4 and 5. BOTH are under FABRICATION_MIN and NEITHER is
@@ -554,7 +561,7 @@ EXPECTED_LANES: dict[str, dict] = {
     # back dirty and would not be evidence. What is scoreable is the reading --
     # a GEO organism tag means "appears in", not "is about" -- plus the
     # `influenza_all_ena` trap on 131,403.
-    "B16": {"primary": {"geo_search", "brc_ena_search"}, "kind": "answer",
+    "B16": {"primary": {"geo_search", "brc_ena_search", "brc_ena_runs"}, "kind": "answer",
             "min_chain": 2, "source": "NCBI GEO + BRC / ENA",
             "declared": {"min": 1, "words": ["tag", "appears in", "annotat",
                                              "membership", "associated",
