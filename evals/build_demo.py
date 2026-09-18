@@ -27,10 +27,11 @@ and a clean record is checked to trip none of them.
   G2  A denial, an error or a silent empty reply is UNSCORABLE, never zero.
       Argo returns HTTP 200 with ACCESS DENIED as the assistant's content and
       bills tokens for it, so it is a transport fault and not a model answer.
-  G3  A question set judge cannot see is named on the page as unseen. Judge's
-      `collect()` globs `q*`, `r*` and `s*` only, so a BOBBY-LANES run writing
-      `b01.jsonl` produces no rows and the model drops out of the report with no
-      skip line. An absent lane must never render as an empty lane.
+  G3  A record judge returns no row for is named on the page and marked not
+      scored, never pass and never fail. Judge refuses by name -- no rubric for
+      the set, no provenance, a placeholder question -- and on 17 Sep all 234
+      BOBBY-LANES records sat in that state. An absent score must never render
+      as an empty lane or as a result.
   G4  Every dollar figure carries `list_cost_note`. The prices were written from
       memory, not read off a price page. Tokens are measured; dollars are not.
   G5  GEO Series and ENA runs are never added. A Series is a curated study; a
@@ -446,7 +447,18 @@ def cell_for(rec, jrow):
     elif gt.get("applies") and gt.get("state") == "wrong":
         c["state"], c["label"] = "critical", "wrong figure"
     elif jrow.get("verdict") == "fabricated":
+        # Judge's own evidence goes beside its verdict. On 18 Sep runner read
+        # all 30 flagged rows: 29 were not fabrications -- mostly a taxonomy ID,
+        # a percentage, or a correct figure the number parser split ("551 679"
+        # read as 551 and 679). With
+        # the numbers on the cell, "fabricated: 511145" reads as a taxid.
         c["state"], c["label"] = "critical", "fabricated"
+        unmatched = [str(n) for n in
+                     ((jrow.get("numbers") or {}).get("unmatched") or [])]
+        if unmatched:
+            c["label"] = "fabricated: " + ", ".join(unmatched[:4]) + (
+                " +%d more" % (len(unmatched) - 4) if len(unmatched) > 4 else "")
+            c["why"] = "judge found these numbers in no tool result"
     elif traps:
         c["state"], c["label"] = "serious", traps[0]
     elif gt.get("applies") and gt.get("state") == "miss":
@@ -961,6 +973,14 @@ def render_html(data):
     n_unscorable = sum(m["unscorable"] for m in models)
     n_unseen = sum(m["unseen"] for m in models)
     n_crit = sum(m["critical"] for m in models)
+    # A wrong figure is checked against a pinned answer. A fabrication is
+    # judge's heuristic flag. They are one tile, never one undifferentiated
+    # number.
+    crit_labels = [c["label"] for m in models for c in m["cells"].values()
+                   if c["state"] == "critical"]
+    n_wrong = sum(1 for lb in crit_labels if lb == "wrong figure")
+    n_fab = sum(1 for lb in crit_labels if lb.startswith("fabricated"))
+    n_zero = sum(1 for lb in crit_labels if lb == "zero read as absence")
     n_serious = sum(m["serious"] for m in models)
     n_good = sum(m["good"] for m in models)
     scored = n_rec - n_unscorable - n_unseen
@@ -1026,16 +1046,17 @@ def render_html(data):
                  'and never as a failure.</p>'
                  '<table><thead><tr><th>run folder</th><th>question ids</th>'
                  '<th class="n">count</th></tr></thead><tbody>%s</tbody></table>'
-                 '<p class="note">Known cause: <code>judge.collect()</code> globs '
-                 '<code>q*</code>, <code>r*</code> and <code>s*</code> only. A '
-                 'BOBBY-LANES run writes <code>b01.jsonl</code>, so judge finds '
-                 'nothing there. Reported to the judge chat on 17 Sep; not patched '
-                 'here because that file has another owner.</p></div>' % rows)
+                 '<p class="note">Judge gives its reason for each refusal. The '
+                 'reasons are listed in the caveats at the foot of this page. '
+                 'Not patched here: <code>evals/judge.py</code> has another '
+                 'owner.</p></div>' % rows)
 
     # 2. Number tiles
     P.append('<div class="tiles">')
     P.append(_tile("Confident false statements", n_crit,
-                   "of %d scored answers" % scored if scored else "nothing scored yet",
+                   ("of %d scored · %d wrong figure · %d zero read as absence · "
+                    "%d fabrication flag" % (scored, n_wrong, n_zero, n_fab))
+                   if scored else "nothing scored yet",
                    "Worst failure", "critical"))
     P.append(_tile("Held out, not scored", n_unscorable + n_unseen,
                    "transport faults %d · unscored records %d" % (n_unscorable, n_unseen),
@@ -1264,8 +1285,8 @@ def render_html(data):
     P.append("<li><b>Counts drift.</b> Every live figure was true on 17 Sep 2026.</li>")
     P.append("</ul>")
     if g["judge_skipped"]:
-        P.append('<p class="note">The scorer refused %d record(s) for missing '
-                 'provenance: %s</p>' % (len(g["judge_skipped"]),
+        P.append('<p class="note">The scorer refused %d record(s). Its reason '
+                 'is in brackets on each: %s</p>' % (len(g["judge_skipped"]),
                                          esc("; ".join(g["judge_skipped"])[:400])))
     if g["unreadable"]:
         P.append('<p class="note">%d record(s) could not be read: %s</p>'
@@ -1411,10 +1432,14 @@ def self_test():
         _write(runs / "m_fault", "q04.jsonl",
                _rec(question_number="Q4", question_id="Q4", answer="", answer_chars=0,
                     tools_in_order=[], tool_call_count=0, output_tokens=0))
-        # G3: a b-prefixed record the scorer's glob cannot see.
+        # G3: a record judge returns no row for. This used to lean on judge
+        # having no rubric for set B; on 18 Sep judge gained one, the fixture
+        # got scored, and G3 stopped reaching the path it tests. A record with
+        # no `run_id` is refused by design (`judge.provenance_of`), whatever
+        # sets judge covers, so the fixture no longer rots when judge improves.
         _write(runs / "m_lanes", "b04.jsonl",
                _rec(question_number="B4", question_id="B4",
-                    questions_file="evals/BOBBY-LANES.md"))
+                    questions_file="evals/BOBBY-LANES.md", run_id=None))
         # G4: a model runner holds no price for. Must never read as $0.00.
         _write(runs / "m_noprice", "q02.jsonl",
                _rec(model="test/unpriced", list_cost_usd=None,
@@ -1505,6 +1530,19 @@ def self_test():
         else:
             fails.append("a correct figure was buried under needs-review: %s"
                          % probe["label"])
+
+        # -- a fabrication flag carries judge's own unmatched numbers, so a
+        #    taxonomy ID or a split figure is visible as what it is.
+        fab = cell_for(
+            Record(runs / "m_clean" / "q02.jsonl"),
+            {"verdict": "fabricated", "routed": "yes", "traps": [],
+             "numbers": {"claimed": 3, "unmatched": [511145], "decidable": True}})
+        if fab["state"] == "critical" and "511145" in fab["label"]:
+            fired.append("a fabrication flag shows judge's evidence: %s"
+                         % fab["label"])
+        else:
+            fails.append("a fabrication flag reached the page without judge's "
+                         "evidence: %r" % fab["label"])
 
         # -- G5
         try:
