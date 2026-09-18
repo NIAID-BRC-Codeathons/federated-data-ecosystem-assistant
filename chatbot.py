@@ -6,6 +6,7 @@ import os
 import time
 import threading
 import webbrowser
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -27,6 +28,18 @@ from pydantic import SecretStr
 SYSTEM_PROMPT = """You are a bioinformatics assistant with access to several databases.
 Always use tools to retrieve real data, never invent accessions or sequences.
 For multi-step questions, chain tools: search -> get entry -> get interactions.
+
+Start from the resource that owns the data type, rather than searching whatever
+tool comes first:
+- Gene annotation and function: prefer MyGene.
+- Protein sequences and disease associations: prefer UniProt.
+- Variant annotation: prefer MyVariant.
+- Sequencing data and BioSamples: prefer NCBI.
+- Dataset discovery across repositories: prefer NDE.
+- Protein-protein interactions and network analysis: use STRING.
+These are starting points, not restrictions. Where a question spans two of
+them, say which you chose and why, and if the preferred resource returns
+nothing, move on and record the empty call.
 
 Work in the open. Do not act as an opaque chatbot. Every answer must expose
 your resource-selection rationale, the queries you generated, the API calls you
@@ -489,6 +502,10 @@ async def on_chat_start():
     agent = await init_agent()
     cl.user_session.set("agent", agent)
     cl.user_session.set("chat_history", [])
+    # Full record for the export button below -- unlike chat_history, this is
+    # never trimmed, so "export the conversation" always means all of it, not
+    # just the last 20 messages kept for the model's own context.
+    cl.user_session.set("transcript", [])
 
 
 # SYSTEM_PROMPT asks the model to emit this marker once, on its own line,
@@ -498,6 +515,90 @@ async def on_chat_start():
 # back everything from the marker onward to show as a collapsible step
 # instead -- the same "click to expand" treatment already used for tool calls.
 PROVENANCE_MARKER = "<!--PROVENANCE-->"
+
+
+def _render_transcript_markdown(transcript: list[dict], *, with_tool_calls: bool) -> str:
+    """Render the session's turns as a standalone Markdown document.
+
+    Each assistant turn is stored once, with its lead answer, tool calls and
+    provenance kept as separate fields (see on_message) -- this picks what to
+    show. with_tool_calls=False is the lead answer alone, nothing else.
+    with_tool_calls=True additionally spells out every tool call and the
+    provenance step under the same "Used <name>" label the Chainlit UI
+    itself shows for those steps.
+    """
+    lines = [
+        "# Conversation export",
+        "",
+        f"_Federated Data Ecosystem Assistant, exported {datetime.now():%Y-%m-%d %H:%M}_",
+    ]
+    for turn in transcript:
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        if turn["role"] == "user":
+            lines.append("**You**")
+            lines.append("")
+            lines.append(turn["text"])
+            continue
+
+        if with_tool_calls:
+            for call in turn["tool_calls"]:
+                lines.append(f"**Used 🛠 {call['name']}**")
+                lines.append("")
+                if call["args"]:
+                    lines.append(f"input: `{call['args']}`")
+                    lines.append("")
+                lines.append(call["output"])
+                lines.append("")
+                lines.append("---")
+                lines.append("")
+
+        lines.append("**Assistant**")
+        lines.append("")
+        lines.append(turn["lead"])
+        if with_tool_calls and turn["provenance"]:
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+            lines.append("**Used 📋 provenance**")
+            lines.append("")
+            lines.append(turn["provenance"])
+    return "\n".join(lines)
+
+
+async def _send_transcript_export(*, with_tool_calls: bool) -> None:
+    """Shared body for both export actions -- render and attach the file."""
+    transcript = cl.user_session.get("transcript") or []
+    if not transcript:
+        await cl.Message(content="Nothing to export yet.").send()
+        return
+    document = _render_transcript_markdown(transcript, with_tool_calls=with_tool_calls)
+    suffix = "-full" if with_tool_calls else ""
+    filename = f"conversation{suffix}-{datetime.now():%Y%m%d-%H%M%S}.md"
+    await cl.Message(
+        content="Here is the conversation so far.",
+        elements=[
+            cl.File(
+                name=filename,
+                content=document.encode("utf-8"),
+                mime="text/markdown",
+                display="inline",
+            )
+        ],
+    ).send()
+
+
+@cl.action_callback("export_conversation")
+async def on_export_conversation(action: cl.Action):
+    """Send the answers only, no tool calls -- same as before."""
+    await _send_transcript_export(with_tool_calls=False)
+
+
+@cl.action_callback("export_conversation_full")
+async def on_export_conversation_full(action: cl.Action):
+    """Send the full record: every tool call and the provenance step too."""
+    await _send_transcript_export(with_tool_calls=True)
 
 
 @cl.on_message
@@ -510,9 +611,15 @@ async def on_message(message: cl.Message):
         return
 
     chat_history.append(HumanMessage(content=message.content))
+    transcript: list = cl.user_session.get("transcript") or []
+    transcript.append({"role": "user", "text": message.content})
     answer_msg = cl.Message(content="")
     pending_tool_calls: dict[str, dict] = {}
     current_tc_id: str | None = None
+    # Every tool call this turn, in order, for the "with tool calls" export.
+    # Unlike the buffering vars below, this accumulates across the whole turn
+    # rather than resetting at each tool-call boundary.
+    tool_call_log: list[dict] = []
     # raw_buffer holds text not yet forwarded to answer_msg because it might
     # still be the start of a marker split across two stream chunks. Once the
     # marker is seen, in_detail flips and the remainder accumulates in
@@ -560,9 +667,13 @@ async def on_message(message: cl.Message):
         elif isinstance(chunk, ToolMessage):
             tc_id = getattr(chunk, "tool_call_id", "")
             info = pending_tool_calls.get(tc_id, {})
-            async with cl.Step(name=f"🛠 {info.get('name', 'tool')}") as s:
-                s.input = info.get("args", "")
-                s.output = str(chunk.content)[:800]
+            tool_name = info.get("name", "tool")
+            tool_args = info.get("args", "")
+            tool_output = str(chunk.content)[:800]
+            async with cl.Step(name=f"🛠 {tool_name}") as s:
+                s.input = tool_args
+                s.output = tool_output
+            tool_call_log.append({"name": tool_name, "args": tool_args, "output": tool_output})
             answer_msg = cl.Message(content="")
             raw_buffer = ""
             in_detail = False
@@ -577,12 +688,37 @@ async def on_message(message: cl.Message):
     # streamed lead plus, if present, the marker and everything after it --
     # so chat history keeps seeing what answer_msg.content held before this
     # was split into two pieces.
-    full_answer = answer_msg.content
+    lead_text = answer_msg.content
+    full_answer = lead_text
     if in_detail:
         full_answer += PROVENANCE_MARKER + detail_text
     if full_answer:
         chat_history.append(AIMessage(content=full_answer))
+        transcript.append(
+            {
+                "role": "assistant",
+                "lead": lead_text,
+                "provenance": detail_text.strip() if in_detail else "",
+                "tool_calls": tool_call_log,
+            }
+        )
     cl.user_session.set("chat_history", chat_history[-20:])
+    cl.user_session.set("transcript", transcript)
+
+    answer_msg.actions = [
+        cl.Action(
+            name="export_conversation",
+            payload={},
+            label="Export conversation",
+            icon="download",
+        ),
+        cl.Action(
+            name="export_conversation_full",
+            payload={},
+            label="Export with tool calls",
+            icon="list-tree",
+        ),
+    ]
     await answer_msg.send()
 
     if detail_text.strip():
