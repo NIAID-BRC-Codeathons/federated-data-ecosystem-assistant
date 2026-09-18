@@ -69,12 +69,21 @@ ENA_FIELDS = (
 
 # A zero from ENA usually means the value did not match, not that no data exists.
 # scientific_name is matched exactly, so one wrong letter returns 0 with no hint.
+#
+# Corrected 18 Sep. This note and the taxonomy_id docstring both said tax_eq
+# "matches the taxon and its descendants". It does not: tax_eq is the exact taxon
+# and tax_tree is the subtree. Measured live 17 Sep 15:05 -- tax_eq(562) 551,679
+# runs, tax_tree(562) 606,048 -- so the text the model reads was telling it that a
+# species count included 54,369 strain-level runs it actually excludes. gpt51 got
+# this right on its own despite the description. Flagged by the runner chat.
 ZERO_RESULT_NOTE = (
     "This returned 0 matches, which means the query matched nothing -- NOT that ENA "
     "holds no such data. ENA matches scientific_name EXACTLY, so a misspelling or a "
-    "strain-level name returns zero. Check the spelling, or use taxonomy_id instead, "
-    "which matches the taxon and its descendants: tax_eq(562) covers every "
-    "Escherichia coli record regardless of how the submitter spelled the name."
+    "strain-level name returns zero. Check the spelling, or use taxonomy_id instead: "
+    "tax_eq(562) matches every run filed under the species id itself, regardless of "
+    "how the submitter spelled the name. It does NOT include runs filed under a "
+    "strain id such as 511145 (K-12 MG1655) -- tax_eq is the exact taxon, not the "
+    "subtree."
 )
 
 MAX_LIMIT = 1000  # ENA's documented ceiling; asking for more is an error, not a bigger page.
@@ -339,8 +348,12 @@ def brc_ena_search(
 
     Args:
         organism: Scientific name, matched exactly, e.g. "Escherichia coli".
-        taxonomy_id: NCBI Taxonomy id, e.g. "562". Matches the taxon and its
-            descendants, so it is broader than `organism`.
+        taxonomy_id: NCBI Taxonomy id, e.g. "562". Matches that EXACT taxon only
+            (ENA `tax_eq`), not its descendants. Runs filed under a strain id are
+            excluded: for E. coli, tax_eq(562) is 551,679 runs while the species
+            plus its strains (tax_tree) is 606,048, so 54,369 strain-level runs --
+            e.g. K-12 MG1655, taxid 511145 -- are outside this count. Say so when
+            reporting a species total.
         library_strategy: Assay type as ENA spells it, e.g. "WGS", "RNA-Seq",
             "AMPLICON". This is one of the few controlled fields in ENA.
         title_contains: Substring of the study title, e.g. "resistance". Wrapped in

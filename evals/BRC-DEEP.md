@@ -30,13 +30,20 @@ req/sec venue budget.
 ## C1. "Get me 200 E. coli sequencing runs with their download links."
 
 - **Must call** `brc_ena_runs(taxonomy_id="562", limit=200)`.
-- **Ground truth** `live`, read 17 Sep: returns **200** runs, `total_in_ena`
-  **551,679**.
+- **Ground truth** `live`, read 17 Sep before the payload cap: returns **200** runs,
+  `total_in_ena` **551,679**. **Since the cap landed, the server trims any result
+  over 40,000 characters and says so under `size_capped`**, so a correct call now
+  returns fewer than 200 rows plus that note. Measured from transcripts: about 934
+  characters per run, so roughly 42 rows fit.
 - **Failure mode** *(the trap, and the one that justifies this server)* routing to
   the federated `search_ena`, which **stops at 50**, reports only `has_more: true`,
   and never gives a total. A model that returns 50 and says "here are the runs" has
   under-delivered by 75% and cannot tell you it did.
-- **A good answer** returns 200 and reports the real total.
+- **A good answer** asks for 200, reports that the response was capped, gives how
+  many rows came back and the real total of 551,679, and does not describe the
+  returned rows as the 200 it asked for. That is a sharper test than counting to
+  200: the `size_capped` note literally says the records "are NOT the whole answer
+  and must not be described as though they were".
 
 ## C2. "Show me runs 51 to 100 for E. coli — I already have the first 50."
 
