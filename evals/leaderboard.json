@@ -1,0 +1,5234 @@
+{
+ "models": [
+  {
+   "model": "claude-haiku-4-5-20251001",
+   "family": "Claude",
+   "asked": 4,
+   "not_asked": 5,
+   "route_ok": 4,
+   "route_n": 4,
+   "acc_ok": 0,
+   "acc_n": 0,
+   "no_tool": 0,
+   "out": 8227,
+   "inn": 342779,
+   "sec": 846.8000000000001,
+   "calls": 5,
+   "score": 1.0,
+   "score_k": 4,
+   "score_n": 4,
+   "score_ci": [
+    0.5100999795960008,
+    1.0
+   ],
+   "sec_q": 211.70000000000002,
+   "out_q": 2056.75,
+   "in_q": 85694.75,
+   "cost_q": null,
+   "official_name": "claude-haiku-4-5-20251001"
+  },
+  {
+   "model": "claude-opus-5",
+   "family": "Claude",
+   "asked": 4,
+   "not_asked": 5,
+   "route_ok": 4,
+   "route_n": 4,
+   "acc_ok": 0,
+   "acc_n": 0,
+   "no_tool": 0,
+   "out": 27451,
+   "inn": 780950,
+   "sec": 335.0,
+   "calls": 17,
+   "score": 1.0,
+   "score_k": 4,
+   "score_n": 4,
+   "score_ci": [
+    0.5100999795960008,
+    1.0
+   ],
+   "sec_q": 83.75,
+   "out_q": 6862.75,
+   "in_q": 195237.5,
+   "cost_q": null,
+   "official_name": "claude-opus-5"
+  },
+  {
+   "model": "claude-sonnet-4-5-20250929",
+   "family": "Claude",
+   "asked": 3,
+   "not_asked": 6,
+   "route_ok": 3,
+   "route_n": 3,
+   "acc_ok": 0,
+   "acc_n": 0,
+   "no_tool": 0,
+   "out": 7799,
+   "inn": 344198,
+   "sec": 190.5,
+   "calls": 8,
+   "score": 1.0,
+   "score_k": 3,
+   "score_n": 3,
+   "score_ci": [
+    0.43849391955098227,
+    1.0
+   ],
+   "sec_q": 63.5,
+   "out_q": 2599.6666666666665,
+   "in_q": 114732.66666666667,
+   "cost_q": null,
+   "official_name": "claude-sonnet-4-5-20250929"
+  },
+  {
+   "model": "claudehaiku45",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 20872,
+   "inn": 1430187,
+   "sec": 251.60000000000002,
+   "calls": 20,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 16.773333333333333,
+   "out_q": 1391.4666666666667,
+   "in_q": 95345.8,
+   "cost_q": 0.10230313333333334,
+   "official_name": "Claude Haiku 4.5"
+  },
+  {
+   "model": "claudeopus45",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 30964,
+   "inn": 2039855,
+   "sec": 622.3000000000001,
+   "calls": 38,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 41.48666666666667,
+   "out_q": 2064.266666666667,
+   "in_q": 135990.33333333334,
+   "cost_q": 0.7315583333333334,
+   "official_name": "Claude Opus 4.5"
+  },
+  {
+   "model": "claudeopus46",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 38917,
+   "inn": 2212810,
+   "sec": 818.8999999999999,
+   "calls": 65,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 54.59333333333333,
+   "out_q": 2594.4666666666667,
+   "in_q": 147520.66666666666,
+   "cost_q": 0.8024649999999999,
+   "official_name": "Claude Opus 4.6"
+  },
+  {
+   "model": "claudeopus47",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 47316,
+   "inn": 2945189,
+   "sec": 545.7,
+   "calls": 39,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 36.38,
+   "out_q": 3154.4,
+   "in_q": 196345.93333333332,
+   "cost_q": 1.0605896666666665,
+   "official_name": "Claude Opus 4.7"
+  },
+  {
+   "model": "claudeopus48",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 48746,
+   "inn": 2549044,
+   "sec": 654.1,
+   "calls": 38,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 43.60666666666667,
+   "out_q": 3249.733333333333,
+   "in_q": 169936.26666666666,
+   "cost_q": 0.9309246666666666,
+   "official_name": "Claude Opus 4.8"
+  },
+  {
+   "model": "claudeopus5",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 116262,
+   "inn": 5239939,
+   "sec": 1496.6,
+   "calls": 112,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 99.77333333333333,
+   "out_q": 7750.8,
+   "in_q": 349329.26666666666,
+   "cost_q": 1.9404163333333333,
+   "official_name": "Claude Opus 5"
+  },
+  {
+   "model": "claudesonnet45",
+   "family": "Claude",
+   "asked": 14,
+   "not_asked": 1,
+   "route_ok": 14,
+   "route_n": 14,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 38096,
+   "inn": 2019624,
+   "sec": 904.8,
+   "calls": 34,
+   "score": 1.0,
+   "score_k": 20,
+   "score_n": 20,
+   "score_ci": [
+    0.8388698745050667,
+    1.0
+   ],
+   "sec_q": 64.62857142857142,
+   "out_q": 2721.1428571428573,
+   "in_q": 144258.85714285713,
+   "cost_q": 0.47359371428571423,
+   "official_name": "Claude Sonnet 4.5"
+  },
+  {
+   "model": "claudesonnet46",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 37834,
+   "inn": 1712452,
+   "sec": 745.8999999999999,
+   "calls": 39,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 49.72666666666666,
+   "out_q": 2522.266666666667,
+   "in_q": 114163.46666666666,
+   "cost_q": 0.38032439999999995,
+   "official_name": "Claude Sonnet 4.6"
+  },
+  {
+   "model": "claudesonnet5",
+   "family": "Claude",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 68738,
+   "inn": 3035250,
+   "sec": 740.4,
+   "calls": 46,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 49.36,
+   "out_q": 4582.533333333334,
+   "in_q": 202350.0,
+   "cost_q": 0.45052533333333333,
+   "official_name": "Claude Sonnet 5"
+  },
+  {
+   "model": "gemini25flash",
+   "family": "Gemini",
+   "asked": 0,
+   "not_asked": 16,
+   "route_ok": 0,
+   "route_n": 0,
+   "acc_ok": 0,
+   "acc_n": 0,
+   "no_tool": 0,
+   "out": 0,
+   "inn": 0,
+   "sec": 0.0,
+   "calls": 0
+  },
+  {
+   "model": "gemini31flashlite",
+   "family": "Gemini",
+   "asked": 0,
+   "not_asked": 16,
+   "route_ok": 0,
+   "route_n": 0,
+   "acc_ok": 0,
+   "acc_n": 0,
+   "no_tool": 0,
+   "out": 0,
+   "inn": 0,
+   "sec": 0.0,
+   "calls": 0
+  },
+  {
+   "model": "gpt41",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 15587,
+   "inn": 1180364,
+   "sec": 260.6,
+   "calls": 29,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 17.373333333333335,
+   "out_q": 1039.1333333333334,
+   "in_q": 78690.93333333333,
+   "cost_q": 0.16569493333333335,
+   "official_name": "gpt-4.1"
+  },
+  {
+   "model": "gpt41mini",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 13443,
+   "inn": 897828,
+   "sec": 256.1,
+   "calls": 20,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 17.073333333333334,
+   "out_q": 896.2,
+   "in_q": 59855.2,
+   "cost_q": 0.025376,
+   "official_name": "gpt-4.1-mini"
+  },
+  {
+   "model": "gpt41nano",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 13,
+   "route_n": 15,
+   "acc_ok": 4,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 3720,
+   "inn": 904229,
+   "sec": 100.00000000000001,
+   "calls": 20,
+   "score": 0.8095238095238095,
+   "score_k": 17,
+   "score_n": 21,
+   "score_ci": [
+    0.599990134607267,
+    0.9233255938482269
+   ],
+   "sec_q": 6.666666666666668,
+   "out_q": 248.0,
+   "in_q": 60281.933333333334,
+   "cost_q": 0.006127393333333333,
+   "official_name": "gpt-4.1-nano"
+  },
+  {
+   "model": "gpt4o",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 5,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 12004,
+   "inn": 956041,
+   "sec": 275.1,
+   "calls": 22,
+   "score": 0.9523809523809523,
+   "score_k": 20,
+   "score_n": 21,
+   "score_ci": [
+    0.7733018341376452,
+    0.9915442305280766
+   ],
+   "sec_q": 18.34,
+   "out_q": 800.2666666666667,
+   "in_q": 63736.066666666666,
+   "cost_q": 0.1673428333333333,
+   "official_name": "gpt-4o"
+  },
+  {
+   "model": "gpt5",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 68351,
+   "inn": 1104072,
+   "sec": 830.9,
+   "calls": 42,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 55.39333333333333,
+   "out_q": 4556.733333333334,
+   "in_q": 73604.8,
+   "cost_q": 0.13757333333333335,
+   "official_name": "gpt-5"
+  },
+  {
+   "model": "gpt51",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 33379,
+   "inn": 978611,
+   "sec": 407.6,
+   "calls": 24,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 27.173333333333336,
+   "out_q": 2225.266666666667,
+   "in_q": 65240.73333333333,
+   "cost_q": 0.10380358333333332,
+   "official_name": "gpt-5.1"
+  },
+  {
+   "model": "gpt52",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 20176,
+   "inn": 1217653,
+   "sec": 412.6,
+   "calls": 38,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 27.506666666666668,
+   "out_q": 1345.0666666666666,
+   "in_q": 81176.86666666667,
+   "cost_q": 0.16089045000000002,
+   "official_name": "gpt-5.2"
+  },
+  {
+   "model": "gpt54",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 24250,
+   "inn": 1395418,
+   "sec": 366.80000000000007,
+   "calls": 36,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 24.453333333333337,
+   "out_q": 1616.6666666666667,
+   "in_q": 93027.86666666667,
+   "cost_q": 0.25681966666666667,
+   "official_name": "gpt-5.4"
+  },
+  {
+   "model": "gpt54mini",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 5,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 18690,
+   "inn": 879608,
+   "sec": 245.6,
+   "calls": 29,
+   "score": 0.9523809523809523,
+   "score_k": 20,
+   "score_n": 21,
+   "score_ci": [
+    0.7733018341376452,
+    0.9915442305280766
+   ],
+   "sec_q": 16.37333333333333,
+   "out_q": 1246.0,
+   "in_q": 58640.53333333333,
+   "cost_q": 0.049587400000000004,
+   "official_name": "gpt-5.4-mini"
+  },
+  {
+   "model": "gpt54nano",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 19085,
+   "inn": 1011717,
+   "sec": 436.40000000000003,
+   "calls": 22,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 29.093333333333337,
+   "out_q": 1272.3333333333333,
+   "in_q": 67447.8,
+   "cost_q": 0.015079976666666668,
+   "official_name": "gpt-5.4-nano"
+  },
+  {
+   "model": "gpt55",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 44099,
+   "inn": 1454450,
+   "sec": 636.0,
+   "calls": 47,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 42.4,
+   "out_q": 2939.9333333333334,
+   "in_q": 96963.33333333333,
+   "cost_q": 0.5730146666666667,
+   "official_name": "gpt-5.5"
+  },
+  {
+   "model": "gpt56luna",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 30597,
+   "inn": 1584656,
+   "sec": 347.00000000000006,
+   "calls": 44,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 23.133333333333336,
+   "out_q": 2039.8,
+   "in_q": 105643.73333333334,
+   "cost_q": 0.023576506666666667,
+   "official_name": "gpt-5.6-luna"
+  },
+  {
+   "model": "gpt56sol",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 38368,
+   "inn": 1524751,
+   "sec": 609.5000000000001,
+   "calls": 47,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 40.63333333333334,
+   "out_q": 2557.866666666667,
+   "in_q": 101650.06666666667,
+   "cost_q": 0.4577576,
+   "official_name": "gpt-5.6-sol"
+  },
+  {
+   "model": "gpt56terra",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 27552,
+   "inn": 1244756,
+   "sec": 380.90000000000003,
+   "calls": 35,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 25.393333333333334,
+   "out_q": 1836.8,
+   "in_q": 82983.73333333334,
+   "cost_q": 0.18800906666666667,
+   "official_name": "gpt-5.6-terra"
+  },
+  {
+   "model": "gpt5mini",
+   "family": "GPT",
+   "asked": 11,
+   "not_asked": 4,
+   "route_ok": 10,
+   "route_n": 11,
+   "acc_ok": 4,
+   "acc_n": 4,
+   "no_tool": 0,
+   "out": 39405,
+   "inn": 674659,
+   "sec": 423.6,
+   "calls": 14,
+   "score": 0.9333333333333333,
+   "score_k": 14,
+   "score_n": 15,
+   "score_ci": [
+    0.7018292244757601,
+    0.9881334113938051
+   ],
+   "sec_q": 38.50909090909091,
+   "out_q": 3582.2727272727275,
+   "in_q": 61332.63636363636,
+   "cost_q": 0.022497704545454543,
+   "official_name": "gpt-5-mini"
+  },
+  {
+   "model": "gpt5nano",
+   "family": "GPT",
+   "asked": 7,
+   "not_asked": 7,
+   "route_ok": 7,
+   "route_n": 7,
+   "acc_ok": 2,
+   "acc_n": 2,
+   "no_tool": 0,
+   "out": 41637,
+   "inn": 478916,
+   "sec": 270.8,
+   "calls": 11,
+   "score": 1.0,
+   "score_k": 9,
+   "score_n": 9,
+   "score_ci": [
+    0.7008472464490407,
+    1.0
+   ],
+   "sec_q": 38.68571428571429,
+   "out_q": 5948.142857142857,
+   "in_q": 68416.57142857143,
+   "cost_q": 0.005800085714285715,
+   "official_name": "gpt-5-nano"
+  },
+  {
+   "model": "gpto1",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 13,
+   "route_n": 15,
+   "acc_ok": 4,
+   "acc_n": 6,
+   "no_tool": 2,
+   "out": 37576,
+   "inn": 893271,
+   "sec": 439.3,
+   "calls": 17,
+   "score": 0.8095238095238095,
+   "score_k": 17,
+   "score_n": 21,
+   "score_ci": [
+    0.599990134607267,
+    0.9233255938482269
+   ],
+   "sec_q": 29.28666666666667,
+   "out_q": 2505.0666666666666,
+   "in_q": 59551.4,
+   "cost_q": 1.043575,
+   "official_name": "o1"
+  },
+  {
+   "model": "gpto3",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 15,
+   "route_n": 15,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 34231,
+   "inn": 1497804,
+   "sec": 402.1,
+   "calls": 36,
+   "score": 1.0,
+   "score_k": 21,
+   "score_n": 21,
+   "score_ci": [
+    0.8453561767357979,
+    0.9999999999999999
+   ],
+   "sec_q": 26.80666666666667,
+   "out_q": 2282.0666666666666,
+   "in_q": 99853.6,
+   "cost_q": 0.21796373333333333,
+   "official_name": "o3"
+  },
+  {
+   "model": "gpto3mini",
+   "family": "GPT",
+   "asked": 15,
+   "not_asked": 0,
+   "route_ok": 9,
+   "route_n": 15,
+   "acc_ok": 3,
+   "acc_n": 6,
+   "no_tool": 6,
+   "out": 19921,
+   "inn": 681552,
+   "sec": 278.70000000000005,
+   "calls": 10,
+   "score": 0.5714285714285714,
+   "score_k": 12,
+   "score_n": 21,
+   "score_ci": [
+    0.3654621629703244,
+    0.7553030051347894
+   ],
+   "sec_q": 18.580000000000002,
+   "out_q": 1328.0666666666666,
+   "in_q": 45436.8,
+   "cost_q": 0.05582397333333334,
+   "official_name": "o3-mini"
+  },
+  {
+   "model": "gpto4mini",
+   "family": "GPT",
+   "asked": 14,
+   "not_asked": 1,
+   "route_ok": 14,
+   "route_n": 14,
+   "acc_ok": 6,
+   "acc_n": 6,
+   "no_tool": 0,
+   "out": 40538,
+   "inn": 908830,
+   "sec": 455.2,
+   "calls": 18,
+   "score": 1.0,
+   "score_k": 20,
+   "score_n": 20,
+   "score_ci": [
+    0.8388698745050667,
+    1.0
+   ],
+   "sec_q": 32.51428571428571,
+   "out_q": 2895.5714285714284,
+   "in_q": 64916.42857142857,
+   "cost_q": 0.08414858571428573,
+   "official_name": "o4-mini"
+  }
+ ],
+ "cells": {
+  "claude-haiku-4-5-20251001": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 33
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 11
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 6
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets"
+    ],
+    "sec": 796
+   },
+   "B5": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B6": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B7": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B8": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B9": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "claude-opus-5": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "pubmed_get_summaries"
+    ],
+    "sec": 78
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession",
+     "ncbi_sra_runs_for_project",
+     "geo_series"
+    ],
+    "sec": 80
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "geo_search"
+    ],
+    "sec": 66
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "nde_facet_counts",
+     "pubmed_search_articles",
+     "geo_search"
+    ],
+    "sec": 111
+   },
+   "B5": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B6": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B7": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B8": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B9": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "claude-sonnet-4-5-20250929": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_series",
+     "geo_series",
+     "pubmed_get_summaries"
+    ],
+    "sec": 86
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 49
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession",
+     "geo_series"
+    ],
+    "sec": 55
+   },
+   "B4": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B5": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B6": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B7": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B8": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B9": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "claudehaiku45": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 29
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 9
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 17
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 28
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 3
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 10
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 13
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 2
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 17
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 12
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 6
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 36
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 18
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 15
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 32
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 5
+   }
+  },
+  "claudeopus45": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 44
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 33
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 14
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 37
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 8
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 97
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 32
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 5
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 39
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 28
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 29
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 30
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 46
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "list_workflow_categories",
+     "get_workflows_in_category",
+     "get_organism",
+     "search_organisms",
+     "get_workflows_in_category",
+     "get_assemblies",
+     "check_compatibility",
+     "resolve_workflow_inputs"
+    ],
+    "sec": 71
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 60
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets",
+     "nde_search_datasets",
+     "geo_search",
+     "nde_facet_counts"
+    ],
+    "sec": 57
+   }
+  },
+  "claudeopus46": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "pubmed_search_articles",
+     "pubmed_get_article",
+     "pubmed_get_article",
+     "pubmed_get_article"
+    ],
+    "sec": 73
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 35
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series",
+     "geo_resolve_accession"
+    ],
+    "sec": 36
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "pubmed_search_articles",
+     "nde_search_datasets"
+    ],
+    "sec": 60
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 20
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "nde_search_datasets",
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 109
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 24
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 6
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 36
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 36
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 34
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 39
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 56
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "list_workflow_categories",
+     "ncbi_sra_runs_for_project",
+     "get_workflows_in_category",
+     "search_organisms",
+     "get_compatible_workflows",
+     "search_organisms",
+     "get_workflows_in_category",
+     "get_assemblies",
+     "get_workflow_details",
+     "resolve_workflow_inputs"
+    ],
+    "sec": 89
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "geo_search",
+     "geo_search",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "geo_search",
+     "geo_search"
+    ],
+    "sec": 104
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "brc_ena_search",
+     "ncbi_sra_search"
+    ],
+    "sec": 70
+   }
+  },
+  "claudeopus47": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 39
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 28
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 26
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 30
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 21
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 82
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 24
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 3
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 35
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 20
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 25
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 33
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 30
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "brc_ena_study",
+     "search_organisms",
+     "search_organisms",
+     "list_workflow_categories",
+     "get_workflows_in_category",
+     "get_assemblies"
+    ],
+    "sec": 57
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 53
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "brc_ena_search",
+     "geo_search",
+     "nde_search_datasets"
+    ],
+    "sec": 42
+   }
+  },
+  "claudeopus48": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 48
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 33
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_resolve_accession",
+     "geo_series"
+    ],
+    "sec": 39
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 48
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 21
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 85
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 31
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 4
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 36
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 32
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 34
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 39
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 39
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "ncbi_taxonomy_lookup",
+     "get_assemblies",
+     "list_workflow_categories",
+     "get_workflows_in_category",
+     "get_workflows_in_category",
+     "brc_ena_study"
+    ],
+    "sec": 69
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 51
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts",
+     "ncbi_pathogen_organisms",
+     "nde_raw_query",
+     "nde_raw_query"
+    ],
+    "sec": 48
+   }
+  },
+  "claudeopus5": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "pubmed_get_summaries",
+     "nde_search_datasets",
+     "geo_search",
+     "nde_search_datasets"
+    ],
+    "sec": 97
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "geo_resolve_accession"
+    ],
+    "sec": 80
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_series",
+     "geo_search"
+    ],
+    "sec": 60
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "nde_facet_counts",
+     "pubmed_search_articles"
+    ],
+    "sec": 86
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 45
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 230
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_search"
+    ],
+    "sec": 83
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 11
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study",
+     "ncbi_find_uids",
+     "pubmed_search_articles",
+     "ncbi_bioproject_summary",
+     "brc_ena_search",
+     "pubmed_get_article"
+    ],
+    "sec": 83
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 68
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status",
+     "search_ena_keywords",
+     "brc_ena_search",
+     "get_assemblies",
+     "search_ena",
+     "brc_ena_runs"
+    ],
+    "sec": 84
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 72
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "geo_search"
+    ],
+    "sec": 86
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession",
+     "ncbi_sra_runs_for_project",
+     "brc_ena_study",
+     "get_organism",
+     "list_workflow_categories",
+     "get_workflows_in_category",
+     "get_workflows_in_category",
+     "search_organisms",
+     "get_assemblies",
+     "resolve_workflow_inputs",
+     "check_compatibility"
+    ],
+    "sec": 116
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "ncbi_entrez_raw",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "brc_ena_search",
+     "brc_ena_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "pubmed_get_summaries"
+    ],
+    "sec": 212
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "brc_ena_search",
+     "geo_search",
+     "brc_ena_study",
+     "nde_raw_query",
+     "brc_ena_search",
+     "pubmed_search_articles"
+    ],
+    "sec": 96
+   }
+  },
+  "claudesonnet45": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_pubmed_abstracts"
+    ],
+    "sec": 87
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 40
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 37
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "pubmed_search_articles",
+     "ncbi_sra_search",
+     "brc_ena_search"
+    ],
+    "sec": 120
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 6
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "geo_resolve_accession",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 84
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 84
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 4
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 54
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 41
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 36
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_runs"
+    ],
+    "sec": 66
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs",
+     "ncbi_pubmed_abstracts"
+    ],
+    "sec": 92
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "get_workflows_in_category",
+     "get_workflows_in_category"
+    ],
+    "sec": 80
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 77
+   },
+   "B16": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 1
+   }
+  },
+  "claudesonnet46": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 55
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 38
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 16
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 50
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 8
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "nde_search_datasets",
+     "geo_search",
+     "ncbi_pubmed_abstracts"
+    ],
+    "sec": 101
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 29
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 4
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 62
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 35
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 36
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 51
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 42
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "ncbi_taxonomy_lookup",
+     "get_assemblies",
+     "get_compatible_workflows",
+     "resolve_workflow_inputs"
+    ],
+    "sec": 72
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search"
+    ],
+    "sec": 95
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts",
+     "nde_raw_query",
+     "nde_facet_counts"
+    ],
+    "sec": 55
+   }
+  },
+  "claudesonnet5": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "pubmed_get_summaries"
+    ],
+    "sec": 54
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 34
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 36
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "nde_facet_counts",
+     "nde_facet_counts",
+     "ncbi_bioproject_summary"
+    ],
+    "sec": 56
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 26
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 85
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 28
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 5
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study",
+     "ncbi_find_uids",
+     "ncbi_bioproject_summary",
+     "ncbi_linked_records",
+     "pubmed_get_summaries"
+    ],
+    "sec": 68
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 25
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 23
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 35
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 54
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "ncbi_bioproject_summary",
+     "list_workflow_categories",
+     "get_workflows_in_category",
+     "get_workflows_in_category",
+     "get_compatible_workflows",
+     "get_assemblies",
+     "check_compatibility",
+     "resolve_workflow_inputs"
+    ],
+    "sec": 88
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "pubmed_search_articles"
+    ],
+    "sec": 71
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets",
+     "nde_raw_query"
+    ],
+    "sec": 57
+   }
+  },
+  "gemini25flash": {
+   "B1": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B2": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B3": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B4": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B5": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B6": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B7": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B8": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B9": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B10": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B11": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B12": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B13": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B14": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B15": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B16": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "gemini31flashlite": {
+   "B1": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B2": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B3": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B4": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B5": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B6": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B7": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B8": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B9": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B10": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B11": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B12": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B13": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B14": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B15": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B16": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "gpt41": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 15
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 12
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 13
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 19
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 10
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 15
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 11
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 16
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 37
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 15
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 13
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 19
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 14
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_find_uids",
+     "ncbi_linked_records",
+     "ncbi_sra_run_metadata",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "get_compatible_workflows",
+     "list_workflow_categories",
+     "get_workflows_in_category"
+    ],
+    "sec": 37
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 21
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts"
+    ],
+    "sec": 10
+   }
+  },
+  "gpt41mini": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 14
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 13
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 12
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 10
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 14
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 20
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 10
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "brc_ena_search"
+    ],
+    "sec": 12
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 16
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search"
+    ],
+    "sec": 12
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 56
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 25
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 14
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "brc_ena_runs"
+    ],
+    "sec": 19
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 12
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "lapis_aggregate_samples",
+     "lapis_list_organisms"
+    ],
+    "sec": 9
+   }
+  },
+  "gpt41nano": {
+   "B1": {
+    "o": "miss_route",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 4
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 6
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 5
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 4
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 5
+   },
+   "B6": {
+    "o": "miss_route",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 8
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "search_organisms",
+     "brc_ena_runs"
+    ],
+    "sec": 8
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "nde_facet_counts"
+    ],
+    "sec": 5
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 11
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "search_organisms",
+     "brc_ena_runs"
+    ],
+    "sec": 9
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 6
+   },
+   "B12": {
+    "o": "miss_fig",
+    "tools": [
+     "brc_ena_search"
+    ],
+    "sec": 6
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "nde_facet_counts",
+     "ncbi_sra_search"
+    ],
+    "sec": 6
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 7
+   },
+   "B15": {
+    "o": "miss_fig",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 7
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 8
+   }
+  },
+  "gpt4o": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 22
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 17
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_resolve_accession"
+    ],
+    "sec": 10
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 22
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 16
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 13
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 17
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "list_workflow_categories"
+    ],
+    "sec": 8
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 19
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 6
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 16
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 26
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 22
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_find_uids",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 25
+   },
+   "B15": {
+    "o": "miss_fig",
+    "tools": [
+     "geo_search",
+     "search_ena"
+    ],
+    "sec": 18
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "ncbi_pathogen_organisms",
+     "ncbi_pathogen_isolates"
+    ],
+    "sec": 26
+   }
+  },
+  "gpt5": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "pubmed_get_summaries",
+     "geo_series",
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 88
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 42
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 28
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 34
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 38
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "geo_search",
+     "geo_search"
+    ],
+    "sec": 80
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_federation_status"
+    ],
+    "sec": 47
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 18
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 51
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 53
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 41
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 54
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 56
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "brc_ena_study"
+    ],
+    "sec": 72
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "geo_search",
+     "geo_search",
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 86
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts",
+     "nde_raw_query",
+     "brc_ena_search",
+     "geo_search"
+    ],
+    "sec": 61
+   }
+  },
+  "gpt51": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 23
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 26
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 80
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 16
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 10
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 24
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 16
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 11
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 26
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 16
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 20
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 26
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 19
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_sra_run_metadata"
+    ],
+    "sec": 40
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "search_organisms",
+     "nde_facet_counts",
+     "brc_ena_runs"
+    ],
+    "sec": 47
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts"
+    ],
+    "sec": 19
+   }
+  },
+  "gpt52": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "pubmed_get_article",
+     "pubmed_get_article",
+     "pubmed_get_article",
+     "pubmed_get_article",
+     "pubmed_get_article"
+    ],
+    "sec": 35
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 19
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 25
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 17
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 14
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 22
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 20
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "brc_federation_status",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 22
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 65
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 26
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 18
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 30
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 22
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_find_uids",
+     "ncbi_sra_search",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 48
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 29
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 22
+   }
+  },
+  "gpt54": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 21
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 21
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 19
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 16
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 12
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search"
+    ],
+    "sec": 27
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 17
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 7
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 25
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 22
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 18
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_search",
+     "brc_ena_runs"
+    ],
+    "sec": 29
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 25
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_find_uids",
+     "ncbi_linked_records",
+     "ncbi_sra_runs_for_project",
+     "search_organisms",
+     "search_organisms",
+     "get_assemblies",
+     "get_compatible_workflows"
+    ],
+    "sec": 52
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs",
+     "pubmed_get_summaries",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 36
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 25
+   }
+  },
+  "gpt54mini": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "pubmed_search_articles"
+    ],
+    "sec": 15
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_pubmed_search"
+    ],
+    "sec": 13
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series",
+     "geo_resolve_accession"
+    ],
+    "sec": 12
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets"
+    ],
+    "sec": 29
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 12
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets"
+    ],
+    "sec": 18
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 11
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "ncbi_list_databases",
+     "ncbi_sra_search"
+    ],
+    "sec": 15
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 14
+   },
+   "B10": {
+    "o": "miss_fig",
+    "tools": [
+     "brc_ena_search",
+     "ncbi_taxonomy_lookup",
+     "ncbi_taxonomy_lookup"
+    ],
+    "sec": 16
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 14
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_runs"
+    ],
+    "sec": 15
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 24
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "search_organisms"
+    ],
+    "sec": 14
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 18
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets",
+     "nde_facet_counts",
+     "search_organisms"
+    ],
+    "sec": 21
+   }
+  },
+  "gpt54nano": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 35
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 30
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 24
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status",
+     "brc_ena_search"
+    ],
+    "sec": 23
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 15
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 52
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 18
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 14
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 36
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 20
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 21
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_federation_status",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 38
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "nde_facet_counts",
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 38
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 22
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 38
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 25
+   }
+  },
+  "gpt55": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 40
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 22
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 27
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 32
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 20
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 68
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 28
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 12
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 28
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 33
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 21
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 88
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 37
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "search_organisms",
+     "list_workflow_categories",
+     "search_organisms",
+     "get_assemblies",
+     "get_workflows_in_category",
+     "brc_ena_study",
+     "get_workflow_details",
+     "get_compatible_workflows"
+    ],
+    "sec": 85
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 71
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_raw_query",
+     "nde_raw_query",
+     "nde_search_datasets"
+    ],
+    "sec": 36
+   }
+  },
+  "gpt56luna": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "ncbi_pubmed_abstracts"
+    ],
+    "sec": 27
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 15
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 10
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 13
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 14
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 46
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 15
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 4
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 17
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search"
+    ],
+    "sec": 13
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 12
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 16
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs",
+     "ncbi_sra_search"
+    ],
+    "sec": 23
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "get_compatible_workflows",
+     "get_workflow_details",
+     "get_assemblies"
+    ],
+    "sec": 62
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "ncbi_pubmed_abstracts",
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 39
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts",
+     "nde_search_datasets",
+     "nde_search_datasets",
+     "nde_facet_counts"
+    ],
+    "sec": 24
+   }
+  },
+  "gpt56sol": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "pubmed_get_summaries"
+    ],
+    "sec": 40
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "brc_ena_study"
+    ],
+    "sec": 52
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession",
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 21
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 21
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_series"
+    ],
+    "sec": 19
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 110
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 26
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 9
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 27
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "search_organisms",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 27
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 23
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 28
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 28
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project",
+     "search_organisms",
+     "list_workflow_categories",
+     "search_organisms",
+     "get_workflows_in_category",
+     "get_workflows_in_category",
+     "get_assemblies",
+     "brc_ena_study"
+    ],
+    "sec": 86
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "geo_search",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search"
+    ],
+    "sec": 58
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_facet_counts",
+     "nde_search_datasets",
+     "nde_raw_query"
+    ],
+    "sec": 44
+   }
+  },
+  "gpt56terra": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "nde_search_datasets",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "geo_series",
+     "pubmed_get_summaries",
+     "geo_series"
+    ],
+    "sec": 50
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 20
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession"
+    ],
+    "sec": 33
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 13
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 12
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "ncbi_entrez_raw",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 43
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 17
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 6
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 21
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "ncbi_taxonomy_lookup",
+     "brc_ena_search"
+    ],
+    "sec": 22
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 14
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 29
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 22
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 30
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs"
+    ],
+    "sec": 32
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets",
+     "nde_search_datasets"
+    ],
+    "sec": 24
+   }
+  },
+  "gpt5mini": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 43
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 25
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 24
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets",
+     "nde_facet_counts"
+    ],
+    "sec": 63
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession"
+    ],
+    "sec": 30
+   },
+   "B6": {
+    "o": "miss_route",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 60
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 33
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 26
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 36
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 22
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 20
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 68
+   },
+   "B13": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B14": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B15": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B16": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "gpt5nano": {
+   "B1": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 35
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "geo_resolve_accession"
+    ],
+    "sec": 38
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 43
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 20
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "geo_search",
+     "geo_search"
+    ],
+    "sec": 71
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 20
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 37
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 43
+   },
+   "B10": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B11": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B12": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B13": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B14": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   },
+   "B15": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  },
+  "gpto1": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 40
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 34
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 24
+   },
+   "B4": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 14
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 16
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 51
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 19
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 14
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 24
+   },
+   "B10": {
+    "o": "miss_fig",
+    "tools": [
+     "brc_ena_search"
+    ],
+    "sec": 25
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 18
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_search"
+    ],
+    "sec": 43
+   },
+   "B13": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 18
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_find_uids",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 51
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_search"
+    ],
+    "sec": 35
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 28
+   }
+  },
+  "gpto3": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "pubmed_get_article"
+    ],
+    "sec": 29
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 12
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 12
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets"
+    ],
+    "sec": 16
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 14
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search",
+     "geo_search",
+     "ncbi_entrez_raw"
+    ],
+    "sec": 40
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 10
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 6
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 18
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 14
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 12
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_runs"
+    ],
+    "sec": 22
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "ncbi_sra_search",
+     "geo_search"
+    ],
+    "sec": 23
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "list_workflow_categories",
+     "ncbi_sra_runs_for_project",
+     "get_workflows_in_category",
+     "search_organisms",
+     "get_workflows_in_category"
+    ],
+    "sec": 56
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "string_query_species",
+     "ncbi_taxonomy_lookup",
+     "brc_ena_runs",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search",
+     "geo_search",
+     "brc_ena_search",
+     "brc_ena_search",
+     "geo_search"
+    ],
+    "sec": 98
+   },
+   "B16": {
+    "o": "routed",
+    "tools": [
+     "nde_raw_query",
+     "nde_raw_query"
+    ],
+    "sec": 26
+   }
+  },
+  "gpto3mini": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 20
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 20
+   },
+   "B3": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 7
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "nde_search_datasets",
+     "nde_search_datasets"
+    ],
+    "sec": 22
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 12
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 74
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 11
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [],
+    "sec": 10
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 18
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 13
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 15
+   },
+   "B12": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 7
+   },
+   "B13": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 6
+   },
+   "B14": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 41
+   },
+   "B15": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 6
+   },
+   "B16": {
+    "o": "no_tool",
+    "tools": [],
+    "sec": 7
+   }
+  },
+  "gpto4mini": {
+   "B1": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 44
+   },
+   "B2": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 15
+   },
+   "B3": {
+    "o": "routed",
+    "tools": [
+     "geo_resolve_accession"
+    ],
+    "sec": 19
+   },
+   "B4": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 25
+   },
+   "B5": {
+    "o": "routed",
+    "tools": [
+     "geo_series"
+    ],
+    "sec": 23
+   },
+   "B6": {
+    "o": "routed",
+    "tools": [
+     "geo_search"
+    ],
+    "sec": 47
+   },
+   "B7": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 25
+   },
+   "B8": {
+    "o": "defect",
+    "tools": [
+     "brc_ena_search",
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 52
+   },
+   "B9": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_study"
+    ],
+    "sec": 28
+   },
+   "B10": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs"
+    ],
+    "sec": 19
+   },
+   "B11": {
+    "o": "routed",
+    "tools": [
+     "brc_federation_status"
+    ],
+    "sec": 21
+   },
+   "B12": {
+    "o": "correct",
+    "tools": [
+     "brc_ena_runs",
+     "brc_ena_search"
+    ],
+    "sec": 46
+   },
+   "B13": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 33
+   },
+   "B14": {
+    "o": "routed",
+    "tools": [
+     "geo_series",
+     "ncbi_sra_runs_for_project"
+    ],
+    "sec": 71
+   },
+   "B15": {
+    "o": "correct",
+    "tools": [
+     "geo_search",
+     "brc_ena_runs"
+    ],
+    "sec": 38
+   },
+   "B16": {
+    "o": "not_asked",
+    "tools": [],
+    "sec": 0
+   }
+  }
+ },
+ "per_question": {
+  "B1": {
+   "answered": 31,
+   "right": 30,
+   "fair": 31,
+   "both_servers": 0
+  },
+  "B2": {
+   "answered": 32,
+   "right": 32,
+   "fair": 32,
+   "both_servers": 1
+  },
+  "B3": {
+   "answered": 32,
+   "right": 31,
+   "fair": 32,
+   "both_servers": 0
+  },
+  "B4": {
+   "answered": 31,
+   "right": 30,
+   "fair": 31,
+   "both_servers": 2
+  },
+  "B5": {
+   "answered": 29,
+   "right": 29,
+   "fair": 29,
+   "both_servers": 0
+  },
+  "B6": {
+   "answered": 29,
+   "right": 27,
+   "fair": 29,
+   "both_servers": 0
+  },
+  "B7": {
+   "answered": 29,
+   "right": 29,
+   "fair": 29,
+   "both_servers": 0
+  },
+  "B8": {
+   "answered": 29,
+   "right": 0,
+   "fair": 0,
+   "both_servers": 0
+  },
+  "B9": {
+   "answered": 29,
+   "right": 29,
+   "fair": 29,
+   "both_servers": 0
+  },
+  "B10": {
+   "answered": 28,
+   "right": 26,
+   "fair": 28,
+   "both_servers": 0
+  },
+  "B11": {
+   "answered": 28,
+   "right": 28,
+   "fair": 28,
+   "both_servers": 0
+  },
+  "B12": {
+   "answered": 28,
+   "right": 26,
+   "fair": 28,
+   "both_servers": 0
+  },
+  "B13": {
+   "answered": 27,
+   "right": 25,
+   "fair": 27,
+   "both_servers": 23
+  },
+  "B14": {
+   "answered": 27,
+   "right": 26,
+   "fair": 27,
+   "both_servers": 8
+  },
+  "B15": {
+   "answered": 27,
+   "right": 24,
+   "fair": 27,
+   "both_servers": 25
+  },
+  "B16": {
+   "answered": 25,
+   "right": 24,
+   "fair": 25,
+   "both_servers": 4
+  }
+ },
+ "questions": {
+  "B1": [
+   "GEO",
+   "Count studies, and say they are studies (GEO Series)",
+   "37 studies, read live 17 Sep"
+  ],
+  "B2": [
+   "GEO",
+   "List only files the tool returned; never guess a download link",
+   "no figure"
+  ],
+  "B3": [
+   "GEO",
+   "A GSE and a GDS with the same digits are different records",
+   "different record types; GDS309890 itself returns an empty record"
+  ],
+  "B4": [
+   "any",
+   "Misspelled organism: fix it, and say that you fixed it. Names no database, so any tool counts",
+   "37 GEO studies once the spelling is fixed"
+  ],
+  "B5": [
+   "GEO",
+   "Read the platform from the record; do not invent one",
+   "not verified"
+  ],
+  "B6": [
+   "GEO",
+   "\"Every\" from a paged search: give the total; do not imply the list is complete",
+   "50 studies, read live 17 Sep"
+  ],
+  "B7": [
+   "BRC",
+   "Give the total, not the 50 rows a page shows",
+   "551,679 runs, read 17 Sep"
+  ],
+  "B8": [
+   "BRC",
+   "Not scored: asked about \"those\" with nothing before it",
+   "rewritten"
+  ],
+  "B9": [
+   "BRC",
+   "A study too big for the model (1 MB): report the real run count",
+   "916 runs, read 17 Sep"
+  ],
+  "B10": [
+   "BRC",
+   "Misspelled species returns zero on ENA: fix it or use the taxonomy ID",
+   "551,679 once fixed"
+  ],
+  "B11": [
+   "BRC",
+   "Report the service's known limits, not only \"healthy\"",
+   "version 0.29.0 and its limits, read 17 Sep"
+  ],
+  "B12": [
+   "BRC",
+   "BRC's own keyword tool fails quietly; a fraction needs a real numerator",
+   "9,759 of 551,679 (by study title)"
+  ],
+  "B13": [
+   "both",
+   "GEO studies and ENA runs are different units; do not add them",
+   "551,679 ENA runs, or 631,325 as NCBI SRA's tool reports; GEO 1,929 studies (not checked)"
+  ],
+  "B14": [
+   "both",
+   "Chain: GEO study, then its raw reads, then can they be assembled. Scored on any one needed tool; the chain is not checked",
+   "no figure"
+  ],
+  "B15": [
+   "both",
+   "The same unit trap as B13, for S. aureus",
+   "181,408 ENA runs; GEO 500 studies (not checked); read 17 Sep"
+  ],
+  "B16": [
+   "any",
+   "Influenza in E. coli records. Names no database, so any tool counts",
+   "GEO 4, ENA 5, read 17 Sep (not checked)"
+  ]
+ },
+ "outcomes": {
+  "routed": 257,
+  "not_asked": 61,
+  "correct": 159,
+  "defect": 29,
+  "miss_route": 3,
+  "miss_fig": 5,
+  "no_tool": 8
+ }
+}

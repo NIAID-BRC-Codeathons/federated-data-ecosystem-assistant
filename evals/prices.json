@@ -1,0 +1,48 @@
+{
+  "read_on": "2026-09-18",
+  "unit": "USD per 1M tokens, standard paid tier (not batch, flex or priority)",
+  "sources": {
+    "openai": "https://developers.openai.com/api/docs/pricing",
+    "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "google": "https://ai.google.dev/gemini-api/docs/pricing"
+  },
+  "caveats": [
+    "Argo short IDs were matched to vendor model names by spelling; which snapshot Argo routes to was not checked.",
+    "gpt-5.6-sol is a promotional price, 'available at least through November 21, 2026'.",
+    "All prompts in these runs were far below the 200K/272K long-context thresholds, so the base tier applies.",
+    "Argonne's Argo gateway charges the user nothing; these are the public list prices."
+  ],
+  "models": {
+    "gpt41":          {"name": "gpt-4.1",          "input": 2.00,  "cached_input": 0.50,  "output": 8.00},
+    "gpt41mini":      {"name": "gpt-4.1-mini",     "input": 0.40,  "cached_input": 0.10,  "output": 1.60},
+    "gpt41nano":      {"name": "gpt-4.1-nano",     "input": 0.10,  "cached_input": 0.025, "output": 0.40},
+    "gpt4o":          {"name": "gpt-4o",           "input": 2.50,  "cached_input": 1.25,  "output": 10.00},
+    "gpt5":           {"name": "gpt-5",            "input": 1.25,  "cached_input": 0.125, "output": 10.00},
+    "gpt5mini":       {"name": "gpt-5-mini",       "input": 0.25,  "cached_input": 0.025, "output": 2.00},
+    "gpt5nano":       {"name": "gpt-5-nano",       "input": 0.05,  "cached_input": 0.005, "output": 0.40},
+    "gpt51":          {"name": "gpt-5.1",          "input": 1.25,  "cached_input": 0.125, "output": 10.00},
+    "gpt52":          {"name": "gpt-5.2",          "input": 1.75,  "cached_input": 0.175, "output": 14.00},
+    "gpt54":          {"name": "gpt-5.4",          "input": 2.50,  "cached_input": 0.25,  "output": 15.00},
+    "gpt54mini":      {"name": "gpt-5.4-mini",     "input": 0.75,  "cached_input": 0.075, "output": 4.50},
+    "gpt54nano":      {"name": "gpt-5.4-nano",     "input": 0.20,  "cached_input": 0.02,  "output": 1.25},
+    "gpt55":          {"name": "gpt-5.5",          "input": 5.00,  "cached_input": 0.50,  "output": 30.00},
+    "gpt56luna":      {"name": "gpt-5.6-luna",     "input": 0.20,  "cached_input": 0.02,  "output": 1.20},
+    "gpt56sol":       {"name": "gpt-5.6-sol",      "input": 4.00,  "cached_input": 0.40,  "output": 20.00},
+    "gpt56terra":     {"name": "gpt-5.6-terra",    "input": 2.00,  "cached_input": 0.20,  "output": 12.00},
+    "gpto1":          {"name": "o1",               "input": 15.00, "cached_input": 7.50,  "output": 60.00},
+    "gpto3":          {"name": "o3",               "input": 2.00,  "cached_input": 0.50,  "output": 8.00},
+    "gpto3mini":      {"name": "o3-mini",          "input": 1.10,  "cached_input": 0.55,  "output": 4.40},
+    "gpto4mini":      {"name": "o4-mini",          "input": 1.10,  "cached_input": 0.275, "output": 4.40},
+    "claudehaiku45":  {"name": "Claude Haiku 4.5",  "input": 1.00, "cached_input": 0.10,  "output": 5.00},
+    "claudesonnet45": {"name": "Claude Sonnet 4.5", "input": 3.00, "cached_input": 0.30,  "output": 15.00},
+    "claudesonnet46": {"name": "Claude Sonnet 4.6", "input": 3.00, "cached_input": 0.30,  "output": 15.00},
+    "claudesonnet5":  {"name": "Claude Sonnet 5",   "input": 2.00, "cached_input": 0.20,  "output": 10.00},
+    "claudeopus45":   {"name": "Claude Opus 4.5",   "input": 5.00, "cached_input": 0.50,  "output": 25.00},
+    "claudeopus46":   {"name": "Claude Opus 4.6",   "input": 5.00, "cached_input": 0.50,  "output": 25.00},
+    "claudeopus47":   {"name": "Claude Opus 4.7",   "input": 5.00, "cached_input": 0.50,  "output": 25.00},
+    "claudeopus48":   {"name": "Claude Opus 4.8",   "input": 5.00, "cached_input": 0.50,  "output": 25.00},
+    "claudeopus5":    {"name": "Claude Opus 5",     "input": 5.00, "cached_input": 0.50,  "output": 25.00},
+    "gemini25flash":  {"name": "Gemini 2.5 Flash",  "input": 0.30, "cached_input": 0.03,  "output": 2.50},
+    "gemini31flashlite": {"name": "Gemini 3.1 Flash-Lite", "input": 0.25, "cached_input": 0.025, "output": 1.50}
+  }
+}

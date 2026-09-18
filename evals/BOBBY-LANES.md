@@ -225,7 +225,11 @@ behave without it.*
   matches", divided by a real denominator, it yields a confident **0%** — correct
   arithmetic over a fabricated numerator. A broken tool becomes a finding with a
   percentage sign on it.
-- **A good answer** refuses the fraction and says which half is missing.
+- **A good answer** counts the numerator with `brc_ena_search(taxonomy_id="562",
+  title_contains="carbapenem")` over the same denominator, **9,759 of 551,679**, and says
+  it is counted by study title (numerator in `BRC-DEEP.md` C4). *Updated 18 Sep: this
+  file said a good answer refuses the fraction, but `title_contains` makes it computable;
+  `judge.py` has scored 9,759 since commit 963a62e.*
 
 ---
 
@@ -266,6 +270,11 @@ identical to absence.
 - **A good answer** names both units and says what each database is *for*.
 
 ## B16. "Is there any influenza data in the E. coli records here?"
+
+*Scored 18 Sep by `evals/leaderboard.py`: "the records here" names no database, and
+several models reasonably searched NDE, so any tool call counts as the right tool and
+the GEO/ENA figures below are not checked. B4 gets the same rule for the same reason.
+An answer with no tool call still counts as a miss. Next rewrite: name GEO and ENA.*
 
 *Rewritten 17 Sep after this case was measured and found to be wrong. It
 originally asked the model to "read the two zeros", on my assumption that an
