@@ -213,6 +213,10 @@ TRAP_NOTES = {
     "pathogen_wrong_group": "passed an organism that is not a curated group name -- returns 0, not an error",
     "rows_as_isolates_150926": "quoted **150,926** as an isolate count -- that is the raw index row count for `blaCTX-M-15`; the service doubles E. coli and **75,487** distinct isolates carry it",
     "meca_94336": "quoted **94,336** for `mecA` without naming `mecC` -- that figure is `mecA` *or* `mecC`; `mecA` alone is **93,260** (QUESTIONS.md Q13)",
+    "geo_files_unwanted": "called `geo_series(list_files=True)` on G5, where the user said *\"I don't need the files\"* -- file listing is a second network call the user declined",
+    "ena_no_offset": "called `brc_ena_runs` for C2 with no `offset` -- the user already holds the first 50, and re-returning them is indistinguishable from a correct answer in the output",
+    "ena_species_for_strain": "queried taxid **562** (the species) on C3, which asks for K-12 MG1655 -- taxid **511145**, 20,925 runs against 551,679, a factor of 26",
+    "influenza_all_ena": "quoted **131,403** on B16 -- that is `title_contains=\"influenza\"` across all of ENA, every organism, not the E. coli slice",
 }
 
 # Where PIPELINES.md and QUESTIONS.md give an exact figure, the figure a correct
@@ -456,8 +460,171 @@ GROUND_TRUTH_RS: dict[str, list[dict]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# The three lane sets: B (BOBBY-LANES.md), G (GEO-DEEP.md), C (BRC-DEEP.md).
+#
+# These are the two servers this branch contributes, so this is the only part of
+# the corpus that measures the contribution rather than the federation. Read off
+# the three spec files the same way EXPECTED_ROUTING was read off ROUTING.md.
+# Separate maps, so an edit to a lane cannot move a demo number.
+#
+# GROUND TRUTH IS PINNED ONLY WHERE THE SPEC SAYS `live`. BOBBY-LANES.md states
+# the rule itself: "a run must not score against an unverified figure without
+# checking it first -- a wrong ground truth scores a correct answer as a failure,
+# which is worse than having no ground truth." Eleven of these twenty-eight cases
+# are marked `unverified` and are pinned to nothing. They still score on routing,
+# fabrication, traps and declared units.
+# ---------------------------------------------------------------------------
+
+EXPECTED_LANES: dict[str, dict] = {
+    "B1":  {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+            "declared": {"min": 1, "words": ["series"]}},
+    "B2":  {"primary": {"geo_series"}, "kind": "answer", "source": "NCBI GEO"},
+    "B3":  {"primary": {"geo_resolve_accession"}, "kind": "answer",
+            "source": "NCBI GEO"},
+    # The organism is misspelled IN THE QUESTION and every model silently repairs
+    # it, so the expectation cannot be written against the question text. See
+    # `check_repaired_input`: what reached the tool decides what a correct answer
+    # looks like. Measured across all 17 models with a b04 record -- every one
+    # sent organism="Escherichia coli", correctly spelled; zero sent it as typed.
+    "B4":  {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+            "repaired_input": {"tool": "geo_search", "arg": "organism",
+                               "as_typed": "escherichai",
+                               "repaired": "escherichia"}},
+    "B5":  {"primary": {"geo_series"}, "kind": "answer", "source": "NCBI GEO"},
+    "B6":  {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+            "declared": {"min": 1, "words": ["total", "of the", "all "]}},
+    # brc_ena_runs and brc_ena_search both report the same count (total_in_ena
+    # and total_matching, both from ENA tax_eq). Accepting only one of them
+    # scored every correct B7 answer as "wrong lane": 29 of 29 models answered
+    # 551,679 via brc_ena_runs on 17 Sep, and the page reported all 29 failing.
+    "B7":  {"primary": {"brc_ena_search", "brc_ena_runs"}, "kind": "answer",
+            "source": "BRC / ENA", "declared": {"min": 1, "words": ["run"]}},
+    "B8":  {"primary": {"brc_ena_search", "brc_ena_runs"}, "kind": "answer",
+            "source": "BRC / ENA",
+            "declared": {"min": 1, "words": ["run"]}},
+    "B9":  {"primary": {"brc_ena_study"}, "kind": "answer", "source": "BRC / ENA"},
+    "B10": {"primary": {"brc_ena_search", "brc_ena_runs"}, "kind": "answer",
+            "source": "BRC / ENA"},
+    "B11": {"primary": {"brc_federation_status"}, "kind": "answer",
+            "source": "BRC Analytics federation",
+            "declared": {"min": 1, "words": ["limitation", "cannot", "known issue"]}},
+    # B12 was typed `gap` on the belief that the numerator could not be computed:
+    # BRC's public `search_ena_keywords` returns an upstream HTTP 400 as tool text.
+    # That belief was wrong, and wrong in the direction that hid the point of the
+    # server. `brc_ena_search(title_contains=...)` computes it: 9,759 runs whose
+    # study title contains "carbapenem", over 551,679, about 1.77%. On 17 Sep, 27
+    # of 28 models routed there and none used the broken keyword tool, so scoring
+    # this as a refusal question penalised exactly what the server makes possible.
+    # The trap that remains is the UNIT: a title substring over runs, not a
+    # full-text or sample-level annotation.
+    "B12": {"primary": {"brc_ena_search", "brc_ena_runs"}, "kind": "answer",
+            "source": "BRC / ENA title_contains over the tax_eq(562) run count"},
+    "B13": {"primary": {"geo_search", "brc_ena_search"}, "kind": "answer",
+            "min_chain": 2, "source": "NCBI GEO + BRC / ENA",
+            "declared": {"min": 2, "words": ["series", "run", "stud"]}},
+    "B14": {"primary": {"geo_series", "brc_ena_study", "brc_ena_runs"},
+            "kind": "answer", "min_chain": 2,
+            "source": "GEO -> the linked ENA study"},
+    "B15": {"primary": {"geo_search", "brc_ena_search"}, "kind": "answer",
+            "min_chain": 2, "source": "NCBI GEO + BRC / ENA",
+            "declared": {"min": 2, "words": ["series", "run", "stud"]}},
+    # The two counts are 4 and 5. BOTH are under FABRICATION_MIN and NEITHER is
+    # pinned: a bare "4" appears in almost any prose, so that pin could not come
+    # back dirty and would not be evidence. What is scoreable is the reading --
+    # a GEO organism tag means "appears in", not "is about" -- plus the
+    # `influenza_all_ena` trap on 131,403.
+    "B16": {"primary": {"geo_search", "brc_ena_search"}, "kind": "answer",
+            "min_chain": 2, "source": "NCBI GEO + BRC / ENA",
+            "declared": {"min": 1, "words": ["tag", "appears in", "annotat",
+                                             "membership", "associated",
+                                             "not .{0,24}about"]}},
+}
+
+EXPECTED_GEO: dict[str, dict] = {
+    "G1": {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+           "declared": {"min": 2, "words": ["sample", "series", "gsm", "gse"]}},
+    "G2": {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+           "declared": {"min": 1, "words": ["dataset", "gds", "curat"]}},
+    "G3": {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+           "declared": {"min": 1, "words": ["gpl", "platform"]}},
+    "G4": {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO"},
+    "G5": {"primary": {"geo_series"}, "kind": "answer", "source": "NCBI GEO"},
+    "G6": {"primary": {"geo_resolve_accession"}, "kind": "answer",
+           "source": "NCBI GEO",
+           "declared": {"min": 1, "words": ["sample", "gsm"]}},
+    "G7": {"primary": {"geo_resolve_accession"}, "kind": "answer",
+           "source": "NCBI GEO"},
+    # 513 is IN THE QUESTION here and explaining it is the correct answer, so G8
+    # must stay OUT of `GDS_513_QIDS` -- that trap would fire on every good
+    # answer. The scoreable claim is 37 Series.
+    "G8": {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
+           "declared": {"min": 1, "words": ["series"]}},
+}
+
+EXPECTED_BRC: dict[str, dict] = {
+    "C1": {"primary": {"brc_ena_runs"}, "kind": "answer", "source": "BRC / ENA"},
+    "C2": {"primary": {"brc_ena_runs"}, "kind": "answer", "source": "BRC / ENA"},
+    "C3": {"primary": {"brc_ena_search"}, "kind": "answer", "source": "BRC / ENA",
+           "declared": {"min": 1, "words": ["strain", "k-12", "k12", "511145"]}},
+    "C4": {"primary": {"brc_ena_search"}, "kind": "answer", "source": "BRC / ENA",
+           "declared": {"min": 2, "words": ["run", "title", "substring"]}},
+    "C5": {"primary": {"brc_ena_search", "brc_ena_runs"}, "kind": "answer",
+           "source": "BRC / ENA"},
+    "C6": {"primary": {"brc_ena_runs"}, "kind": "answer", "source": "BRC / ENA"},
+    "C7": {"primary": {"brc_federation_status"}, "kind": "answer",
+           "source": "BRC Analytics federation",
+           "declared": {"min": 1, "words": ["limitation", "cannot", "known issue"]}},
+    "C8": {"primary": {"brc_ena_search"}, "kind": "answer", "source": "BRC / ENA",
+           "declared": {"min": 1, "words": ["%", "percent", "share", "fraction"]}},
+}
+
+# Only figures the spec marks `live`. Every `unverified` case is absent on
+# purpose, and the comment beside the gap says which.
+GROUND_TRUTH_BGC: dict[str, list[dict]] = {
+    # B1-B6 are the GEO lane and BOBBY-LANES.md marks all six `unverified`.
+    # B1's 37 carries an explicit "re-read before scoring", so it is not pinned.
+    "B7":  [{"value": 551679, "what": "ENA runs for taxid 562 (`total_matching`)",
+             "decoys": {50: "the default page size reported as the total"}}],
+    "B8":  [{"value": 497414, "what": "WGS runs for taxid 562"},
+            {"value": 13838, "what": "RNA-Seq runs for taxid 562",
+             "decoys": {511252: "WGS + RNA-Seq offered as the whole -- it leaves "
+                                "~40,000 runs in neither strategy"}}],
+    "B9":  [{"value": 916, "what": "runs in PRJEB1234 -- foxtail millet, not E. coli"}],
+    "B10": [{"value": 551679, "what": "what the corrected name returns; the "
+                                      "misspelling itself gives 0"}],
+    "B12": [{"value": 9759, "what": "E. coli runs whose study title contains 'carbapenem'"},
+            {"value": 551679, "what": "the tax_eq(562) run count, the denominator"}],
+    "B13": [{"value": 551679, "what": "ENA runs for taxid 562. The GEO side of "
+                                      "this question is unverified, so it is "
+                                      "deliberately not pinned."}],
+    "B15": [{"value": 181408, "what": "ENA runs for S. aureus (taxid 1280). The "
+                                      "GEO side is unverified and not pinned."}],
+    # B16: see the note in EXPECTED_LANES -- 4 and 5 cannot discriminate.
+    "G4": [{"value": 50, "what": "E. coli heat-shock Series; the question's "
+                                 "premise of 500 is wrong",
+            "decoys": {500: "the figure asserted in the question, accepted uncritically"}}],
+    "G7": [{"value": 24659, "what": "GPL24659, the platform for GSE309890"}],
+    "G8": [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin. 513 is "
+                                 "NOT a decoy here: the question hands it to the "
+                                 "model and explaining it is the correct answer."}],
+    "C1": [{"value": 551679, "what": "`total_in_ena` for taxid 562",
+            "decoys": {50: "the federated `search_ena` cap, which reports no total"}}],
+    "C3": [{"value": 20925, "what": "ENA runs for K-12 MG1655 (taxid 511145)",
+            "decoys": {551679: "the species figure for taxid 562 -- 26x too large"}}],
+    "C4": [{"value": 9759, "what": "ENA runs whose title contains `carbapenem`",
+            "decoys": {48421: "the `resistance` slice",
+                       4421: "the `plasmid` slice"}}],
+    "C5": [{"value": 551679, "what": "both tools agree on this figure"}],
+    "C6": [{"value": 551679, "what": "`total_in_ena`, which is not the number returned"}],
+    "C8": [{"value": 13838, "what": "RNA-Seq runs for taxid 562",
+            "decoys": {497414: "WGS, used as the denominator instead of the total"}}],
+}
+
+
 # The question sets this file has a rubric for, keyed by the letter
-# `_normalise_qid` leaves on the front of an id: "" demo, "R" routing, "S" stress.
+# `_normalise_qid` leaves on the front of an id: "" demo, "R" routing, "S" stress,
+# "B" lanes, "G" geo-deep, "C" brc-deep.
 #
 # A registry, not a literal inside `collect()`, because the literal WAS the bug.
 # `collect()` globbed `q*.jsonl`, `r*.jsonl`, `s*.jsonl`. At 15:50 on 17 Sep runner
@@ -475,7 +642,13 @@ GROUND_TRUTH_RS: dict[str, list[dict]] = {
 # a clean row that measured nothing -- the same "absent, not wrong" shape as the
 # missing-provenance bug. So the glob now takes every `*.jsonl`, and a record whose
 # set has no rubric is REFUSED BY NAME, exactly as a record with no provenance is.
-SCORABLE_SETS = {"": "demo", "R": "routing", "S": "stress"}
+#
+# B, G and C were added at 16:47 on 17 Sep, before the g01-g08 and c01-c08 runs
+# landed, so that the third occurrence of this bug does not happen. All three
+# prefixes go in together for the same reason: two of them would have been the
+# same mistake at two thirds the scale.
+SCORABLE_SETS = {"": "demo", "R": "routing", "S": "stress",
+                 "B": "lanes", "G": "geo-deep", "C": "brc-deep"}
 
 
 def set_of(qid: str | None) -> str | None:
@@ -490,10 +663,11 @@ def expected_for(qid: str | None) -> dict:
     blank = {"primary": set(), "kind": "answer", "source": "unknown"}
     if not qid:
         return blank
-    if qid.startswith("R"):
-        return EXPECTED_ROUTING.get(qid, blank)
-    if qid.startswith("S"):
-        return EXPECTED_STRESS.get(qid, blank)
+    by_letter = {"R": EXPECTED_ROUTING, "S": EXPECTED_STRESS,
+                 "B": EXPECTED_LANES, "G": EXPECTED_GEO, "C": EXPECTED_BRC}
+    table = by_letter.get(qid[0])
+    if table is not None:
+        return table.get(qid, blank)
     try:
         return EXPECTED.get(int(qid), blank)
     except ValueError:
@@ -505,6 +679,8 @@ def ground_truth_for(qid: str | None) -> list[dict]:
         return []
     if qid[0] in "RS":
         return GROUND_TRUTH_RS.get(qid) or []
+    if qid[0] in "BGC":
+        return GROUND_TRUTH_BGC.get(qid) or []
     try:
         return GROUND_TRUTH.get(int(qid)) or []
     except ValueError:
@@ -513,7 +689,13 @@ def ground_truth_for(qid: str | None) -> list[dict]:
 
 # The `gds_513` trap is not a property of question 3; it is a property of any
 # question whose true answer is the filtered Series count.
-GDS_513_QIDS = {"3", "7", "R15", "S4", "S20"}
+#
+# "B1" joins it: BOBBY-LANES.md measured that a model driving `geo_search`
+# CANNOT produce 513 -- `entry_type` is validated against a closed set of four
+# and no option drops the filter -- so 513 in a B1 answer is fabricated, not
+# mis-read. "G8" is deliberately absent: that question hands the model 513 and
+# asks it to explain the gap, so the trap would fire on every correct answer.
+GDS_513_QIDS = {"3", "7", "R15", "S4", "S20", "B1"}
 
 
 # ---------------------------------------------------------------------------
@@ -619,7 +801,12 @@ class Transcript:
 
 
 def _number_from_name(path: pathlib.Path) -> int | None:
-    m = re.search(r"[qrs](\d+)", path.stem.lower())
+    # `[a-z]`, not `[qrs]`. The narrow class was the same latent hole as the
+    # `q*/r*/s*` glob: it silently returned None for `b01.jsonl`, and a record
+    # whose summary happens to lack `question_number` would then reach
+    # `_qid_from_path` with no number at all. Widened at 16:47 on 17 Sep, with
+    # the B/G/C rubric, rather than waiting for it to cost something.
+    m = re.search(r"[a-z](\d+)", path.stem.lower())
     return int(m.group(1)) if m else None
 
 
@@ -939,6 +1126,46 @@ def check_traps(t: Transcript) -> list[str]:
         if not joint:
             fired.append("meca_94336")
 
+    # --- the three lane traps, each taken verbatim from a spec failure mode ---
+
+    # G5 failure mode: "ignoring the explicit instruction and listing files
+    # anyway. The parameter exists because file listing is a second network call;
+    # a model that never varies it is spending a request the user declined."
+    # Scored on the ARGUMENT, not the prose: a model can decline to enumerate
+    # files in its answer and still have paid for the call.
+    if t.qid == "G5":
+        for c in t.calls:
+            if c.get("tool") == "geo_series" and (c.get("args") or {}).get("list_files"):
+                fired.append("geo_files_unwanted")
+                break
+
+    # C2 failure mode, and the spec calls it "the only question in the whole
+    # corpus where the right answer and the wrong answer are both well-formed
+    # lists of genuine accessions". The user cannot tell from the output, so the
+    # only place the difference is visible is the call.
+    if t.qid == "C2":
+        runs_calls = [c for c in t.calls if c.get("tool") == "brc_ena_runs"]
+        if runs_calls and not any(_digits((c.get("args") or {}).get("offset"))
+                                  for c in runs_calls):
+            fired.append("ena_no_offset")
+
+    # C3 failure mode: answering with the species figure. The decoy in
+    # GROUND_TRUTH_BGC catches the NUMBER; this catches the CALL, which fires
+    # even when the model never states a figure at all.
+    if t.qid == "C3":
+        for c in t.calls:
+            if not str(c.get("tool") or "").startswith("brc_ena_"):
+                continue
+            if str((c.get("args") or {}).get("taxonomy_id") or "").strip() == "562":
+                fired.append("ena_species_for_strain")
+                break
+
+    # B16: 131,403 is `title_contains="influenza"` across the WHOLE of ENA, every
+    # organism. Quoting it as the E. coli influenza count is the specific
+    # confusion the question is built to detect.
+    if t.qid == "B16" and 131403 in answer_numbers(a):
+        fired.append("influenza_all_ena")
+
     return fired
 
 
@@ -1111,6 +1338,45 @@ def check_declared(t: Transcript, exp: dict) -> dict:
     return {"applies": True, "found": found, "need": need, "ok": len(found) >= need}
 
 
+def check_repaired_input(t: Transcript, exp: dict) -> dict:
+    """When the QUESTION is misspelled, score what the TOOL actually received.
+
+    B4 asks about "Escherichai coli", misspelled on purpose, and the spec expects
+    a zero plus a `zero_result_note`. It never happens. Measured across all 17
+    models with a b04 record: every one sent `organism="Escherichia coli"` to
+    `geo_search`, correctly spelled, and every one got 37 Series. Zero sent it as
+    typed. So an expectation written against the question text scores seventeen
+    correct, sensible answers as seventeen failures.
+
+    The repair is the interesting behaviour, not a defect, but it has to be
+    RECORDED rather than assumed -- if a model ever does pass the typo through, a
+    zero is then the right answer and the row must say which case it was. That is
+    what `passed_through` vs `repaired` distinguishes. This check never sets a
+    pass/fail on its own; it labels the row so the ground truth can be read
+    correctly.
+    """
+    spec = exp.get("repaired_input")
+    if not spec:
+        return {"applies": False}
+    seen: list[str] = []
+    for c in t.calls:
+        if c.get("tool") != spec["tool"]:
+            continue
+        args = c.get("args") or {}
+        v = args.get(spec["arg"])
+        if isinstance(v, str):
+            seen.append(v)
+    low = [v.lower() for v in seen]
+    repaired = any(spec["repaired"] in v for v in low)
+    as_typed = any(spec["as_typed"] in v for v in low)
+    return {"applies": True, "sent": seen, "repaired": repaired,
+            "passed_through": as_typed,
+            # Neither is a failure. "unknown" means the tool was never called
+            # with that argument at all, which the routing check already covers.
+            "verdict": ("repaired" if repaired else
+                        "passed-through" if as_typed else "unknown")}
+
+
 def check_min_chain(t: Transcript, exp: dict) -> dict:
     """Chain completeness. Stopping early is the failure S1 and S13 are for."""
     need = exp.get("min_chain")
@@ -1264,8 +1530,11 @@ def judge_one(t: Transcript) -> dict:
         verdict = "needs-review"
     return {
         "q": t.qid,
-        "set": ("routing" if (t.qid or "").startswith("R")
-                else "stress" if (t.qid or "").startswith("S") else "demo"),
+        # Read from SCORABLE_SETS rather than re-deriving it. The old form was a
+        # hardcoded if-chain that would have labelled every B, G and C row
+        # "demo" -- a third copy of the same class of bug, in the column a
+        # reader groups the report by.
+        "set": SCORABLE_SETS.get(set_of(t.qid) or "", "demo"),
         "question": t.question,
         "kind": exp.get("kind"),
         "source": exp.get("source", ""),
@@ -1281,6 +1550,7 @@ def judge_one(t: Transcript) -> dict:
         "null": check_honest_null(t, exp),
         "misroute": check_misroute(t, exp),
         "declared": check_declared(t, exp),
+        "repaired_input": check_repaired_input(t, exp),
         "min_chain": check_min_chain(t, exp),
         "breadth": check_breadth(t, exp),
         "refusal_parts": check_refusal_parts(t, exp),
@@ -1520,6 +1790,17 @@ def write_report(by_model: dict[str, list[dict]], out: pathlib.Path,
                  "holds no expectations for it, so there is nothing to score against. "
                  "**This is a gap in `judge.py`, not a model failure.** Add the set to "
                  "`SCORABLE_SETS` with its own `EXPECTED_*` map to turn these into rows."),
+                ("bad-question",
+                 "The question itself was defective when it ran — a dangling "
+                 "referent, or a premise the data contradicts. **This is a harness "
+                 "defect, not a model failure**, and in at least one case the "
+                 "models that refused were the ones that were right. Each is "
+                 "matched on the defective wording in the record, not on a commit "
+                 "date, so these clear themselves once runner re-runs the question."),
+                ("oversized-payload",
+                 "A tool returned a payload at or above the ceiling, which before "
+                 "the cap hard-400ed several models. **This measures the harness, "
+                 "not the model.** Re-run the affected records."),
                 ("placeholder",
                  "The question text is a stub like `question 7`, so the record "
                  "answers nothing and cannot be scored for or against a model. "
@@ -1731,6 +2012,13 @@ CHECKS = [
     "misroute_called", "misroute_used", "declared_missing",
     "min_chain_short", "breadth_over", "refusal_parts_short",
     "forbidden_units", "control_refused",
+    # B4. Not a failure -- a label. It needs coverage anyway, because the whole
+    # point of the check is the branch that has never yet been seen on real
+    # data: 23 records repaired the misspelling, 0 passed it through. A branch
+    # with no observation behind it is exactly the kind of code that is wrong
+    # the first time it matters, so the fixture below is the only evidence that
+    # `passed-through` is reachable at all.
+    "input_passed_through",
 ]
 
 
@@ -1769,6 +2057,8 @@ def _observed(row: dict) -> dict:
                             and not row["forbidden_units"]["ok"]),
         "control_refused": (row["control_refusal"]["applies"]
                             and not row["control_refusal"]["ok"]),
+        "input_passed_through": (row["repaired_input"]["applies"]
+                                 and row["repaired_input"]["passed_through"]),
     }
 
 
@@ -1940,8 +2230,15 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
     # pass is indistinguishable from one that cannot see:
     #
     #   q2.jsonl   demo id, demo filename          -> scored
-    #   b01.jsonl  B id, B filename, no rubric     -> refused [no-rubric]
+    #   z01.jsonl  Z id, Z filename, no rubric     -> refused [no-rubric]
     #   q03.jsonl  B id inside a demo filename     -> refused [set-conflict]
+    #
+    # The middle record was `b01.jsonl` until 16:47 on 17 Sep, when B, G and C
+    # gained rubrics and it correctly stopped being refused -- this self-test
+    # failed on that change, which is the behaviour it was written for. It now
+    # uses `Z`, a letter no question set uses, so the no-rubric guard keeps a
+    # case that can actually reach it. Any set that gains a rubric must be moved
+    # off this line rather than have the assertion loosened.
     #
     # The third record is what stops `set_of` being reverted to the old `in "RS"`
     # literal. Under that literal a "B" id collapses to the demo set, the record
@@ -1952,7 +2249,7 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
         d = pathlib.Path(tmp) / "fixture_model-bobby-lanes"
         d.mkdir()
         prov = {"run_id": "20260917-160000-abc1234", "code_sha": "abc1234"}
-        for name, qid in (("q2.jsonl", "Q2"), ("b01.jsonl", "B1"), ("q03.jsonl", "B3")):
+        for name, qid in (("q2.jsonl", "Q2"), ("z01.jsonl", "Z1"), ("q03.jsonl", "B3")):
             rec = ({"role": "user", "text": "q"},
                    {"summary": {"question_id": qid, "question_number": qid,
                                 "question": "q", "model": "fixture",
@@ -1966,7 +2263,7 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
         print(f"  unknown-set guard: {n_kept} scored, {len(refused)} refused {tags}")
         if not (n_kept == 1 and tags == ["no-rubric", "set-conflict"]):
             failures.append(
-                f"unknown-set guard did not refuse set B by name: scored "
+                f"unknown-set guard did not refuse an unknown set by name: scored "
                 f"{n_kept}, refused {refused}")
 
     # The denominator must survive a run that died before writing a scorecard.
@@ -2017,6 +2314,66 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
                 failures.append(
                     "placeholder guard: a stub question must be refused and the "
                     f"real one beside it still scored; got {n2} scored, refused {r2}")
+
+        # The two harness guards, which fire in `collect()` and never reach
+        # `judge_one`, so no manifest fixture can cover them.
+        #
+        # Both are asserted here because NEITHER can be observed on the corpus:
+        #
+        #   bad-question / B16   0 records. Every live b16 carries the corrected
+        #                        wording; `cadca73` landed at 15:40:52 and every
+        #                        bobby-lanes run started at 16:12:14. The B8
+        #                        branch of the same guard fires on 29 records, so
+        #                        the guard demonstrably works -- but the B16
+        #                        pattern specifically has never matched anything,
+        #                        and an unexercised pattern is not a guard.
+        #   oversized-payload    0 records reachable. The 1,073,223-char
+        #                        `brc_ena_study` transcripts exist, but only at
+        #                        `runs/_archive-lanes-truncated/<model>/b09.jsonl`
+        #                        -- depth 3, and `collect()` globs depth 2. It
+        #                        cannot see them. So on production data this
+        #                        guard can never come back dirty, which by this
+        #                        project's own rule makes a clean result from it
+        #                        worth nothing without the case below.
+        #
+        # A clean record sits beside each, because a guard that refuses
+        # everything is as useless as one that refuses nothing.
+        with tempfile.TemporaryDirectory() as tmp3:
+            d3 = pathlib.Path(tmp3) / "fixture_model-bobby-lanes"
+            d3.mkdir()
+            prov3 = {"run_id": "20260917-164700-abc1234", "code_sha": "abc1234"}
+            cases = (
+                ("b16.jsonl", "B16",
+                 "Neither of these is about influenza. Which one would tell me "
+                 "so faster?", []),
+                ("b15.jsonl", "B15",
+                 "How many S. aureus runs are in ENA?", []),
+                ("b09.jsonl", "B9", "What is PRJEB1234?",
+                 [{"role": "tool", "tool": "brc_ena_study", "seconds": 9.0,
+                   "result_chars": 1073223, "result_excerpt": "{...}"}]),
+                ("b07.jsonl", "B7", "How many E. coli runs are in ENA?",
+                 [{"role": "tool", "tool": "brc_ena_search", "seconds": 0.4,
+                   "result_chars": 900, "result_excerpt": "{...}"}]),
+            )
+            for name, qid, q, steps in cases:
+                rec = [{"role": "user", "text": q}, *steps,
+                       {"summary": {"question_id": qid, "question_number": qid,
+                                    "question": q, "model": "fixture",
+                                    "tools_in_order": [s["tool"] for s in steps],
+                                    "answer": "551,679 runs.", "answer_chars": 13,
+                                    **prov3}}]
+                (d3 / name).write_text(
+                    "\n".join(json.dumps(x) for x in rec) + "\n", encoding="utf-8")
+            k3, r3 = collect(pathlib.Path(tmp3))
+            n3 = sum(len(v) for v in k3.values())
+            t3 = sorted(x.split("]")[0][1:] for x in r3 if x.startswith("["))
+            print(f"  harness guards: {n3} scored, {len(r3)} refused {t3}")
+            if not (n3 == 2 and t3 == ["bad-question", "oversized-payload"]):
+                failures.append(
+                    "harness guards: the old B16 wording and the 1,073,223-char "
+                    "payload must each be refused by name, and the two clean "
+                    f"records beside them still scored; got {n3} scored, "
+                    f"refused {r3}")
 
         if got != ("B", 16, 1, None, 15):
             failures.append(
@@ -2190,6 +2547,59 @@ def coverage_rows(runs: pathlib.Path, by_model: dict[str, list[dict]]) -> list[d
     return out
 
 
+# A tool payload this large is a harness defect, not a model result. The
+# legitimate maximum measured across every record in `evals/runs` on 17 Sep is
+# 263,118 chars (`brc_ena_runs`), so 500,000 sits well clear of real data and
+# well below the 1,073,223 that `brc_ena_study` was returning before the cap.
+OVERSIZED_PAYLOAD = 500_000
+
+# Questions that were defective when they ran. Each entry matches the DEFECT in
+# the record itself, never a commit SHA or a timestamp: a SHA proxy would have to
+# be re-dated by hand every time runner reruns, and would keep refusing records
+# that are now fine. Matching the observable defect means each of these
+# self-clears the moment the question is re-run with the corrected text.
+BAD_QUESTIONS: list[tuple[str, str, str]] = [
+    # B8 said "how many of THOSE" with no antecedent. Every question runs in a
+    # fresh session, so there was no prior result for "those" to refer to. Six of
+    # nine models correctly refused; the two that answered got the right number
+    # by assuming E. coli. Scoring it rewards guessing and penalises noticing.
+    # Kept as a FIXTURE deliberately -- it is the best example of a correct
+    # refusal in the whole corpus.
+    ("B8", r"how many of those",
+     "the question said 'how many of those' with no antecedent -- every question "
+     "runs in a fresh session, so a model that refused was RIGHT and a model that "
+     "answered guessed the subject. Rewritten 17 Sep; re-run b08 to score it."),
+    # B16 told models to read two zeros that do not exist: GEO returns 4 and ENA
+    # returns 5. A correct answer was being scored as a failure.
+    ("B16", r"neither of these is about influenza",
+     "the question asserted two zero counts that do not exist -- GEO returns 4 and "
+     "ENA returns 5 -- so a correct answer scored as failing. Rewritten 17 Sep; "
+     "re-run b16 to score it."),
+]
+
+
+def question_guard(t: "Transcript") -> tuple[str, str] | None:
+    """Refuse a record the HARNESS got wrong, before a model is blamed for it.
+
+    Returns `(tag, why)` to refuse, or None to score. This is the same contract
+    as the provenance and no-rubric gates above: refused by name, never silently
+    dropped, and never counted as a model failure.
+    """
+    q = (t.question or "").lower()
+    for qid, pattern, why in BAD_QUESTIONS:
+        if t.qid == qid and re.search(pattern, q):
+            return "bad-question", why
+    for r in t.results:
+        n = r.get("result_chars") or 0
+        if n >= OVERSIZED_PAYLOAD:
+            return ("oversized-payload",
+                    f"`{r.get('tool', '?')}` returned {n:,} chars, at or above the "
+                    f"{OVERSIZED_PAYLOAD:,} ceiling. Before the payload cap this "
+                    f"hard-400ed four models outright, so any score here measures "
+                    f"the harness, not the model. Re-run it.")
+    return None
+
+
 def collect(runs: pathlib.Path) -> tuple[dict[str, list[dict]], list[str]]:
     by_model: dict[str, list[dict]] = {}
     skipped: list[str] = []
@@ -2258,6 +2668,14 @@ def collect(runs: pathlib.Path) -> tuple[dict[str, list[dict]], list[str]]:
                 print(f"  SKIPPED, no rubric: {rel} -- question set {s!r} is not "
                       f"one of {sorted(SCORABLE_SETS)}", file=sys.stderr)
                 continue
+            bad = question_guard(t)
+            if bad:
+                tag, why = bad
+                rel = f"{model_dir.name}/{path.name}"
+                skipped.append(f"[{tag}] {rel} -- {why}")
+                print(f"  SKIPPED, {tag}: {rel} -- {why}", file=sys.stderr)
+                continue
+
             try:
                 rows.append(judge_one(t))
             except Exception as exc:
