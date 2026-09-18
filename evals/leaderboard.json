@@ -820,19 +820,19 @@
    "not_asked": 0,
    "route_ok": 15,
    "route_n": 15,
-   "acc_ok": 6,
+   "acc_ok": 5,
    "acc_n": 6,
    "no_tool": 0,
    "out": 34231,
    "inn": 1497804,
    "sec": 402.1,
    "calls": 36,
-   "score": 1.0,
-   "score_k": 21,
+   "score": 0.9523809523809523,
+   "score_k": 20,
    "score_n": 21,
    "score_ci": [
-    0.8453561767357979,
-    0.9999999999999999
+    0.7733018341376452,
+    0.9915442305280766
    ],
    "sec_q": 26.80666666666667,
    "out_q": 2282.0666666666666,
@@ -4777,7 +4777,7 @@
     "sec": 22
    },
    "B13": {
-    "o": "correct",
+    "o": "miss_fig",
     "tools": [
      "ncbi_sra_search",
      "geo_search"
@@ -5117,7 +5117,7 @@
   },
   "B13": {
    "answered": 27,
-   "right": 25,
+   "right": 24,
    "fair": 27,
    "both_servers": 23
   },
@@ -5225,10 +5225,10 @@
  "outcomes": {
   "routed": 257,
   "not_asked": 61,
-  "correct": 159,
+  "correct": 158,
   "defect": 29,
   "miss_route": 3,
-  "miss_fig": 5,
+  "miss_fig": 6,
   "no_tool": 8
  }
 }
