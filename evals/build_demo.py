@@ -70,6 +70,7 @@ import html
 import io
 import json
 import pathlib
+import copy
 import re
 import sys
 import tempfile
@@ -440,25 +441,33 @@ def cell_for(rec, jrow):
     c["traps"] = traps
     c["gt"] = gt
 
-    # Worst first. A wrong figure and a fabrication are the two states that
-    # produce a confident false statement, which is what this page is about.
+    # Judge's fabrication check is never shown as critical, and never above a
+    # ground-truth hit (hub decision, 18 Sep 08:28, until judge's number parser
+    # is fixed). Runner read all 30 answers it flagged that morning: 29 were
+    # false alarms -- mostly a taxonomy ID, a percentage, or a correct figure
+    # the parser split ("551 679" read as 551 and 679). Its numbers stay on
+    # the cell so a reader can check by hand.
+    fab = jrow.get("verdict") == "fabricated"
+    c["fab_flag"] = fab
+    unmatched = [str(n) for n in
+                 ((jrow.get("numbers") or {}).get("unmatched") or [])]
+    shown = ", ".join(unmatched[:4]) + (
+        " +%d more" % (len(unmatched) - 4) if len(unmatched) > 4 else "")
+    gt_hit = gt.get("applies") and gt.get("state") == "hit"
+
+    # Worst first. A wrong figure is checked against a pinned answer, which is
+    # why it, and not the fabrication flag, reads as a confident false statement.
     if "zero_as_absence" in traps:
         c["state"], c["label"] = "critical", "zero read as absence"
     elif gt.get("applies") and gt.get("state") == "wrong":
         c["state"], c["label"] = "critical", "wrong figure"
-    elif jrow.get("verdict") == "fabricated":
-        # Judge's own evidence goes beside its verdict. On 18 Sep runner read
-        # all 30 flagged rows: 29 were not fabrications -- mostly a taxonomy ID,
-        # a percentage, or a correct figure the number parser split ("551 679"
-        # read as 551 and 679). With
-        # the numbers on the cell, "fabricated: 511145" reads as a taxid.
-        c["state"], c["label"] = "critical", "fabricated"
-        unmatched = [str(n) for n in
-                     ((jrow.get("numbers") or {}).get("unmatched") or [])]
-        if unmatched:
-            c["label"] = "fabricated: " + ", ".join(unmatched[:4]) + (
-                " +%d more" % (len(unmatched) - 4) if len(unmatched) > 4 else "")
-            c["why"] = "judge found these numbers in no tool result"
+    elif fab and c["calls"] == 0 and not gt_hit:
+        # With no tool call there was nothing to trace a number to, so this is
+        # not a parser artefact. It keeps argo/gpto1 B13 -- the real
+        # fabrication, figures stated with no call made -- visibly marked.
+        c["state"] = "serious"
+        c["label"] = "no tool call" + (", untraced: " + shown if unmatched else "")
+        c["why"] = "no tool was called; judge found these numbers in no tool result"
     elif traps:
         c["state"], c["label"] = "serious", traps[0]
     elif gt.get("applies") and gt.get("state") == "miss":
@@ -487,6 +496,14 @@ def cell_for(rec, jrow):
         c["state"], c["label"] = "warning", "needs review"
     else:
         c["state"], c["label"] = "good", "routed, no flag"
+    if fab and not c["label"].startswith("no tool call"):
+        tail = "check by hand" + (": " + shown if unmatched else "")
+        if c["label"] == "routed, no flag":
+            c["state"], c["label"] = "warning", tail
+            c["why"] = "judge found these numbers in no tool result"
+        else:
+            # Ranked below whatever the cell already says, never above it.
+            c["label"] += "; " + tail
     if rec.qid in ZERO_TRAP_QS:
         c["flags"].append("zero-trap question")
     return c
@@ -978,9 +995,11 @@ def render_html(data):
     # number.
     crit_labels = [c["label"] for m in models for c in m["cells"].values()
                    if c["state"] == "critical"]
-    n_wrong = sum(1 for lb in crit_labels if lb == "wrong figure")
-    n_fab = sum(1 for lb in crit_labels if lb.startswith("fabricated"))
-    n_zero = sum(1 for lb in crit_labels if lb == "zero read as absence")
+    n_wrong = sum(1 for lb in crit_labels if lb.startswith("wrong figure"))
+    n_fab = sum(1 for m in models for c in m["cells"].values()
+                if c.get("fab_flag"))
+    n_zero = sum(1 for lb in crit_labels  # a label can carry a "; check by hand" tail
+                 if lb.startswith("zero read as absence"))
     n_serious = sum(m["serious"] for m in models)
     n_good = sum(m["good"] for m in models)
     scored = n_rec - n_unscorable - n_unseen
@@ -1054,8 +1073,8 @@ def render_html(data):
     # 2. Number tiles
     P.append('<div class="tiles">')
     P.append(_tile("Confident false statements", n_crit,
-                   ("of %d scored · %d wrong figure · %d zero read as absence · "
-                    "%d fabrication flag" % (scored, n_wrong, n_zero, n_fab))
+                   ("of %d scored · %d wrong figure · %d zero read as absence"
+                    % (scored, n_wrong, n_zero))
                    if scored else "nothing scored yet",
                    "Worst failure", "critical"))
     P.append(_tile("Held out, not scored", n_unscorable + n_unseen,
@@ -1073,6 +1092,14 @@ def render_html(data):
                    % esc(STANDING_COST_CAVEAT),
                    "Unverified" if priced else "No price on file", "warning"))
     P.append("</div>")
+    if n_fab:
+        P.append("<p class=\"note\"><b>Judge's fabrication check flagged %d "
+                 "answer(s) on this build. None is counted above.</b> Each reads "
+                 "<i>check by hand</i> with the numbers judge could not trace. On "
+                 "18 Sep runner read all 30 it flagged then: 29 were false alarms, "
+                 "mostly taxonomy IDs and correct figures the number parser split. "
+                 "The real one, <code>argo/gpto1</code> B13, made no tool call and "
+                 "states figures it never retrieved.</p>" % n_fab)
 
     # The comparison measuring the harness, above the matrix it changes.
     for rid, rates in fault_asymmetry(models):
@@ -1531,18 +1558,66 @@ def self_test():
             fails.append("a correct figure was buried under needs-review: %s"
                          % probe["label"])
 
-        # -- a fabrication flag carries judge's own unmatched numbers, so a
-        #    taxonomy ID or a split figure is visible as what it is.
-        fab = cell_for(
-            Record(runs / "m_clean" / "q02.jsonl"),
-            {"verdict": "fabricated", "routed": "yes", "traps": [],
-             "numbers": {"claimed": 3, "unmatched": [511145], "decidable": True}})
-        if fab["state"] == "critical" and "511145" in fab["label"]:
-            fired.append("a fabrication flag shows judge's evidence: %s"
-                         % fab["label"])
+        # -- judge's fabrication flag (hub decision, 18 Sep): never critical,
+        #    never above a ground-truth hit, and always with judge's numbers.
+        #    A zero-call answer reads "no tool call", which keeps the one real
+        #    fabrication (argo/gpto1 B13) visibly marked.
+        flag = {"verdict": "fabricated", "routed": "yes", "traps": [],
+                "numbers": {"claimed": 3, "unmatched": [511145], "decidable": True}}
+        alone = cell_for(Record(runs / "m_clean" / "q02.jsonl"), dict(flag))
+        if alone["state"] == "warning" and alone["label"] == "check by hand: 511145":
+            fired.append("a fabrication flag alone reads %r, not critical"
+                         % alone["label"])
         else:
-            fails.append("a fabrication flag reached the page without judge's "
-                         "evidence: %r" % fab["label"])
+            fails.append("a fabrication flag rendered as %s %r"
+                         % (alone["state"], alone["label"]))
+        on_hit = cell_for(Record(runs / "m_clean" / "q02.jsonl"),
+                          dict(flag, ground_truth={"applies": True,
+                                                   "state": "hit", "rows": []}))
+        if (on_hit["state"] == "good"
+                and on_hit["label"].startswith("figure correct")
+                and "511145" in on_hit["label"]):
+            fired.append("a correct figure outranks a fabrication flag: %r"
+                         % on_hit["label"])
+        else:
+            fails.append("a fabrication flag outranked a correct figure: %s %r"
+                         % (on_hit["state"], on_hit["label"]))
+        _write(runs.parent / "probe", "q02.jsonl",
+               _rec(tools_in_order=[], tool_call_count=0))
+        no_call = cell_for(Record(runs.parent / "probe" / "q02.jsonl"),
+                           dict(flag, routed="no",
+                                numbers={"claimed": 2, "unmatched": [2735, 258939],
+                                         "decidable": True}))
+        if (no_call["state"] == "serious"
+                and no_call["label"] == "no tool call, untraced: 2735, 258939"):
+            fired.append("a fabrication flag with no tool call stays marked: %r"
+                         % no_call["label"])
+        else:
+            fails.append("a zero-call fabrication lost its mark: %s %r"
+                         % (no_call["state"], no_call["label"]))
+
+        # -- the headline tile counts a critical cell by what it is, even when
+        #    a fabrication flag has added a "; check by hand" tail to its label.
+        #    Measured 18 Sep: exact-match counting dropped argo/gpto1 B10, and
+        #    the tile read 22 zero-read-as-absence where the matrix held 23.
+        both = cell_for(Record(runs / "m_clean" / "q02.jsonl"),
+                        dict(flag, traps=["zero_as_absence"]))
+        tiled = copy.deepcopy(data)
+        tiled["models"]["m_clean"]["cells"] = {"Q2": both}
+        pat = r"of \d+ scored · (\d+) wrong figure · (\d+) zero read as absence"
+        before = re.search(pat, render_html(data))
+        tile_line = re.search(pat, render_html(tiled))
+        # Exactly one more than before, so a zero elsewhere in the fixture
+        # cannot make this pass.
+        if (both["label"].startswith("zero read as absence; check by hand")
+                and before and tile_line
+                and int(tile_line.group(2)) == int(before.group(2)) + 1):
+            fired.append("the tile counts %r as zero read as absence"
+                         % both["label"])
+        else:
+            fails.append("the tile lost a critical cell with a check-by-hand "
+                         "tail: label %r, tile %r"
+                         % (both["label"], tile_line and tile_line.group(0)))
 
         # -- G5
         try:

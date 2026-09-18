@@ -3,6 +3,10 @@
 Bobby has two MCP servers in the federation. This page is the script for the five
 minutes that prove it. Every model the team could reach was measured.
 
+Bobby presents from a separate page built from direct measurements:
+https://claude.ai/artifact/VL6hvVMzgbn8wwmUuMePGE. The page below is the drill-down
+behind it.
+
 **Open:** `evals/demo/index.html`. **Rebuild:** `python evals/build_demo.py`.
 
 ## Do this first, at the podium
@@ -11,11 +15,11 @@ minutes that prove it. Every model the team could reach was measured.
 python evals/build_demo.py
 ```
 
-No model runs today, so the transcripts are final. Judge is still under repair this
-morning, and each fix changes the scores on the page. Rebuild after the last fix. Read
-the scores off the page, not off this file.
+The transcripts are final. Judge's owner may still change a check this morning.
+Rebuild just before you present.
+Read the scores off the page, not off this file.
 
-The two servers, one name each, used the same way on every slide:
+One name per server, used on every slide:
 
 | name here | file | port | tools |
 |---|---|---|---|
@@ -27,7 +31,7 @@ Two question sets. `BOBBY-LANES.md` holds 16 questions aimed at those seven tool
 
 ---
 
-## Beat 1 — both servers, every tool, every model
+## Beat 1 — both servers, every tool
 
 Read at 08:33 on 18 Sep. 34 models have BOBBY-LANES transcripts. 30 finished all 16
 questions. The `anthropic/*` rows stopped at 9 when the network dropped. 522 records.
@@ -46,7 +50,8 @@ questions. The `anthropic/*` rows stopped at 9 when the network dropped. 522 rec
 
 GEO server 364 calls. BRC server 323 calls.
 
-**Say:** both servers carry real traffic from every model, not incidental traffic.
+**Say:** 29 of 34 models used both servers. The other 5 hit a transport fault or
+the network drop first.
 
 ---
 
@@ -63,7 +68,7 @@ other 4 records, 3 are transport faults. The fourth, `argo/gpto3mini`, made no t
 call and gave no figure.
 
 **Say:** a broken upstream tool turns into a percentage with a decimal point. The BRC
-server gave every model a path that does not do that.
+server gave the models a path that does not do that.
 
 ---
 
@@ -121,28 +126,32 @@ Both of Bobby's servers fix this class in code. `mcp_servers/geo.py:136`, attach
 
 ## Read the red tile carefully
 
-The first tile reads **Confident false statements**. On the 08:31 build it held 53.
-It splits them: 1 wrong figure, 23 zero read as absence, 29 fabrication flags.
+The first tile reads **Confident false statements**. On the 08:44 build it held 24:
+1 wrong figure and 23 zero read as absence.
+
+| check | in the tile | flagged | real, read by hand |
+|---|---|---|---|
+| wrong figure | yes | 1 | 1 |
+| zero read as absence | yes | 23 | 1 |
+| fabrication | no, reads "check by hand" | 30 | 1 |
 
 A wrong figure is checked against a pinned answer. The other two are judge's pattern
-checks, and they over-fire. Every flagged cell was read by hand:
+checks. I read all 23 zero cells. In 15, the answer named the tool that returned 0. In
+7, judge matched an unrelated phrase such as "no linked PubMed record".
 
-| flag | flagged | real | what the false ones were |
-|---|---|---|---|
-| wrong figure | 1 | 1 | — |
-| fabrication | 29 | 1 | 13 taxonomy IDs, 5 correct figures split by the parser, then percentages, HTTP codes and roundings |
-| zero read as absence | 23 | 1 | 15 answers named the tool that gave 0; 7 matched an unrelated phrase such as "no linked PubMed record" |
+Runner read all 30 fabrication flags. Most were taxonomy IDs or correct figures the
+number parser split. Those cells read **check by hand**, with the
+numbers judge could not trace. `check by hand: 511145` is the taxonomy ID of E. coli
+K-12. Where the answer's figure is right, the cell reads **figure correct** first.
 
 The three real ones:
 
 - `argo/claudeopus5` Q13 said 94,336 where the answer is 93,260.
 - `argo/gpto1` B13 made no tool call and stated *"2735 GEO Series ... 258939 SRA runs"*.
+  Its cell reads `no tool call, untraced: 2735, 258939`.
 - `argo/gpt41nano` B1 read an NDE zero as absence, as in beat 4.
 
-Each fabrication cell now shows the numbers judge could not trace. `fabricated: 511145`
-is the taxonomy ID of E. coli K-12, not an invented figure.
-
-**Say:** 3 real, not 53. The other 50 are reported to the owner of `judge.py`.
+**Say:** 3 real, not 24. The zero check is reported to the owner of `judge.py`.
 
 ---
 
@@ -158,13 +167,13 @@ The not-scored records are our own bug. B8 as first written asked *"how many of
 those"* with no antecedent. Judge refuses those records by name. `BOBBY-LANES.md` records
 that six of the first nine models asked what "those" meant. B8 is now rewritten.
 
-`argo_claudesonnet45` on QUESTIONS reads 15 **not asked**. Those transcripts were
-overwritten on 17 Sep and are gone. That model cannot be ranked on QUESTIONS.
+`argo_claudesonnet45` cannot be ranked on QUESTIONS. Its 15 transcripts were
+overwritten on 17 Sep.
 
 ## What was never tested
 
 - **Nobody opened the page in a browser.** The markup has a guard that was watched to
-  fail first. The markdown twin at `evals/demo/model-matrix.md` was read.
+  fail first.
 - **No live calls.** The network is gone. The ENA figure for E. coli has since grown
   to 551,870; 551,679 is the 17 Sep reading.
 - **The full chatbot has never run end to end here.**
