@@ -560,6 +560,117 @@ def main() -> None:
        "counts as an E. coli ciprofloxacin study, so I would rather not give you "
        "a number.", qid="S20"))
 
+    # ---------------------------------------------------------------- lanes
+    # The B/G/C rubric landed at 16:47 on 17 Sep, before the g01-g08 and
+    # c01-c08 runs. Every check below therefore fires ZERO times on the corpus
+    # as it stands, which is precisely the condition that makes a fixture
+    # load-bearing rather than decorative: without these, the first evidence
+    # that any of them works would be the report that depends on them.
+
+    # G5 says "I don't need the files" and this model listed them anyway. The
+    # trap reads the ARGUMENT, not the prose -- a model can decline to
+    # enumerate files in its answer and still have paid for the second call.
+    made.append(write("geo-files-unwanted.jsonl", 5,
+                      "Just tell me what GSE309890 is - I don't need the files.", [
+        asst([("geo_series", {"accession": "GSE309890", "list_files": True})]),
+        tool("geo_series",
+             '{"accession": "GSE309890", "title": "Transcriptional response of '
+             'Escherichia coli to ciprofloxacin", "supplementary_files": '
+             '[{"name": "GSE309890_counts.tsv.gz", "bytes": 510333}]}'),
+    ], "GSE309890 is a transcriptional response study in Escherichia coli. It "
+       "has one supplementary counts file available for download.", qid="G5"))
+
+    # C2 is the only question in the corpus where the right answer and the wrong
+    # answer are both well-formed lists of genuine accessions. The user cannot
+    # tell them apart from the output, so the call is the only place the
+    # difference is visible -- which is why this trap reads args and not text.
+    made.append(write("ena-no-offset.jsonl", 2,
+                      "Show me runs 51 to 100 for E. coli - I already have the "
+                      "first 50.", [
+        asst([("brc_ena_runs", {"taxonomy_id": "562", "limit": 50})]),
+        tool("brc_ena_runs",
+             '{"runs": [{"run_accession": "ERR10016945"}, '
+             '{"run_accession": "ERR10016947"}, {"run_accession": "ERR10016958"}]}'),
+    ], "Here is the next page of E. coli runs: ERR10016945, ERR10016947 and "
+       "ERR10016958.", qid="C2"))
+
+    # C3 asks for the STRAIN. This model queried the species, and the two are
+    # both "E. coli" in conversation. The decoy in GROUND_TRUTH_BGC catches the
+    # number; this fixture also proves the arg-level trap fires, which it must,
+    # because a model can make this mistake and never state a figure at all.
+    made.append(write("ena-species-for-strain.jsonl", 3,
+                      "How many sequencing runs are there for E. coli K-12 "
+                      "MG1655?", [
+        asst([("brc_ena_search", {"taxonomy_id": "562"})]),
+        tool("brc_ena_search", '{"taxonomy_id": "562", "total_matching": 551679}'),
+    ], "There are 551,679 sequencing runs for E. coli K-12 MG1655 in ENA.",
+       qid="C3"))
+
+    # B16. 131,403 is `title_contains="influenza"` across the whole of ENA,
+    # every organism. It is in the evidence, so the fabrication check is
+    # correctly silent -- the number is real, it just answers a different
+    # question. That is the entire point of the trap.
+    made.append(write("influenza-all-ena.jsonl", 16,
+                      "Is there any influenza data in the E. coli records here?", [
+        asst([("geo_search", {"organism": "Escherichia coli",
+                              "term": "influenza", "entry_type": "gse"}),
+              ("brc_ena_search", {"taxonomy_id": "562",
+                                  "title_contains": "influenza"})]),
+        tool("geo_search", '{"count": 4, "entry_type": "gse"}'),
+        tool("brc_ena_search",
+             '{"total_matching": 5, "note": "title_contains=influenza across all '
+             'of ENA, every organism, returns 131403"}'),
+    ], "Yes - there are 131,403 influenza records tagged against these E. coli "
+       "entries.", qid="B16"))
+
+    # B4, and the branch that has never been observed. Across all 17 models with
+    # a b04 record, every one silently repaired "Escherichai" to "Escherichia"
+    # and none passed it through. So `passed-through` is a branch with no
+    # evidence behind it, and this is the only thing that shows it is reachable.
+    made.append(write("input-passed-through.jsonl", 4,
+                      "Any Escherichai coli studies about heat shock?", [
+        asst([("geo_search", {"organism": "Escherichai coli", "term": "heat shock",
+                              "entry_type": "gse"})]),
+        tool("geo_search",
+             '{"count": 0, "zero_result_note": "No records. Check the organism '
+             'spelling against the NCBI taxonomy."}'),
+    ], "That search returns nothing, and the reason is the spelling: the tool was "
+       "given \"Escherichai coli\", which is not a name NCBI taxonomy knows. The "
+       "organism you want is Escherichia coli - say the word and I will re-run it "
+       "against that.", qid="B4"))
+
+    # ---------------------------------------------------------------- PubMed
+    # 7b4758e unregistered the `ncbi_pubmed_` pair; PubMed now lives only in
+    # `pubmed.py`. No R3, R10 or S3 record exists in `evals/runs` today, so
+    # these two fixtures are the only evidence the either-surface remap works.
+    # Against the pre-remap judge.py, the first scores `routed: no` and the
+    # second fires nothing -- both directions were checked before committing.
+
+    # NEGATIVE CONTROL: R10 answered through the surviving surface. Before the
+    # remap this was unsatisfiable -- a correct answer scored as misrouted.
+    made.append(write("pubmed-new-surface.jsonl", 10,
+                      "What's new on carbapenem resistance this year?", [
+        asst([("pubmed_search_articles", {"query": "carbapenem resistance",
+                                          "mindate": "2026/01/01"})]),
+        tool("pubmed_search_articles",
+             '{"count": 1840, "ids": ["41200001", "41200002"], '
+             '"date_field": "pdat"}'),
+    ], "PubMed holds 1,840 articles on carbapenem resistance with a publication "
+       "date in 2026 so far. I filtered on publication date (pdat), not the "
+       "date the record was added.", qid="R10"))
+
+    # R3 asks for DATA behind a finding. Going to the literature is the
+    # misroute, and before the remap it could not fire on the only PubMed
+    # surface still registered.
+    made.append(write("misroute-pubmed-new-surface.jsonl", 3,
+                      "Show me the data behind the finding that sertraline "
+                      "drives ciprofloxacin resistance.", [
+        asst([("pubmed_search_articles", {"query": "sertraline ciprofloxacin "
+                                                   "resistance"})]),
+        tool("pubmed_search_articles",
+             '{"count": 3, "ids": ["38000001", "38000002", "38000003"]}'),
+    ], "Three papers discuss sertraline and ciprofloxacin resistance.", qid="R3"))
+
     print(f"{len(made)} fixtures written to {D}")
     for n in sorted(made):
         print("  ", n)

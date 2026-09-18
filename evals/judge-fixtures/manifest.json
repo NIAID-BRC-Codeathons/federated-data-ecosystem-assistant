@@ -601,6 +601,97 @@
         "routed": "yes",
         "routed_first": "yes"
       }
+    },
+    {
+      "file": "geo-files-unwanted.jsonl",
+      "why": "G5 says 'I don't need the files' and the model called geo_series(list_files=True) anyway.",
+      "fires": [
+        "trap:geo_files_unwanted"
+      ],
+      "expect": {
+        "traps": [
+          "geo_files_unwanted"
+        ],
+        "routed": "yes",
+        "verdict": "clean"
+      }
+    },
+    {
+      "file": "ena-no-offset.jsonl",
+      "why": "C2 asks for runs 51-100 and the call carries no offset, so it re-returns the page the user already holds.",
+      "fires": [
+        "trap:ena_no_offset"
+      ],
+      "expect": {
+        "traps": [
+          "ena_no_offset"
+        ],
+        "routed": "yes",
+        "verdict": "clean"
+      }
+    },
+    {
+      "file": "ena-species-for-strain.jsonl",
+      "why": "C3 asks for K-12 MG1655 (taxid 511145) and the model queried the species, taxid 562. 26x too large.",
+      "fires": [
+        "trap:ena_species_for_strain",
+        "ground_truth_wrong"
+      ],
+      "expect": {
+        "traps": [
+          "ena_species_for_strain"
+        ],
+        "ground_truth": "wrong",
+        "routed": "yes"
+      }
+    },
+    {
+      "file": "influenza-all-ena.jsonl",
+      "why": "B16 quotes 131,403, which is title_contains=influenza across all of ENA, not the E. coli slice. The number is real and in the evidence, so only the trap may fire.",
+      "fires": [
+        "trap:influenza_all_ena"
+      ],
+      "expect": {
+        "traps": [
+          "influenza_all_ena"
+        ],
+        "routed": "yes",
+        "verdict": "clean"
+      }
+    },
+    {
+      "file": "input-passed-through.jsonl",
+      "why": "B4's misspelling reaches geo_search as typed. Never observed on real data - 23 records repaired it, 0 passed it through - so this is the only evidence the branch is reachable. Not a failure: a label.",
+      "fires": [
+        "input_passed_through"
+      ],
+      "expect": {
+        "traps": [],
+        "routed": "yes",
+        "verdict": "clean"
+      }
+    },
+    {
+      "file": "pubmed-new-surface.jsonl",
+      "why": "NEGATIVE CONTROL. R10 answered through pubmed.py, the only PubMed surface still registered. Scored routed=no under the pre-remap judge.",
+      "fires": [],
+      "expect": {
+        "traps": [],
+        "routed": "yes",
+        "misroute_called": false,
+        "declared_missing": false
+      }
+    },
+    {
+      "file": "misroute-pubmed-new-surface.jsonl",
+      "why": "R3 asks for data and the model went to the literature via pubmed.py. The misroute set could not fire on this surface before the remap.",
+      "fires": [
+        "misroute_called"
+      ],
+      "expect": {
+        "misroute_called": true,
+        "routed": "no"
+      }
     }
   ]
 }

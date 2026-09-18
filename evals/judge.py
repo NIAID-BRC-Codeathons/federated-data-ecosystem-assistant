@@ -113,11 +113,23 @@ EXPECTED: dict[int, dict] = {
     # Raised by the second judge session and verified here against `chatbot.py`
     # and the q10 transcript before anything was changed. That mattered: the
     # same handover carried two other findings, and neither survived the check.
-    # `ncbi_pubmed_search` and `ncbi_pubmed_abstracts` were reported unregistered
-    # with zero calls; both are registered at `mcp_servers/ncbi_lib/server.py`
-    # lines 786 and 853, and `ncbi_pubmed_abstracts` returned "Abstracts for 11
-    # PubMed citation(s)" in `argo_claudesonnet45-bobby-lanes/b01.jsonl`. So R10
-    # and S3 keep their primaries.
+    #
+    # One of the two was the PubMed pair, and the check against it was correct
+    # when made and then went stale. At this file's 16:15 commit (a3d08a4) the
+    # branch held 20 `@server.tool()` decorators in `ncbi_lib/server.py`, with
+    # `ncbi_pubmed_search` registered at line 786 -- so "they are registered"
+    # was true of the code it was checked against. Jonathan's 7b4758e
+    # (15:26 on main) removed the decorators from `ncbi_pubmed_search`,
+    # `ncbi_pubmed_abstracts` and `ncbi_list_databases`; it reached this branch
+    # in the merge at 16:23:21 (01e431b), eight minutes after the check. The
+    # server now registers 17 tools. The subject of a correct check was removed,
+    # which is a different failure from a wrong check and needs a different
+    # guard: a verification against a moving `main` has a timestamp, not a
+    # permanence. PubMed is now reachable only through `pubmed.py`
+    # (`pubmed_search_articles`, `pubmed_get_summaries`, `pubmed_get_article`),
+    # so R10, S3 and the R3 misroute accept EITHER surface -- see PUBMED_TOOLS.
+    # Both, not only the new one, because 24 recorded calls in the corpus went
+    # to the `ncbi_pubmed_` pair before it was removed, and they were right.
     10: {"primary": {"nde_facet_counts", "nde_search_datasets", "nde_get_record"},
          "kind": "answer", "source": "NDE -> NCBI (wired at 62ff6b6)"},
     11: {"primary": {"nde_list_repositories", "nde_search_datasets"},
@@ -282,6 +294,14 @@ CONTEXT_FIGURES = {551679: "ENA runs for taxid 562 (ADVERSARIAL.md A8)",
 # returns HTTP 200 and a real number that answers a different question.
 # `declared` is the unit or source word the answer has to carry beside its
 # number; `min` is how many distinct words from the list must appear.
+# PubMed has two surfaces in this corpus: the `ncbi_pubmed_` pair in
+# `ncbi_lib/server.py` (registered until 7b4758e, called 24 times in recorded
+# runs) and `pubmed.py`, the only one registered now. A PubMed expectation that
+# names one surface is unsatisfiable on runs made against the other, and a
+# misroute set that names one cannot fire on the other. See the note at Q10.
+PUBMED_TOOLS = {"ncbi_pubmed_search", "ncbi_pubmed_abstracts",
+                "pubmed_search_articles", "pubmed_get_summaries", "pubmed_get_article"}
+
 EXPECTED_ROUTING: dict[str, dict] = {
     "R1":  {"primary": set(), "misroute": set(), "kind": "answer",
             "source": "no single source -- the decomposition is the answer",
@@ -292,7 +312,7 @@ EXPECTED_ROUTING: dict[str, dict] = {
             "source": "NCBI Pathogen Detection",
             "declared": {"min": 1, "words": ["isolate"]}},
     "R3":  {"primary": {"geo_search", "geo_series", "ncbi_sra_runs_for_project"},
-            "misroute": {"ncbi_pubmed_search", "ncbi_pubmed_abstracts"},
+            "misroute": set(PUBMED_TOOLS),
             "kind": "answer", "source": "NCBI GEO"},
     "R4":  {"primary": {"search_organisms", "get_assemblies",
                         "get_compatible_workflows", "check_compatibility"},
@@ -317,7 +337,7 @@ EXPECTED_ROUTING: dict[str, dict] = {
             "misroute": set(), "kind": "answer",
             "source": "NCBI, and only after the unit is named",
             "declared": {"min": 1, "words": ["assembl", "isolate", "runs"]}},
-    "R10": {"primary": {"ncbi_pubmed_search", "ncbi_pubmed_abstracts"},
+    "R10": {"primary": set(PUBMED_TOOLS),
             "misroute": set(), "kind": "answer", "source": "PubMed",
             "declared": {"min": 1, "words": ["pdat", "pub_date", "publication date",
                                              "issue date"]}},
@@ -356,7 +376,7 @@ EXPECTED_STRESS: dict[str, dict] = {
     "S2":  {"primary": {"ncbi_taxonomy_lookup", "ncbi_pathogen_organisms"},
             "kind": "answer", "source": "NCBI Taxonomy + Pathogen Detection",
             "declared": {"min": 1, "words": ["shigella"]}},
-    "S3":  {"primary": {"ncbi_pubmed_search", "ncbi_pubmed_abstracts"},
+    "S3":  {"primary": set(PUBMED_TOOLS),
             "kind": "answer", "source": "PubMed",
             "declared": {"min": 1, "words": ["pdat", "pub_date", "publication date"]}},
     "S4":  {"primary": {"geo_search"}, "kind": "answer", "source": "NCBI GEO",
@@ -2263,8 +2283,13 @@ def self_test(fixtures: pathlib.Path = FIXTURES) -> int:
         print(f"  unknown-set guard: {n_kept} scored, {len(refused)} refused {tags}")
         if not (n_kept == 1 and tags == ["no-rubric", "set-conflict"]):
             failures.append(
+                # The scored ids are named, not just counted. Since B gained a
+                # rubric, reverting `qid_conflict` to the "RS" alphabet no longer
+                # turns q03/B3 into a no-rubric refusal -- it SCORES it. A count
+                # of 2 cannot say which record slipped through; the id can.
                 f"unknown-set guard did not refuse an unknown set by name: scored "
-                f"{n_kept}, refused {refused}")
+                f"{n_kept} {sorted(r['q'] for rs in kept.values() for r in rs)}, "
+                f"refused {refused}")
 
     # The denominator must survive a run that died before writing a scorecard.
     # One transcript in a sixteen-question lane, no scorecard -- the exact shape

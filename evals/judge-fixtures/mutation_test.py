@@ -62,7 +62,12 @@ MUTATIONS = [
     theirs = (t.qid_by_path or "")[:1]
     mine = mine if mine in "RS" else ""
     theirs = theirs if theirs in "RS" else \"\"""",
-     "[no-rubric] fixture_model-bobby-lanes/q03.jsonl"),
+     # Was "[no-rubric] fixture_model-bobby-lanes/q03.jsonl" until B gained a
+     # rubric on 17 Sep. Under this mutation the B3-in-a-demo-file record is
+     # now SCORED rather than refused as no-rubric, so the suite still went red
+     # but for a reason this line no longer recognised -- the mutation reported
+     # BAD while the guard was working. The evidence is now the scored id.
+     "'B3'"),
 
     # The two wrong denominators, mutated separately because they are wrong for
     # different reasons and a reader has to be told which one was used. Both set

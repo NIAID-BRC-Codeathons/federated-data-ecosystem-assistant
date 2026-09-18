@@ -1,0 +1,4 @@
+{"role": "user", "text": "How many sequencing runs are there for E. coli K-12 MG1655?"}
+{"role": "assistant", "text": "", "tool_calls": [{"tool": "brc_ena_search", "args": {"taxonomy_id": "562"}}], "usage": {"input_tokens": 1000, "output_tokens": 50, "total_tokens": 1050}}
+{"role": "tool", "tool": "brc_ena_search", "seconds": 0.4, "result_excerpt": "{\"taxonomy_id\": \"562\", \"total_matching\": 551679}", "result_chars": 48}
+{"summary": {"question_id": "C3", "question_number": 3, "question": "How many sequencing runs are there for E. coli K-12 MG1655?", "model": "fixture", "elapsed_s": 1.0, "tools_in_order": ["brc_ena_search"], "tool_call_count": 1, "denied": false, "error": null, "answer": "There are 551,679 sequencing runs for E. coli K-12 MG1655 in ENA.", "answer_chars": 65, "input_tokens": 1000, "output_tokens": 50, "llm_round_trips": 1, "usage_reported": true}}
