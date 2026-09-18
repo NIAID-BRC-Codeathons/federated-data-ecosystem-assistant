@@ -31,8 +31,12 @@ Work in the open. Do not act as an opaque chatbot. Every answer must expose
 your resource-selection rationale, the queries you generated, the API calls you
 made, and the intermediate outputs they returned. A reader who disagrees with
 your conclusion must be able to see exactly which resources you chose, what you
-sent them, and what came back, and re-run it themselves. Make them hidden but clickable 
-in the final answer, so they can expand them if they want to check your work.
+sent them, and what came back, and re-run it themselves.
+
+The chat UI puts this behind an expandable panel for you -- do not write your
+own <details> or <summary> tags. Write the lead answer, then on a line by
+itself write the exact marker `<!--PROVENANCE-->` once, then everything else
+after it.
 
 PubMed is context, never evidence. Do not answer a question from the
 literature. Every count, proportion, accession, sequence, and factual claim in
@@ -52,8 +56,10 @@ when there is more than one number to compare, and backticks for accessions,
 tool names and query strings. Short paragraphs.
 
 Lead with the answer -- the number, the finding, or the statement that the
-retrieved data cannot support one. Then cover these, in this order, as ordinary
-paragraphs rather than labelled sections:
+retrieved data cannot support one. That lead is everything shown before the
+`<!--PROVENANCE-->` marker, so it must stand on its own. After the marker,
+cover these, in this order, as ordinary paragraphs rather than labelled
+sections:
 
 Which resources you chose and why, including any you considered and rejected
 where two could have answered the question.
@@ -394,6 +400,15 @@ async def on_chat_start():
     cl.user_session.set("chat_history", [])
 
 
+# SYSTEM_PROMPT asks the model to emit this marker once, on its own line,
+# between the lead answer and the resource rationale / call log / caveats /
+# sources that follow it. on_message() streams everything before the marker
+# into the visible answer bubble as it arrives, same as before, and holds
+# back everything from the marker onward to show as a collapsible step
+# instead -- the same "click to expand" treatment already used for tool calls.
+PROVENANCE_MARKER = "<!--PROVENANCE-->"
+
+
 @cl.on_message
 async def on_message(message: cl.Message):
     """Handle each user message through the agentic tool loop."""
@@ -407,6 +422,15 @@ async def on_message(message: cl.Message):
     answer_msg = cl.Message(content="")
     pending_tool_calls: dict[str, dict] = {}
     current_tc_id: str | None = None
+    # raw_buffer holds text not yet forwarded to answer_msg because it might
+    # still be the start of a marker split across two stream chunks. Once the
+    # marker is seen, in_detail flips and the remainder accumulates in
+    # detail_text instead of being streamed. All four reset together with
+    # answer_msg at each tool-call boundary, so only the final segment (the
+    # one with no further tool calls after it) feeds the provenance step.
+    raw_buffer = ""
+    in_detail = False
+    detail_text = ""
 
     async for chunk, __ in agent.astream(
         {"messages": chat_history}, stream_mode="messages"
@@ -414,7 +438,24 @@ async def on_message(message: cl.Message):
         if isinstance(chunk, AIMessageChunk):
             # Anthropic streams content as a list of blocks; .text keeps only the text.
             if chunk.text:
-                await answer_msg.stream_token(chunk.text)
+                if in_detail:
+                    detail_text += chunk.text
+                else:
+                    raw_buffer += chunk.text
+                    if PROVENANCE_MARKER in raw_buffer:
+                        before, _, after = raw_buffer.partition(PROVENANCE_MARKER)
+                        if before:
+                            await answer_msg.stream_token(before)
+                        in_detail = True
+                        detail_text += after
+                        raw_buffer = ""
+                    else:
+                        # Flush everything except a tail short enough to still
+                        # be the start of a split marker.
+                        keep = len(PROVENANCE_MARKER) - 1
+                        if len(raw_buffer) > keep:
+                            safe, raw_buffer = raw_buffer[:-keep], raw_buffer[-keep:]
+                            await answer_msg.stream_token(safe)
             for tc_chunk in getattr(chunk, "tool_call_chunks", []) or []:
                 tc_id = tc_chunk.get("id")
                 if tc_id:
@@ -432,12 +473,30 @@ async def on_message(message: cl.Message):
                 s.input = info.get("args", "")
                 s.output = str(chunk.content)[:800]
             answer_msg = cl.Message(content="")
+            raw_buffer = ""
+            in_detail = False
+            detail_text = ""
 
-    final_answer = answer_msg.content
-    if final_answer:
-        chat_history.append(AIMessage(content=final_answer))
+    # Whatever is left in raw_buffer never matched the marker, so it is part
+    # of the visible answer, not held-back detail.
+    if not in_detail and raw_buffer:
+        await answer_msg.stream_token(raw_buffer)
+
+    # Reconstruct exactly what the model produced for this segment -- the
+    # streamed lead plus, if present, the marker and everything after it --
+    # so chat history keeps seeing what answer_msg.content held before this
+    # was split into two pieces.
+    full_answer = answer_msg.content
+    if in_detail:
+        full_answer += PROVENANCE_MARKER + detail_text
+    if full_answer:
+        chat_history.append(AIMessage(content=full_answer))
     cl.user_session.set("chat_history", chat_history[-20:])
     await answer_msg.send()
+
+    if detail_text.strip():
+        async with cl.Step(name="📋 provenance") as step:
+            step.output = detail_text.strip()
 
 
 @cl.set_starters
