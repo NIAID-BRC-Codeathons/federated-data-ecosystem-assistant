@@ -86,7 +86,10 @@ and will drift; treat a small discrepancy as drift and a large one as a defect.
 - **A good answer** says they are different record types and does not claim the GDS
   exists unless the tool said so.
 
-## B4. "How many ciprofloxacin studies are there for Escherichai coli?"
+## B4. "How many ciprofloxacin expression studies does GEO have for Escherichai coli?"
+
+*Reworded 18 Sep to name GEO; runs before that asked "How many ciprofloxacin studies are there
+for Escherichai coli?", which names no database. The misspelling stays.*
 
 *(the misspelling is deliberate and must stay)*
 
@@ -269,12 +272,13 @@ identical to absence.
   making it obvious.
 - **A good answer** names both units and says what each database is *for*.
 
-## B16. "Is there any influenza data in the E. coli records here?"
+## B16. "Is there any influenza data among the E. coli records in GEO and ENA?"
 
 *Scored 18 Sep by `evals/leaderboard.py`: "the records here" names no database, and
 several models reasonably searched NDE, so any tool call counts as the right tool and
 the GEO/ENA figures below are not checked. B4 gets the same rule for the same reason.
-An answer with no tool call still counts as a miss. Next rewrite: name GEO and ENA.*
+An answer with no tool call still counts as a miss. Reworded 18 Sep to name GEO and ENA;
+the 17 Sep runs asked "...in the E. coli records here?".*
 
 *Rewritten 17 Sep after this case was measured and found to be wrong. It
 originally asked the model to "read the two zeros", on my assumption that an
