@@ -580,8 +580,15 @@ EXPECTED_GEO: dict[str, dict] = {
     "G6": {"primary": {"geo_resolve_accession"}, "kind": "answer",
            "source": "NCBI GEO",
            "declared": {"min": 1, "words": ["sample", "gsm"]}},
+    # The answer is an ACCESSION, GPL24659, so it is scored as a word. It was a
+    # numeric pin (24659) until 08:32 on 18 Sep, and that pin could never hit:
+    # `_ANSWER_NUM` skips digits glued to letters by design, so
+    # answer_numbers("The platform is GPL24659.") is []. Every correct G7 answer
+    # would have scored `miss`. No G7 record existed yet, so nothing was scored
+    # wrong -- which is also why nothing had caught it.
     "G7": {"primary": {"geo_resolve_accession"}, "kind": "answer",
-           "source": "NCBI GEO"},
+           "source": "NCBI GEO",
+           "declared": {"min": 1, "words": [r"gpl\s?24659"]}},
     # 513 is IN THE QUESTION here and explaining it is the correct answer, so G8
     # must stay OUT of `GDS_513_QIDS` -- that trap would fire on every good
     # answer. The scoreable claim is 37 Series.
@@ -631,7 +638,7 @@ GROUND_TRUTH_BGC: dict[str, list[dict]] = {
     "G4": [{"value": 50, "what": "E. coli heat-shock Series; the question's "
                                  "premise of 500 is wrong",
             "decoys": {500: "the figure asserted in the question, accepted uncritically"}}],
-    "G7": [{"value": 24659, "what": "GPL24659, the platform for GSE309890"}],
+    # G7 is scored by `declared`, not here -- its answer is an accession.
     "G8": [{"value": 37, "what": "GEO Series for E. coli + ciprofloxacin. 513 is "
                                  "NOT a decoy here: the question hands it to the "
                                  "model and explaining it is the correct answer."}],
