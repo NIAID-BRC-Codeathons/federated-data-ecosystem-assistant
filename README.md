@@ -48,3 +48,8 @@ TBD
 7. Run chatbot:
 `uv run chainlit run chatbot.py`
 
+
+
+https://github.com/user-attachments/assets/1786546f-327e-4da6-a934-fce6baeba0cb
+
+
